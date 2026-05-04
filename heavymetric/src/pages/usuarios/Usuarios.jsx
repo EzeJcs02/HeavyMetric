@@ -76,7 +76,6 @@ export default function Usuarios() {
           <thead className="border-b border-hm-border">
             <tr>
               <th className="p-4 font-mono text-xs text-hm-muted">NOMBRE</th>
-              <th className="p-4 font-mono text-xs text-hm-muted">EMAIL</th>
               <th className="p-4 font-mono text-xs text-hm-muted">ROL</th>
               <th className="p-4 font-mono text-xs text-hm-muted">ÁREA</th>
               <th className="p-4 font-mono text-xs text-hm-muted">ESTADO</th>
@@ -110,7 +109,7 @@ export default function Usuarios() {
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-hm-accent/15 border border-hm-accent/30 flex items-center justify-center shrink-0">
                           <span className="text-[10px] font-bold text-hm-accent">
-                            {(u.nombre_completo || u.email || '?').slice(0, 2).toUpperCase()}
+                            {(u.nombre_completo || '?').slice(0, 2).toUpperCase()}
                           </span>
                         </div>
                         <div>
@@ -119,7 +118,6 @@ export default function Usuarios() {
                         </div>
                       </div>
                     </td>
-                    <td className="p-4 text-sm text-hm-muted font-mono">{u.email || '—'}</td>
                     <td className="p-4">
                       <Badge variant={ROL_VARIANT[u.rol] ?? 'default'}>
                         {ROL_LABELS[u.rol] ?? u.rol}

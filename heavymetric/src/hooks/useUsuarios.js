@@ -12,7 +12,7 @@ export function useUsuarios() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('perfiles')
-        .select('id, nombre_completo, email, rol, area, activo, created_at')
+        .select('id, nombre_completo, rol, area, activo, created_at')
         .eq('organization_id', orgId)
         .order('created_at')
       if (error) throw error
