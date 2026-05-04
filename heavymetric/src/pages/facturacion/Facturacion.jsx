@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
 import ModalCobro from '../../components/modulos/facturacion/ModalCobro'
+import ModalConfirm from '../../components/ui/ModalConfirm'
 import Pagination from '../../components/ui/Pagination'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
@@ -15,6 +16,8 @@ const PER_PAGE = 10
 export default function Facturacion() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTx, setSelectedTx] = useState(null)
+  const [txAAnular, setTxAAnular] = useState(null)
+  const [anulando, setAnulando] = useState(false)
   const [periodo, setPeriodo] = useState('este_mes')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('todos') // todos, pendiente, cobrado
@@ -23,7 +26,7 @@ export default function Facturacion() {
   useEffect(() => { setPage(1) }, [searchQuery, filterStatus, periodo])
   const { formatUSD, formatARS } = useDolar()
 
-  const { transacciones, loading, error, registrarCobro } = useFinanzas()
+  const { transacciones, loading, error, registrarCobro, anularTransaccion } = useFinanzas()
 
   // Filtrado Multicapa (Período + Búsqueda + Estado)
   const transaccionesFiltradas = useMemo(() => {
@@ -70,6 +73,20 @@ export default function Facturacion() {
   const handleOpenModal = (tx) => {
     setSelectedTx(tx)
     setIsModalOpen(true)
+  }
+
+  const handleConfirmarAnular = async () => {
+    if (!txAAnular) return
+    setAnulando(true)
+    try {
+      await anularTransaccion(txAAnular.id)
+      toast.success('Comprobante anulado correctamente')
+      setTxAAnular(null)
+    } catch (err) {
+      toast.error('Error al anular: ' + err.message)
+    } finally {
+      setAnulando(false)
+    }
   }
 
   const handleConfirmCobro = async (payload) => {
@@ -248,15 +265,26 @@ export default function Facturacion() {
                       </Badge>
                     </td>
                     <td className="p-4 text-right">
-                      {tx.estado_pago === 'pendiente' && (
-                        <Button 
-                          variant="outline" 
-                          className="px-3 py-1 text-xs border-green-500/50 text-green-400 hover:bg-green-500/10"
-                          onClick={() => handleOpenModal(tx)}
-                        >
-                          COBRAR
-                        </Button>
-                      )}
+                      <div className="flex gap-2 justify-end">
+                        {tx.estado_pago === 'pendiente' && (
+                          <>
+                            <Button
+                              variant="outline"
+                              className="px-3 py-1 text-xs border-green-500/50 text-green-400 hover:bg-green-500/10"
+                              onClick={() => handleOpenModal(tx)}
+                            >
+                              COBRAR
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="px-3 py-1 text-xs border-red-800 text-red-400 hover:bg-red-900/20"
+                              onClick={() => setTxAAnular(tx)}
+                            >
+                              ANULAR
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -272,11 +300,21 @@ export default function Facturacion() {
         </Card>
       </section>
 
-      <ModalCobro 
+      <ModalCobro
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         transaccion={selectedTx}
         onConfirm={handleConfirmCobro}
+      />
+
+      <ModalConfirm
+        isOpen={!!txAAnular}
+        titulo="Anular Comprobante"
+        mensaje={`¿Anular el comprobante ${txAAnular?.tipo_documento} #${txAAnular?.numero_comprobante || txAAnular?.id?.split('-')[0]} de ${txAAnular?.cliente?.razon_social}? Esta acción no puede deshacerse.`}
+        confirmLabel="Anular"
+        onConfirm={handleConfirmarAnular}
+        onClose={() => setTxAAnular(null)}
+        loading={anulando}
       />
     </div>
   )

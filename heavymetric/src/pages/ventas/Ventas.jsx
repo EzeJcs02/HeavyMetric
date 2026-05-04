@@ -7,6 +7,7 @@ import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Input from '../../components/ui/Input'
+import ModalConfirm from '../../components/ui/ModalConfirm'
 
 const PER_PAGE = 10
 
@@ -97,11 +98,13 @@ function ModalAjusteStock({ item, onConfirm, onClose }) {
 // ─── Módulo Ventas (Inventario de Repuestos) ──────────────────────────────────
 export default function Ventas() {
   const { formatUSD } = useDolar()
-  const { items, loading, error, ajustarStock, crearItem } = useInventario()
+  const { items, loading, error, ajustarStock, crearItem, archivarItem } = useInventario()
 
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStock, setFilterStock] = useState('todos') // todos, bajo, ok
   const [selectedItem, setSelectedItem] = useState(null)
+  const [itemAArchivar, setItemAArchivar] = useState(null)
+  const [archivando, setArchivando] = useState(false)
   const [page, setPage] = useState(1)
 
   useEffect(() => { setPage(1) }, [searchQuery, filterStock])
@@ -129,6 +132,20 @@ export default function Ventas() {
   // KPIs
   const bajosStock = items.filter(i => i.stock_actual <= i.stock_minimo).length
   const valorTotal = items.reduce((acc, i) => acc + Number(i.precio_base_usd) * Number(i.stock_actual), 0)
+
+  const handleConfirmarArchivar = async () => {
+    if (!itemAArchivar) return
+    setArchivando(true)
+    try {
+      await archivarItem(itemAArchivar.id)
+      toast.success(`"${itemAArchivar.nombre_repuesto}" archivado del inventario`)
+      setItemAArchivar(null)
+    } catch (err) {
+      toast.error('Error al archivar: ' + err.message)
+    } finally {
+      setArchivando(false)
+    }
+  }
 
   const handleAjuste = async (id, cantidad, tipo) => {
     await ajustarStock(id, cantidad, tipo)
@@ -286,12 +303,20 @@ export default function Ventas() {
                       </Badge>
                     </td>
                     <td className="p-4 text-right">
-                      <button
-                        onClick={() => setSelectedItem(item)}
-                        className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-hm-accent hover:text-hm-accent transition-colors"
-                      >
-                        AJUSTAR
-                      </button>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => setSelectedItem(item)}
+                          className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-hm-accent hover:text-hm-accent transition-colors"
+                        >
+                          AJUSTAR
+                        </button>
+                        <button
+                          onClick={() => setItemAArchivar(item)}
+                          className="px-3 py-1 text-xs font-mono font-bold border border-red-900/50 text-red-500/70 rounded hover:border-red-700 hover:text-red-400 transition-colors"
+                        >
+                          ARCHIVAR
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -315,6 +340,16 @@ export default function Ventas() {
           onClose={() => setSelectedItem(null)}
         />
       )}
+
+      <ModalConfirm
+        isOpen={!!itemAArchivar}
+        titulo="Archivar Repuesto"
+        mensaje={`¿Archivar "${itemAArchivar?.nombre_repuesto}" (${itemAArchivar?.sku_codigo})? Dejará de aparecer en el inventario activo.`}
+        confirmLabel="Archivar"
+        onConfirm={handleConfirmarArchivar}
+        onClose={() => setItemAArchivar(null)}
+        loading={archivando}
+      />
     </div>
   )
 }

@@ -15,12 +15,15 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import FichaMaquina from '../../components/modulos/maquinas/FichaMaquina'
 import Input from '../../components/ui/Input'
+import ModalConfirm from '../../components/ui/ModalConfirm'
 
 const PER_PAGE = 10
 
 export default function Taller() {
   const [activeTab, setActiveTab] = useState('flota')
   const [selectedOT, setSelectedOT] = useState(null)
+  const [otACancelar, setOtACancelar] = useState(null)
+  const [cancelando, setCancelando] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isNuevaOTOpen, setIsNuevaOTOpen] = useState(false)
   
@@ -40,7 +43,7 @@ export default function Taller() {
   const { formatUSD } = useDolar()
   const { maquinas, loading: loadingMaq, error: errorMaq, createMaquina, updateMaquina } = useMaquinas()
   const { clientes } = useClientes()
-  const { ots, loading: loadingOT, error: errorOT, finalizarOT, createOT } = useTaller()
+  const { ots, loading: loadingOT, error: errorOT, finalizarOT, createOT, cancelarOT } = useTaller()
 
   // Lógica de Filtrado de Maquinas
   const maquinasFiltradas = useMemo(() => {
@@ -104,6 +107,20 @@ export default function Taller() {
       handleCloseModal()
     } catch (err) {
       toast.error('Error al finalizar la OT: ' + err.message)
+    }
+  }
+
+  const handleConfirmarCancelar = async () => {
+    if (!otACancelar) return
+    setCancelando(true)
+    try {
+      await cancelarOT(otACancelar.id, otACancelar.maquina_id)
+      toast.success(`OT #${otACancelar.numero_ot} cancelada`)
+      setOtACancelar(null)
+    } catch (err) {
+      toast.error('Error al cancelar OT: ' + err.message)
+    } finally {
+      setCancelando(false)
     }
   }
 
@@ -299,14 +316,23 @@ export default function Taller() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </button>
-                      {ot.estado !== 'completada' && ot.estado !== 'facturada' && (
-                        <Button 
-                          variant="outline" 
-                          className="px-3 py-1 text-xs"
-                          onClick={() => handleOpenModal(ot)}
-                        >
-                          FINALIZAR
-                        </Button>
+                      {ot.estado !== 'completada' && ot.estado !== 'facturada' && ot.estado !== 'cancelada' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            className="px-3 py-1 text-xs"
+                            onClick={() => handleOpenModal(ot)}
+                          >
+                            FINALIZAR
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="px-3 py-1 text-xs border-red-800 text-red-400 hover:bg-red-900/20"
+                            onClick={() => setOtACancelar(ot)}
+                          >
+                            CANCELAR
+                          </Button>
+                        </>
                       )}
                     </td>
                   </tr>
@@ -339,6 +365,16 @@ export default function Taller() {
         isOpen={isFichaOpen}
         onClose={() => setIsFichaOpen(false)}
         maquinaId={selectedMaquinaId}
+      />
+
+      <ModalConfirm
+        isOpen={!!otACancelar}
+        titulo="Cancelar Orden de Trabajo"
+        mensaje={`¿Cancelar la OT #${otACancelar?.numero_ot}? La máquina quedará disponible.`}
+        confirmLabel="Cancelar OT"
+        onConfirm={handleConfirmarCancelar}
+        onClose={() => setOtACancelar(null)}
+        loading={cancelando}
       />
 
       <ModalMaquina

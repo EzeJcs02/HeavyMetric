@@ -20,6 +20,8 @@ export default function Alquileres() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [contratoAFinalizar, setContratoAFinalizar] = useState(null)
   const [finalizandoId, setFinalizandoId] = useState(null)
+  const [contratoACancelar, setContratoACancelar] = useState(null)
+  const [cancelando, setCancelando] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('todos') // todos, disponibles, alquiladas, taller
   const [pageContratos, setPageContratos] = useState(1)
@@ -29,7 +31,7 @@ export default function Alquileres() {
 
   const { formatUSD } = useDolar()
 
-  const { contratos, loading: loadingAlq, error: errorAlq, createContrato, finalizarContrato } = useAlquileres()
+  const { contratos, loading: loadingAlq, error: errorAlq, createContrato, finalizarContrato, cancelarContrato } = useAlquileres()
   const { maquinas, loading: loadingMaq, error: errorMaq } = useMaquinas()
   const { clientes, loading: loadingCli, error: errorCli } = useClientes()
 
@@ -78,6 +80,20 @@ export default function Alquileres() {
       toast.success('Contrato creado exitosamente')
     } catch (err) {
       toast.error('Error al crear contrato: ' + err.message)
+    }
+  }
+
+  const handleConfirmarCancelar = async () => {
+    if (!contratoACancelar) return
+    setCancelando(true)
+    try {
+      await cancelarContrato(contratoACancelar.id)
+      toast.success('Contrato cancelado y unidad liberada')
+      setContratoACancelar(null)
+    } catch (err) {
+      toast.error('Error al cancelar contrato: ' + err.message)
+    } finally {
+      setCancelando(false)
     }
   }
 
@@ -272,13 +288,22 @@ export default function Alquileres() {
                         </svg>
                       </button>
                       {c.estado !== 'finalizado' && c.estado !== 'cancelado' && (
-                        <Button
-                          variant="outline"
-                          className="px-3 py-1 text-xs"
-                          onClick={() => setContratoAFinalizar(c)}
-                        >
-                          FINALIZAR
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            className="px-3 py-1 text-xs"
+                            onClick={() => setContratoAFinalizar(c)}
+                          >
+                            FINALIZAR
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="px-3 py-1 text-xs border-red-800 text-red-400 hover:bg-red-900/20"
+                            onClick={() => setContratoACancelar(c)}
+                          >
+                            CANCELAR
+                          </Button>
+                        </>
                       )}
                     </td>
                   </tr>
@@ -297,6 +322,16 @@ export default function Alquileres() {
         maquinasDisponibles={maquinasDisponibles}
         clientes={clientes}
         onConfirm={handleCreateContrato}
+      />
+
+      <ModalConfirm
+        isOpen={!!contratoACancelar}
+        titulo="Cancelar Contrato de Alquiler"
+        mensaje={`¿Cancelar el contrato #${contratoACancelar?.numero_contrato} de ${contratoACancelar?.cliente_nombre}? La unidad quedará disponible sin generar factura.`}
+        confirmLabel="Cancelar Contrato"
+        onConfirm={handleConfirmarCancelar}
+        onClose={() => setContratoACancelar(null)}
+        loading={cancelando}
       />
 
       <ModalConfirm

@@ -118,6 +118,20 @@ export function useFinanzas() {
     }
   }
 
+  const anularTransaccion = async (txId) => {
+    try {
+      const { error: err } = await supabase
+        .from('transacciones')
+        .update({ estado_pago: 'anulado' })
+        .eq('id', txId)
+      if (err) throw err
+      await fetchTransacciones()
+    } catch (err) {
+      setError(err.message)
+      throw err
+    }
+  }
+
   const registrarCobro = async (txId, datosCobro) => {
     try {
       const { error: err } = await supabase
@@ -151,6 +165,7 @@ export function useFinanzas() {
     fetchTransacciones,
     crearFacturaDesdeOT,
     crearFacturaDesdeAlquiler,
-    registrarCobro
+    registrarCobro,
+    anularTransaccion
   }
 }

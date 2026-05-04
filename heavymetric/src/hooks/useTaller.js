@@ -142,6 +142,26 @@ export function useTaller() {
     }
   }
 
+  const cancelarOT = async (otId, maquinaId) => {
+    try {
+      const { error: err } = await supabase
+        .from('ordenes_trabajo')
+        .update({ estado: 'cancelada' })
+        .eq('id', otId)
+      if (err) throw err
+
+      await supabase
+        .from('maquinas')
+        .update({ en_taller: false })
+        .eq('id', maquinaId)
+
+      await fetchOts()
+    } catch (err) {
+      setError(err.message)
+      throw err
+    }
+  }
+
   // payload: { horometro_final, horas_mano_obra, precio_hora_usd, estado, notas_internas, mantenimiento_completo }
   const finalizarOT = async (otId, payload) => {
     try {
@@ -178,6 +198,7 @@ export function useTaller() {
     createOT,
     addRepuesto,
     updateManoObra,
-    finalizarOT
+    finalizarOT,
+    cancelarOT
   }
 }

@@ -13,6 +13,7 @@ export function useInventario() {
       const { data, error: err } = await supabase
         .from('inventario')
         .select('*')
+        .eq('activo', true)
         .order('nombre_repuesto')
       if (err) throw err
       setItems(data || [])
@@ -75,7 +76,21 @@ export function useInventario() {
     }
   }
 
+  const archivarItem = async (itemId) => {
+    try {
+      const { error: err } = await supabase
+        .from('inventario')
+        .update({ activo: false })
+        .eq('id', itemId)
+      if (err) throw err
+      await fetchItems()
+    } catch (err) {
+      setError(err.message)
+      throw err
+    }
+  }
+
   useEffect(() => { fetchItems() }, [])
 
-  return { items, loading, error, fetchItems, ajustarStock, updatePrecio, crearItem }
+  return { items, loading, error, fetchItems, ajustarStock, updatePrecio, crearItem, archivarItem }
 }

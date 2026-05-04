@@ -96,6 +96,33 @@ export function useAlquileres() {
     return dias * tarifaDiaria
   }
 
+  const cancelarContrato = async (contratoId) => {
+    try {
+      const { data: contrato, error: errGet } = await supabase
+        .from('contratos_alquiler')
+        .select('maquina_id')
+        .eq('id', contratoId)
+        .single()
+      if (errGet) throw errGet
+
+      const { error: err } = await supabase
+        .from('contratos_alquiler')
+        .update({ estado: 'cancelado' })
+        .eq('id', contratoId)
+      if (err) throw err
+
+      await supabase
+        .from('maquinas')
+        .update({ en_alquiler: false })
+        .eq('id', contrato.maquina_id)
+
+      await fetchContratos()
+    } catch (err) {
+      setError(err.message)
+      throw err
+    }
+  }
+
   const finalizarContrato = async (contratoId) => {
     try {
       const { data, error: err } = await supabase
@@ -125,6 +152,7 @@ export function useAlquileres() {
     fetchContratos,
     createContrato,
     calcularTotalSugerido,
-    finalizarContrato
+    finalizarContrato,
+    cancelarContrato
   }
 }

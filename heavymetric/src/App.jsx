@@ -14,6 +14,7 @@ import Precios from './pages/precios/Precios'
 import Facturacion from './pages/facturacion/Facturacion'
 import Clientes from './pages/clientes/Clientes'
 import Usuarios from './pages/usuarios/Usuarios'
+import Reportes from './pages/reportes/Reportes'
 import NotFound from './pages/NotFound'
 
 const PAGE_TITLES = {
@@ -26,6 +27,7 @@ const PAGE_TITLES = {
   '/facturacion': 'Facturación',
   '/login':       'Iniciar sesión',
   '/usuarios':    'Usuarios',
+  '/reportes':    'Reportes',
   '/setup':       'Configuración inicial',
 }
 
@@ -75,6 +77,7 @@ export default function App() {
               <Route path="precios" element={<Guard soloOwner><Precios /></Guard>} />
               <Route path="facturacion" element={<Guard soloSupervisor><Facturacion /></Guard>} />
               <Route path="usuarios" element={<Guard soloOwner><Usuarios /></Guard>} />
+              <Route path="reportes" element={<Guard soloSupervisor><Reportes /></Guard>} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
