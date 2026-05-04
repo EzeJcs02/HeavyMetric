@@ -114,7 +114,7 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
             name="notas_internas"
             value={formData.notas_internas}
             onChange={handleChange}
-            className="w-full bg-hm-surface2 border border-hm-border rounded p-3 text-white focus:outline-none focus:border-hm-accent transition-colors min-h-[100px]"
+            className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors min-h-[100px]"
             placeholder="Detalles técnicos de la reparación, observaciones para el cliente..."
           />
         </div>
@@ -138,7 +138,7 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
               name="estado" 
               value={formData.estado} 
               onChange={handleChange}
-              className="bg-hm-surface2 border border-hm-border rounded p-2 text-sm text-white focus:outline-none focus:border-hm-accent"
+              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
             >
               <option value="completada">Marcar como Completada</option>
               <option value="facturada">Marcar y pasar a Facturada</option>

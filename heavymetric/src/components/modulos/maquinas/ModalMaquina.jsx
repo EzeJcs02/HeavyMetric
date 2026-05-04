@@ -87,7 +87,7 @@ export default function ModalMaquina({ isOpen, onClose, maquina, clientes, onCon
             <select
               value={form.cliente_id}
               onChange={e => set('cliente_id', e.target.value)}
-              className="bg-hm-surface2 border border-hm-border rounded p-2 text-sm text-white focus:outline-none focus:border-hm-accent"
+              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
             >
               <option value="">— Flota propia —</option>
               {clientes.map(c => (
@@ -118,7 +118,7 @@ export default function ModalMaquina({ isOpen, onClose, maquina, clientes, onCon
             value={form.notas}
             onChange={e => set('notas', e.target.value)}
             rows={2}
-            className="w-full bg-hm-surface2 border border-hm-border rounded p-3 text-white text-sm focus:outline-none focus:border-hm-accent transition-colors resize-none"
+            className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text text-sm focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors resize-none"
             placeholder="Observaciones técnicas, historial relevante..."
           />
         </div>

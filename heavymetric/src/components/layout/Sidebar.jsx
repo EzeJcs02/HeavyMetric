@@ -22,32 +22,40 @@ export default function Sidebar() {
   const { isOwner, canEdit } = useAuth()
 
   const modules = [
-    { to: '/', label: 'DASHBOARD' },
-    { to: '/taller', label: 'TALLER' },
-    ...(canEdit ? [{ to: '/alquileres', label: 'ALQUILERES' }] : []),
-    { to: '/ventas', label: 'INVENTARIO' },
-    ...(canEdit ? [{ to: '/clientes', label: 'CLIENTES' }] : []),
-    ...(isOwner ? [{ to: '/precios', label: 'PRECIOS' }] : []),
-    ...(canEdit ? [{ to: '/facturacion', label: 'FACTURACIÓN' }] : []),
+    { to: '/', label: 'Dashboard' },
+    { to: '/taller', label: 'Taller' },
+    ...(canEdit ? [{ to: '/alquileres', label: 'Alquileres' }] : []),
+    { to: '/ventas', label: 'Inventario' },
+    ...(canEdit ? [{ to: '/clientes', label: 'Clientes' }] : []),
+    ...(isOwner ? [{ to: '/precios', label: 'Precios' }] : []),
+    ...(canEdit ? [{ to: '/facturacion', label: 'Facturación' }] : []),
   ]
 
   return (
-    <div className="w-[210px] bg-hm-surface border-r border-hm-border flex flex-col h-screen sticky top-0">
-      <div className="p-6 font-bold tracking-widest text-lg text-hm-text">
-        HM<span className="text-hm-accent">.</span>
+    <div className="w-52 bg-hm-surface border-r border-hm-border flex flex-col h-screen sticky top-0">
+      <div className="px-5 py-5 border-b border-hm-border/50">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-hm-accent flex items-center justify-center shrink-0">
+            <span className="text-hm-bg text-[11px] font-black tracking-tight">HM</span>
+          </div>
+          <div>
+            <div className="text-sm font-bold text-hm-text leading-none">HeavyMetric</div>
+            <div className="text-[10px] font-mono text-hm-muted mt-0.5">v2.5</div>
+          </div>
+        </div>
       </div>
 
-      <nav className="flex-1 flex flex-col gap-0.5 px-3 py-2">
+      <nav className="flex-1 flex flex-col gap-0.5 px-2.5 py-3">
         {modules.map(m => (
           <NavLink
             key={m.to}
             to={m.to}
             end={m.to === '/'}
             className={({ isActive }) => `
-              flex items-center gap-3 px-3 py-2.5 rounded text-xs font-bold tracking-wider transition-all
+              flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150
               ${isActive
-                ? 'bg-hm-surface2 text-hm-accent border-l-2 border-hm-accent pl-[10px]'
-                : 'text-hm-muted hover:text-hm-text hover:bg-hm-surface2/50 border-l-2 border-transparent pl-[10px]'
+                ? 'bg-hm-accent/10 text-hm-accent font-semibold'
+                : 'text-hm-muted font-medium hover:text-hm-text hover:bg-hm-surface2'
               }
             `}
           >
@@ -56,12 +64,6 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
-
-      <div className="p-5 border-t border-hm-border">
-        <div className="text-[10px] text-hm-muted font-bold tracking-widest uppercase">
-          HEAVYMETRIC v2.5
-        </div>
-      </div>
     </div>
   )
 }

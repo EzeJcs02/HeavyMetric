@@ -65,7 +65,7 @@ export default function ModalNuevoContrato({ isOpen, onClose, maquinasDisponible
               value={formData.cliente_id} 
               onChange={handleChange}
               required
-              className="bg-hm-surface2 border border-hm-border rounded p-2 text-sm text-white focus:outline-none focus:border-hm-accent"
+              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
             >
               <option value="">Seleccionar Cliente...</option>
               {clientes.map(c => (
@@ -81,7 +81,7 @@ export default function ModalNuevoContrato({ isOpen, onClose, maquinasDisponible
               value={formData.maquina_id} 
               onChange={handleChange}
               required
-              className="bg-hm-surface2 border border-hm-border rounded p-2 text-sm text-white focus:outline-none focus:border-hm-accent"
+              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
             >
               <option value="">Seleccionar Unidad...</option>
               {maquinasDisponibles.map(m => (
@@ -147,7 +147,7 @@ export default function ModalNuevoContrato({ isOpen, onClose, maquinasDisponible
             name="condiciones"
             value={formData.condiciones}
             onChange={handleChange}
-            className="w-full bg-hm-surface2 border border-hm-border rounded p-3 text-white focus:outline-none focus:border-hm-accent transition-colors min-h-[80px] text-sm"
+            className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors min-h-[80px] text-sm"
             placeholder="Lugar de entrega, responsabilidades de traslado..."
           />
         </div>

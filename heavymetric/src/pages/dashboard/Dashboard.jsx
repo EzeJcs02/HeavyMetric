@@ -42,15 +42,15 @@ export default function Dashboard() {
           </>
         ) : (
           <>
-            <KpiCard label="Órdenes Activas" value={kpis.ordenesActivas} subtext="Taller" />
-            <KpiCard label="Máq. en Alquiler" value={kpis.alquileresActivos} subtext={`${kpis.alquileresPorVencer} por vencer`} color="text-hm-alq" />
-            <KpiCard 
-              label="Facturado Mes" 
-              value={formatUSD(kpis.facturadoMes)} 
-              subtext={toARS ? formatARS(toARS(kpis.facturadoMes)) : 'Cargando ARS...'} 
-              color="text-green-400"
+            <KpiCard label="Órdenes Activas" value={kpis.ordenesActivas} subtext="Taller" accent="blue-400" />
+            <KpiCard label="Máq. en Alquiler" value={kpis.alquileresActivos} subtext={`${kpis.alquileresPorVencer} por vencer`} accent="hm-accent" />
+            <KpiCard
+              label="Facturado Mes"
+              value={formatUSD(kpis.facturadoMes)}
+              subtext={toARS ? formatARS(toARS(kpis.facturadoMes)) : 'Cargando ARS...'}
+              accent="green-400"
             />
-            <KpiCard label="Alertas Service" value={kpis.alertasService} subtext={`Urgentes: ${kpis.alertasServiceUrgentes}`} color="text-red-400" />
+            <KpiCard label="Alertas Service" value={kpis.alertasService} subtext={`Urgentes: ${kpis.alertasServiceUrgentes}`} accent="red-400" />
           </>
         )}
       </div>
@@ -58,8 +58,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 flex flex-col gap-6">
           <Card className="p-0 overflow-hidden">
-            <div className="p-4 border-b border-hm-border bg-hm-surface2/50">
-              <h2 className="font-bold font-mono tracking-wider">ÚLTIMAS TRANSACCIONES</h2>
+            <div className="px-5 py-3.5 border-b border-hm-border">
+              <h2 className="text-xs font-mono font-bold tracking-widest uppercase text-hm-muted">Últimas transacciones</h2>
             </div>
             {loading ? (
               <div className="p-4 space-y-3">
@@ -91,8 +91,8 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-2 gap-6">
             <Card className="p-0 overflow-hidden">
-              <div className="p-4 border-b border-hm-border bg-hm-surface2/50 flex justify-between items-center">
-                <h2 className="font-bold font-mono tracking-wider">SOLICITUDES</h2>
+              <div className="px-5 py-3.5 border-b border-hm-border flex justify-between items-center">
+                <h2 className="text-xs font-mono font-bold tracking-widest uppercase text-hm-muted">Solicitudes</h2>
                 {solicitudes.length > 0 && <Badge variant="info">{solicitudes.length}</Badge>}
               </div>
               {loading ? (
@@ -114,8 +114,8 @@ export default function Dashboard() {
             </Card>
 
             <Card className="p-0 overflow-hidden">
-              <div className="p-4 border-b border-hm-border bg-hm-surface2/50 flex justify-between items-center">
-                <h2 className="font-bold font-mono tracking-wider">AVISOS</h2>
+              <div className="px-5 py-3.5 border-b border-hm-border flex justify-between items-center">
+                <h2 className="text-xs font-mono font-bold tracking-widest uppercase text-hm-muted">Avisos</h2>
                 {alertas.length > 0 && <Badge variant="warn">{alertas.length}</Badge>}
               </div>
               {loading ? (
@@ -140,7 +140,7 @@ export default function Dashboard() {
         </div>
 
         <div className="col-span-1 flex flex-col gap-4">
-          <h2 className="font-bold font-mono tracking-wider px-1">ALERTAS DE SERVICE</h2>
+          <h2 className="text-xs font-mono font-bold tracking-widest uppercase text-hm-muted px-1">Alertas de service</h2>
           <div className="flex flex-col gap-3">
             {loading ? (
               <>

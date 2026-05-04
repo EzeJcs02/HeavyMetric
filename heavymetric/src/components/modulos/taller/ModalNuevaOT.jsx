@@ -63,7 +63,7 @@ export default function ModalNuevaOT({ isOpen, onClose, maquinas, clientes, onCo
               value={formData.maquina_id}
               onChange={handleChange}
               required
-              className="bg-hm-surface2 border border-hm-border rounded p-2 text-sm text-white focus:outline-none focus:border-hm-accent"
+              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
             >
               <option value="">Seleccionar Unidad...</option>
               {maquinasDisponibles.map(m => (
@@ -81,7 +81,7 @@ export default function ModalNuevaOT({ isOpen, onClose, maquinas, clientes, onCo
               value={formData.cliente_id}
               onChange={handleChange}
               required
-              className="bg-hm-surface2 border border-hm-border rounded p-2 text-sm text-white focus:outline-none focus:border-hm-accent"
+              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
             >
               <option value="">Seleccionar Cliente...</option>
               {clientes.map(c => (
@@ -107,7 +107,7 @@ export default function ModalNuevaOT({ isOpen, onClose, maquinas, clientes, onCo
               name="prioridad"
               value={formData.prioridad}
               onChange={handleChange}
-              className="bg-hm-surface2 border border-hm-border rounded p-2 text-sm text-white focus:outline-none focus:border-hm-accent"
+              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
             >
               <option value="normal">Normal</option>
               <option value="urgente">Urgente</option>
@@ -125,7 +125,7 @@ export default function ModalNuevaOT({ isOpen, onClose, maquinas, clientes, onCo
             value={formData.descripcion_trabajo}
             onChange={handleChange}
             required
-            className="w-full bg-hm-surface2 border border-hm-border rounded p-3 text-white focus:outline-none focus:border-hm-accent transition-colors min-h-[100px] text-sm"
+            className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors min-h-[100px] text-sm"
             placeholder="Describí el trabajo a realizar: diagnóstico, reparación, mantenimiento preventivo..."
           />
         </div>

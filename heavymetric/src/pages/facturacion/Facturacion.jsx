@@ -129,7 +129,7 @@ export default function Facturacion() {
           <select 
             value={periodo} 
             onChange={(e) => setPeriodo(e.target.value)}
-            className="bg-hm-surface2 border border-hm-border rounded p-2 text-sm text-white focus:outline-none focus:border-hm-accent"
+            className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
           >
             <option value="este_mes">Este Mes</option>
             <option value="mes_pasado">Mes Pasado</option>

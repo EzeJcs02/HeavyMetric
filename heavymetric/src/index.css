@@ -2,36 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap');
-
 @layer base {
-  * {
+  *,
+  *::before,
+  *::after {
     scrollbar-width: thin;
-    scrollbar-color: #2a2f3d transparent;
+    scrollbar-color: #252a38 transparent;
   }
 
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-thumb { background: #2a2f3d; border-radius: 4px; }
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: #252a38; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #353b50; }
 
   body {
     @apply bg-hm-bg text-hm-text antialiased;
-    font-family: 'Barlow', system-ui, sans-serif;
     font-size: 15px;
+    line-height: 1.5;
   }
 
-  /* Jerarquía tipográfica clara y legible */
   h1 { @apply text-2xl font-bold tracking-tight; }
-  h2 { @apply text-base font-bold tracking-wide uppercase text-hm-muted; }
+  h2 { @apply text-sm font-semibold tracking-wide text-hm-muted uppercase; }
+
+  ::selection {
+    background: rgba(240, 165, 0, 0.2);
+    color: #f0a500;
+  }
 }
 
 @layer components {
-  /* Cabeceras de sección estilo "ÚLTIMAS TRANSACCIONES" */
   .section-header {
-    @apply px-5 py-3 border-b border-hm-border bg-hm-surface2/50 text-xs font-bold tracking-widest uppercase text-hm-muted;
+    @apply px-5 py-3 border-b border-hm-border bg-hm-surface2/40
+           text-[11px] font-bold tracking-widest uppercase text-hm-muted;
   }
 
-  /* Filas de tabla refinadas */
-  .table-row {
-    @apply border-b border-hm-border/50 hover:bg-hm-surface2/30 transition-colors duration-150;
+  .label-mono {
+    @apply block text-[10px] font-mono font-bold tracking-[0.12em] uppercase text-hm-muted mb-1;
   }
 }

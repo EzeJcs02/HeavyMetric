@@ -61,11 +61,11 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
         <div className="grid grid-cols-2 gap-4">
           <Input label="CUIT" value={form.cuit} onChange={e => set('cuit', e.target.value)} placeholder="30-12345678-9" />
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-mono text-hm-muted tracking-wider">CONDICIÓN IVA</label>
+            <label className="label-mono">Condición IVA</label>
             <select
               value={form.condicion_iva}
               onChange={e => set('condicion_iva', e.target.value)}
-              className="bg-hm-surface2 border border-hm-border rounded p-2 text-sm text-white focus:outline-none focus:border-hm-accent"
+              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
             >
               <option>Responsable Inscripto</option>
               <option>Monotributista</option>
