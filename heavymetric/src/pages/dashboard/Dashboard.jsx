@@ -4,6 +4,10 @@ import KpiCard from '../../components/ui/KpiCard'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import AlertaService from '../../components/modulos/AlertaService'
+import {
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+} from 'recharts'
 
 export default function Dashboard() {
   const { toARS, formatARS, formatUSD } = useDolar()
@@ -20,7 +24,17 @@ export default function Dashboard() {
     )
   }
 
-  const { kpis, transacciones, alertas, alertasService, solicitudes } = data
+  const { kpis, transacciones, alertas, alertasService, solicitudes, ingresosMensuales } = data
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null
+    return (
+      <div className="bg-hm-surface border border-hm-border rounded-lg px-3 py-2 text-xs shadow-lg">
+        <div className="font-mono text-hm-muted mb-1">{label}</div>
+        <div className="font-bold text-hm-accent">{formatUSD(payload[0].value)}</div>
+      </div>
+    )
+  }
 
   const Skeleton = ({ className }) => (
     <div className={`animate-pulse bg-hm-surface2 rounded ${className}`} />
@@ -32,7 +46,7 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">Resumen General</h1>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {loading ? (
           <>
             <Skeleton className="h-[90px]" />
@@ -55,8 +69,59 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 flex flex-col gap-6">
+      {/* GRÁFICOS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="p-0 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-hm-border">
+            <h2 className="text-xs font-mono font-bold tracking-widest uppercase text-hm-muted">Ingresos del año</h2>
+          </div>
+          <div className="p-5">
+            {loading ? (
+              <div className="h-[160px] animate-pulse bg-hm-surface2 rounded" />
+            ) : (
+              <ResponsiveContainer width="100%" height={160}>
+                <AreaChart data={ingresosMensuales} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gradAccent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#f0a500" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#f0a500" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#252a38" vertical={false} />
+                  <XAxis dataKey="mes" tick={{ fill: '#5c6278', fontSize: 10, fontFamily: 'DM Mono' }} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area type="monotone" dataKey="total" stroke="#f0a500" strokeWidth={2} fill="url(#gradAccent)" dot={false} activeDot={{ r: 4, fill: '#f0a500' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </Card>
+
+        <Card className="p-0 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-hm-border">
+            <h2 className="text-xs font-mono font-bold tracking-widest uppercase text-hm-muted">Ingresos por mes (barras)</h2>
+          </div>
+          <div className="p-5">
+            {loading ? (
+              <div className="h-[160px] animate-pulse bg-hm-surface2 rounded" />
+            ) : (
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={ingresosMensuales} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barSize={14}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#252a38" vertical={false} />
+                  <XAxis dataKey="mes" tick={{ fill: '#5c6278', fontSize: 10, fontFamily: 'DM Mono' }} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="total" fill="#f0a500" fillOpacity={0.85} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 flex flex-col gap-6">
           <Card className="p-0 overflow-hidden">
             <div className="px-5 py-3.5 border-b border-hm-border">
               <h2 className="text-xs font-mono font-bold tracking-widest uppercase text-hm-muted">Últimas transacciones</h2>
@@ -89,7 +154,7 @@ export default function Dashboard() {
             )}
           </Card>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <Card className="p-0 overflow-hidden">
               <div className="px-5 py-3.5 border-b border-hm-border flex justify-between items-center">
                 <h2 className="text-xs font-mono font-bold tracking-widest uppercase text-hm-muted">Solicitudes</h2>
@@ -139,7 +204,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="col-span-1 flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <h2 className="text-xs font-mono font-bold tracking-widest uppercase text-hm-muted px-1">Alertas de service</h2>
           <div className="flex flex-col gap-3">
             {loading ? (

@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useClientes } from '../../hooks/useClientes'
+import { useAuth } from '../../context/AuthContext'
 import Modal from '../../components/ui/Modal'
+import ModalConfirm from '../../components/ui/ModalConfirm'
 import Pagination from '../../components/ui/Pagination'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
@@ -95,10 +97,13 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
 }
 
 export default function Clientes() {
-  const { clientes, loading, error, createCliente, updateCliente } = useClientes()
+  const { clientes, loading, error, createCliente, updateCliente, archiveCliente } = useClientes()
+  const { isOwner } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCliente, setEditingCliente] = useState(null)
+  const [clienteAArchivar, setClienteAArchivar] = useState(null)
+  const [loadingArchive, setLoadingArchive] = useState(false)
   const [page, setPage] = useState(1)
 
   useEffect(() => { setPage(1) }, [searchQuery])
@@ -116,6 +121,19 @@ export default function Clientes() {
     () => clientesFiltrados.slice((page - 1) * PER_PAGE, page * PER_PAGE),
     [clientesFiltrados, page]
   )
+
+  const handleArchive = async () => {
+    setLoadingArchive(true)
+    try {
+      await archiveCliente(clienteAArchivar.id)
+      toast.success(`${clienteAArchivar.razon_social} archivado correctamente`)
+      setClienteAArchivar(null)
+    } catch (err) {
+      toast.error('Error: ' + err.message)
+    } finally {
+      setLoadingArchive(false)
+    }
+  }
 
   const handleConfirm = async (payload) => {
     try {
@@ -217,12 +235,22 @@ export default function Clientes() {
                   <td className="p-4 font-mono text-sm text-hm-muted">{c.telefono || '—'}</td>
                   <td className="p-4 text-sm text-hm-muted">{c.contacto_nombre || '—'}</td>
                   <td className="p-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => { setEditingCliente(c); setIsModalOpen(true) }}
-                      className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-hm-accent hover:text-hm-accent transition-colors"
-                    >
-                      EDITAR
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => { setEditingCliente(c); setIsModalOpen(true) }}
+                        className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-hm-accent hover:text-hm-accent transition-colors"
+                      >
+                        EDITAR
+                      </button>
+                      {isOwner && (
+                        <button
+                          onClick={() => setClienteAArchivar(c)}
+                          className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-red-500 hover:text-red-400 transition-colors"
+                        >
+                          ARCHIVAR
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -237,6 +265,17 @@ export default function Clientes() {
         onClose={() => { setIsModalOpen(false); setEditingCliente(null) }}
         cliente={editingCliente}
         onConfirm={handleConfirm}
+      />
+
+      <ModalConfirm
+        isOpen={!!clienteAArchivar}
+        onClose={() => setClienteAArchivar(null)}
+        onConfirm={handleArchive}
+        loading={loadingArchive}
+        title="Archivar cliente"
+        message={`¿Archivás a "${clienteAArchivar?.razon_social}"? Dejará de aparecer en la lista activa pero sus datos históricos se conservan.`}
+        confirmLabel="Archivar"
+        variant="danger"
       />
     </div>
   )

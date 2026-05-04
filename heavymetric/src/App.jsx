@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { DolarProvider } from './context/DolarContext'
 import { Toaster } from 'sonner'
@@ -12,6 +13,30 @@ import Ventas from './pages/ventas/Ventas'
 import Precios from './pages/precios/Precios'
 import Facturacion from './pages/facturacion/Facturacion'
 import Clientes from './pages/clientes/Clientes'
+import Usuarios from './pages/usuarios/Usuarios'
+import NotFound from './pages/NotFound'
+
+const PAGE_TITLES = {
+  '/':            'Dashboard',
+  '/taller':      'Taller',
+  '/alquileres':  'Alquileres',
+  '/ventas':      'Inventario',
+  '/clientes':    'Clientes',
+  '/precios':     'Precios',
+  '/facturacion': 'Facturación',
+  '/login':       'Iniciar sesión',
+  '/usuarios':    'Usuarios',
+  '/setup':       'Configuración inicial',
+}
+
+function TitleUpdater() {
+  const location = useLocation()
+  useEffect(() => {
+    const label = PAGE_TITLES[location.pathname] ?? 'HeavyMetric'
+    document.title = `${label} — HeavyMetric`
+  }, [location.pathname])
+  return null
+}
 
 function Guard({ children, soloOwner, soloSupervisor }) {
   const { user, perfil, loading, isOwner, canEdit } = useAuth()
@@ -36,6 +61,7 @@ export default function App() {
     <AuthProvider>
       <DolarProvider>
         <BrowserRouter>
+          <TitleUpdater />
           <Toaster richColors position="top-right" theme="dark" />
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -48,7 +74,9 @@ export default function App() {
               <Route path="clientes" element={<Guard soloSupervisor><Clientes /></Guard>} />
               <Route path="precios" element={<Guard soloOwner><Precios /></Guard>} />
               <Route path="facturacion" element={<Guard soloSupervisor><Facturacion /></Guard>} />
+              <Route path="usuarios" element={<Guard soloOwner><Usuarios /></Guard>} />
             </Route>
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </DolarProvider>

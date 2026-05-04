@@ -1,79 +1,88 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
-export function useDashboardData() {
-  const [data, setData] = useState({
-    kpis: {
-      ordenesActivas: 0,
-      alquileresActivos: 0,
-      alquileresPorVencer: 0,
-      facturadoMes: 0,
-      alertasService: 0,
-      alertasServiceUrgentes: 0
-    },
-    transacciones: [],
-    alertas: [],
-    solicitudes: [],
-    alertasService: []
+const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+const EMPTY = {
+  kpis: {
+    ordenesActivas: 0,
+    alquileresActivos: 0,
+    alquileresPorVencer: 0,
+    facturadoMes: 0,
+    alertasService: 0,
+    alertasServiceUrgentes: 0,
+  },
+  transacciones:     [],
+  alertas:           [],
+  solicitudes:       [],
+  alertasService:    [],
+  ingresosMensuales: Array.from({ length: 12 }, (_, i) => ({ mes: MESES[i], total: 0 })),
+  flota:             [],
+}
+
+async function fetchDashboard() {
+  const hoy = new Date()
+  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0]
+  const inicioAnio = new Date(hoy.getFullYear(), 0, 1).toISOString().split('T')[0]
+
+  const [
+    { count: countOT,    error: errOT    },
+    { data: alqData,     error: errAlq   },
+    { data: txData,      error: errTx    },
+    { data: msData,      error: errMs    },
+    { data: ultimasTx,   error: errUltTx },
+    { data: alertasData, error: errAl    },
+    { data: solData,     error: errSol   },
+    { data: txAnual,     error: errAnual },
+    { data: flotaData,   error: errFlota },
+  ] = await Promise.all([
+    supabase.from('ordenes_trabajo').select('*', { count: 'exact', head: true }).in('estado', ['borrador', 'en_progreso']),
+    supabase.from('alquileres_activos').select('estado_vencimiento'),
+    supabase.from('transacciones').select('monto_total_usd').gte('fecha_emision', inicioMes),
+    supabase.from('maquinas_service').select('id, nombre_unidad, cliente_nombre, estado_service, horas_restantes_service').neq('estado_service', 'ok'),
+    supabase.from('transacciones').select('id, fecha_emision, numero_comprobante, tipo_documento, origen_tipo, monto_total_usd, estado_pago').order('fecha_emision', { ascending: false }).limit(5),
+    supabase.from('alertas').select('*').eq('resuelta', false).order('created_at', { ascending: false }).limit(5),
+    supabase.from('solicitudes_edicion').select('id, modulo, descripcion, estado, created_at, solicitante_id, perfiles:solicitante_id(nombre_completo)').eq('estado', 'pendiente').order('created_at', { ascending: false }).limit(5),
+    supabase.from('transacciones').select('fecha_emision, monto_total_usd').gte('fecha_emision', inicioAnio).order('fecha_emision'),
+    supabase.from('maquinas').select('id, nombre_unidad, activa').eq('activa', true),
+  ])
+
+  const firstError = errOT || errAlq || errTx || errMs || errUltTx || errAl || errSol || errAnual || errFlota
+  if (firstError) throw firstError
+
+  const facturado = (txData || []).reduce((acc, t) => acc + Number(t.monto_total_usd), 0)
+
+  const ingresosPorMes = Array.from({ length: 12 }, (_, i) => ({ mes: MESES[i], total: 0 }))
+  ;(txAnual || []).forEach(tx => {
+    const m = new Date(tx.fecha_emision).getMonth()
+    ingresosPorMes[m].total += Number(tx.monto_total_usd)
   })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
+  return {
+    kpis: {
+      ordenesActivas:          countOT || 0,
+      alquileresActivos:       (alqData || []).length,
+      alquileresPorVencer:     (alqData || []).filter(a => a.estado_vencimiento === 'por_vencer').length,
+      facturadoMes:            facturado,
+      alertasService:          (msData || []).length,
+      alertasServiceUrgentes:  (msData || []).filter(m => m.estado_service === 'urgente').length,
+    },
+    transacciones:     ultimasTx    || [],
+    alertas:           alertasData  || [],
+    alertasService:    msData       || [],
+    solicitudes:       solData      || [],
+    ingresosMensuales: ingresosPorMes,
+    flota:             flotaData    || [],
+  }
+}
 
-      const [
-        { count: countOT,  error: errOT  },
-        { data: alqData,   error: errAlq },
-        { data: txData,    error: errTx  },
-        { data: msData,    error: errMs  },
-        { data: ultimasTx, error: errUltTx },
-        { data: alertasData, error: errAlertas },
-        { data: solData,   error: errSol }
-      ] = await Promise.all([
-        supabase.from('ordenes_trabajo').select('*', { count: 'exact', head: true }).in('estado', ['borrador', 'en_progreso']),
-        supabase.from('alquileres_activos').select('estado_vencimiento'),
-        supabase.from('transacciones').select('monto_total_usd').gte('fecha_emision', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]),
-        supabase.from('maquinas_service').select('id, nombre_unidad, cliente_nombre, estado_service, horas_restantes_service').neq('estado_service', 'ok'),
-        supabase.from('transacciones').select('id, fecha_emision, numero_comprobante, tipo_documento, origen_tipo, monto_total_usd, estado_pago').order('fecha_emision', { ascending: false }).limit(5),
-        supabase.from('alertas').select('*').eq('resuelta', false).order('created_at', { ascending: false }).limit(5),
-        supabase.from('solicitudes_edicion').select('id, modulo, descripcion, estado, created_at, solicitante_id, perfiles:solicitante_id(nombre_completo)').eq('estado', 'pendiente').order('created_at', { ascending: false }).limit(5)
-      ])
+export function useDashboardData() {
+  const { data = EMPTY, isLoading: loading, error: queryError, refetch } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn:  fetchDashboard,
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+  })
 
-      const firstError = errOT || errAlq || errTx || errMs || errUltTx || errAlertas || errSol
-      if (firstError) throw firstError
-
-      const facturado = (txData || []).reduce((acc, curr) => acc + Number(curr.monto_total_usd), 0)
-
-      setData({
-        kpis: {
-          ordenesActivas:           countOT || 0,
-          alquileresActivos:        (alqData || []).length,
-          alquileresPorVencer:      (alqData || []).filter(a => a.estado_vencimiento === 'por_vencer').length,
-          facturadoMes:             facturado,
-          alertasService:           (msData || []).length,
-          alertasServiceUrgentes:   (msData || []).filter(m => m.estado_service === 'urgente').length
-        },
-        transacciones:  ultimasTx  || [],
-        alertas:        alertasData || [],
-        alertasService: msData     || [],
-        solicitudes:    solData    || []
-      })
-    } catch (err) {
-      console.error(err)
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchData()
-    const interval = setInterval(fetchData, 60000)
-    return () => clearInterval(interval)
-  }, [fetchData])
-
-  return { data, loading, error, refresh: fetchData }
+  return { data, loading, error: queryError?.message ?? null, refresh: refetch }
 }

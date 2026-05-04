@@ -7,6 +7,7 @@ import { useDolar } from '../../context/DolarContext'
 import { generateAlquilerPDF } from '../../utils/pdfGenerator'
 import ModalNuevoContrato from '../../components/modulos/alquileres/ModalNuevoContrato'
 import ModalConfirm from '../../components/ui/ModalConfirm'
+import CalendarioAlquileres from '../../components/modulos/alquileres/CalendarioAlquileres'
 import Pagination from '../../components/ui/Pagination'
 
 const PER_PAGE = 10
@@ -22,6 +23,7 @@ export default function Alquileres() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('todos') // todos, disponibles, alquiladas, taller
   const [pageContratos, setPageContratos] = useState(1)
+  const [vistaCalendario, setVistaCalendario] = useState(false)
 
   useEffect(() => { setPageContratos(1) }, [searchQuery, filterStatus])
 
@@ -186,9 +188,31 @@ export default function Alquileres() {
         )}
       </section>
 
-      {/* TABLA DE CONTRATOS */}
+      {/* TABLA / CALENDARIO DE CONTRATOS */}
       <section>
-        <h2 className="font-mono text-sm text-hm-muted mb-4 tracking-wider uppercase">Contratos Activos</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-mono text-sm text-hm-muted tracking-wider uppercase">Contratos Activos</h2>
+          <div className="flex items-center gap-1 bg-hm-surface2 border border-hm-border rounded-lg p-1">
+            <button
+              onClick={() => setVistaCalendario(false)}
+              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${!vistaCalendario ? 'bg-hm-accent text-hm-bg' : 'text-hm-muted hover:text-hm-text'}`}
+            >
+              Lista
+            </button>
+            <button
+              onClick={() => setVistaCalendario(true)}
+              className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${vistaCalendario ? 'bg-hm-accent text-hm-bg' : 'text-hm-muted hover:text-hm-text'}`}
+            >
+              Calendario
+            </button>
+          </div>
+        </div>
+
+        {vistaCalendario ? (
+          <Card className="p-5">
+            <CalendarioAlquileres contratos={contratos} />
+          </Card>
+        ) : (
         <Card className="overflow-hidden">
           <table className="w-full text-left">
             <thead className="bg-hm-surface2/50 border-b border-hm-border">
@@ -264,6 +288,7 @@ export default function Alquileres() {
           </table>
           <Pagination total={contratosFiltrados.length} page={pageContratos} perPage={PER_PAGE} onPageChange={setPageContratos} />
         </Card>
+        )}
       </section>
 
       <ModalNuevoContrato
