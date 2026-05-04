@@ -78,7 +78,6 @@ export default function Usuarios() {
               <th className="p-4 font-mono text-xs text-hm-muted">NOMBRE</th>
               <th className="p-4 font-mono text-xs text-hm-muted">ROL</th>
               <th className="p-4 font-mono text-xs text-hm-muted">ÁREA</th>
-              <th className="p-4 font-mono text-xs text-hm-muted">ESTADO</th>
               <th className="p-4"></th>
             </tr>
           </thead>
@@ -124,11 +123,6 @@ export default function Usuarios() {
                       </Badge>
                     </td>
                     <td className="p-4 text-sm text-hm-muted capitalize">{u.area || '—'}</td>
-                    <td className="p-4">
-                      <Badge variant={u.activo !== false ? 'ok' : 'danger'}>
-                        {u.activo !== false ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </td>
                     <td className="p-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
                       {!esYo && (
                         <div className="flex items-center justify-end gap-2">
@@ -138,14 +132,6 @@ export default function Usuarios() {
                           >
                             ROL
                           </button>
-                          {u.activo !== false && (
-                            <button
-                              onClick={() => setConfirmDesactivar(u)}
-                              className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-red-500 hover:text-red-400 transition-colors"
-                            >
-                              DESACTIVAR
-                            </button>
-                          )}
                         </div>
                       )}
                     </td>
