@@ -1,0 +1,363 @@
+import { useState, useMemo, useEffect } from 'react'
+import { toast } from 'sonner'
+import { useMaquinas } from '../../hooks/useMaquinas'
+import { useClientes } from '../../hooks/useClientes'
+import { useTaller } from '../../hooks/useTaller'
+import { useDolar } from '../../context/DolarContext'
+import { generateOTPDF } from '../../utils/pdfGenerator'
+import MaquinaRow from '../../components/modulos/MaquinaRow'
+import ModalFinalizarOT from '../../components/modulos/taller/ModalFinalizarOT'
+import ModalNuevaOT from '../../components/modulos/taller/ModalNuevaOT'
+import ModalMaquina from '../../components/modulos/maquinas/ModalMaquina'
+import Pagination from '../../components/ui/Pagination'
+import Card from '../../components/ui/Card'
+import Button from '../../components/ui/Button'
+import Badge from '../../components/ui/Badge'
+import FichaMaquina from '../../components/modulos/maquinas/FichaMaquina'
+import Input from '../../components/ui/Input'
+
+const PER_PAGE = 10
+
+export default function Taller() {
+  const [activeTab, setActiveTab] = useState('flota')
+  const [selectedOT, setSelectedOT] = useState(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isNuevaOTOpen, setIsNuevaOTOpen] = useState(false)
+  
+  // Estados de Búsqueda y Filtros
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState('todos') // todos, disponibles, alquiladas, taller
+  const [isFichaOpen, setIsFichaOpen] = useState(false)
+  const [selectedMaquinaId, setSelectedMaquinaId] = useState(null)
+  const [isMaquinaModalOpen, setIsMaquinaModalOpen] = useState(false)
+  const [editingMaquina, setEditingMaquina] = useState(null)
+  const [pageMaq, setPageMaq] = useState(1)
+  const [pageOT, setPageOT] = useState(1)
+
+  useEffect(() => { setPageMaq(1) }, [searchQuery, filterStatus])
+  useEffect(() => { setPageOT(1) }, [searchQuery])
+
+  const { formatUSD } = useDolar()
+  const { maquinas, loading: loadingMaq, error: errorMaq, createMaquina, updateMaquina } = useMaquinas()
+  const { clientes } = useClientes()
+  const { ots, loading: loadingOT, error: errorOT, finalizarOT, createOT } = useTaller()
+
+  // Lógica de Filtrado de Maquinas
+  const maquinasFiltradas = useMemo(() => {
+    return maquinas.filter(m => {
+      const matchSearch =
+        m.nombre_unidad.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.marca.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.modelo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (m.cliente?.razon_social || '').toLowerCase().includes(searchQuery.toLowerCase())
+
+      const matchStatus =
+        filterStatus === 'todos' ||
+        (filterStatus === 'disponibles' && !m.en_alquiler && !m.en_taller) ||
+        (filterStatus === 'alquiladas' && m.en_alquiler) ||
+        (filterStatus === 'taller' && m.en_taller)
+
+      return matchSearch && matchStatus
+    })
+  }, [maquinas, searchQuery, filterStatus])
+
+  const maquinasPaginadas = useMemo(
+    () => maquinasFiltradas.slice((pageMaq - 1) * PER_PAGE, pageMaq * PER_PAGE),
+    [maquinasFiltradas, pageMaq]
+  )
+
+  const handleOpenFicha = (id) => {
+    setSelectedMaquinaId(id)
+    setIsFichaOpen(true)
+  }
+
+  // Lógica de Filtrado de OTs
+  const otsFiltradas = useMemo(() => {
+    return ots.filter(ot => {
+      return (
+        ot.numero_ot.toString().includes(searchQuery) ||
+        ot.maquina?.nombre_unidad.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ot.cliente?.razon_social.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    })
+  }, [ots, searchQuery])
+
+  const otsPaginadas = useMemo(
+    () => otsFiltradas.slice((pageOT - 1) * PER_PAGE, pageOT * PER_PAGE),
+    [otsFiltradas, pageOT]
+  )
+
+  const handleOpenModal = (ot) => {
+    setSelectedOT(ot)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedOT(null)
+  }
+
+  const handleConfirmFinalizar = async (payload) => {
+    try {
+      await finalizarOT(selectedOT.id, payload)
+      toast.success(`Orden de Trabajo #${selectedOT.numero_ot} finalizada con éxito`)
+      handleCloseModal()
+    } catch (err) {
+      toast.error('Error al finalizar la OT: ' + err.message)
+    }
+  }
+
+  const handleCreateOT = async (payload) => {
+    try {
+      await createOT(payload)
+      toast.success('Orden de Trabajo creada correctamente')
+      setIsNuevaOTOpen(false)
+      setActiveTab('ots')
+    } catch (err) {
+      toast.error('Error al crear OT: ' + err.message)
+    }
+  }
+
+  const SkeletonRow = () => (
+    <tr className="border-b border-hm-border">
+      <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-3/4"></div></td>
+      <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-1/2"></div></td>
+      <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-1/2"></div></td>
+      <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-3/4"></div></td>
+      <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-full"></div></td>
+      <td className="p-4"></td>
+    </tr>
+  )
+
+  if (errorMaq || errorOT) {
+    return (
+      <div className="p-6">
+        <Card className="p-6 border-red-800 bg-red-900/20 text-red-400">
+          <h2 className="font-bold mb-2">Error cargando Módulo</h2>
+          <p className="font-mono text-sm">{errorMaq || errorOT}</p>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between border-b border-hm-border pb-4">
+        <div className="flex gap-6">
+          <button 
+            onClick={() => setActiveTab('flota')}
+            className={`text-xl font-bold transition-colors ${activeTab === 'flota' ? 'text-white' : 'text-hm-muted hover:text-white'}`}
+          >
+            FLOTA
+          </button>
+          <button 
+            onClick={() => setActiveTab('ots')}
+            className={`text-xl font-bold transition-colors ${activeTab === 'ots' ? 'text-white' : 'text-hm-muted hover:text-white'}`}
+          >
+            ÓRDENES DE TRABAJO
+          </button>
+        </div>
+        <div className="flex gap-2">
+          {activeTab === 'flota' && (
+            <Button variant="outline" onClick={() => { setEditingMaquina(null); setIsMaquinaModalOpen(true) }}>+ MÁQUINA</Button>
+          )}
+          {activeTab === 'ots' && (
+            <Button variant="primary" onClick={() => setIsNuevaOTOpen(true)}>NUEVA OT</Button>
+          )}
+        </div>
+      </div>
+
+      {/* BUSCADOR Y FILTROS */}
+      <div className="flex flex-col md:flex-row gap-4 items-end bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50">
+        <div className="flex-1 w-full">
+          <label className="text-[10px] font-mono text-hm-muted mb-1 block uppercase tracking-widest">Buscador Global</label>
+          <Input 
+            type="text"
+            placeholder={activeTab === 'flota' ? "Buscar por unidad, marca o cliente..." : "Buscar por Nro OT, unidad o cliente..."}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        
+        {activeTab === 'flota' && (
+          <div className="flex gap-2">
+            {[
+              { id: 'todos', label: 'TODOS' },
+              { id: 'disponibles', label: 'DISPONIBLES' },
+              { id: 'alquiladas', label: 'ALQUILADAS' },
+              { id: 'taller', label: 'TALLER' }
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setFilterStatus(f.id)}
+                className={`px-3 py-2 rounded text-[10px] font-bold tracking-tighter transition-all border ${
+                  filterStatus === f.id 
+                    ? 'bg-hm-accent border-hm-accent text-white' 
+                    : 'bg-hm-surface border-hm-border text-hm-muted hover:border-hm-accent/50'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {activeTab === 'flota' ? (
+        <Card className="overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-hm-surface2/50 border-b border-hm-border">
+              <tr>
+                <th className="p-4 font-mono text-xs text-hm-muted">UNIDAD</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">EQUIPO</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">PATENTE</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">CLIENTE</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">HORÓMETRO</th>
+                <th className="p-4"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingMaq ? (
+                <>
+                  <SkeletonRow />
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </>
+              ) : maquinasFiltradas.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="p-8 text-center text-hm-muted font-mono text-sm">
+                    No se encontraron máquinas con los filtros actuales.
+                  </td>
+                </tr>
+              ) : (
+                maquinasPaginadas.map(m => (
+                  <MaquinaRow
+                    key={m.id}
+                    maquina={m}
+                    onClickDetalle={() => handleOpenFicha(m.id)}
+                    onEdit={() => { setEditingMaquina(m); setIsMaquinaModalOpen(true) }}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+          <Pagination total={maquinasFiltradas.length} page={pageMaq} perPage={PER_PAGE} onPageChange={setPageMaq} />
+        </Card>
+      ) : (
+        <Card className="overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-hm-surface2/50 border-b border-hm-border">
+              <tr>
+                <th className="p-4 font-mono text-xs text-hm-muted">NRO</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">MÁQUINA</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">CLIENTE</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">INGRESO</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">ESTADO</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">TOTAL</th>
+                <th className="p-4"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingOT ? (
+                <>
+                  <SkeletonRow />
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </>
+              ) : otsFiltradas.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="p-8 text-center text-hm-muted font-mono text-sm">
+                    No se encontraron órdenes de trabajo.
+                  </td>
+                </tr>
+              ) : (
+                otsPaginadas.map(ot => (
+                  <tr key={ot.id} className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors">
+                    <td className="p-4 font-mono text-sm">#{ot.numero_ot}</td>
+                    <td className="p-4">
+                      <div className="font-medium text-sm">{ot.maquina?.nombre_unidad}</div>
+                    </td>
+                    <td className="p-4">
+                      <div className="text-sm text-hm-muted">{ot.cliente?.razon_social}</div>
+                    </td>
+                    <td className="p-4 font-mono text-sm text-hm-muted">{ot.fecha_ingreso}</td>
+                    <td className="p-4">
+                      <Badge variant={ot.estado === 'en_progreso' ? 'ventas' : ot.estado === 'completada' ? 'info' : 'default'}>
+                        {ot.estado.toUpperCase().replace('_', ' ')}
+                      </Badge>
+                    </td>
+                    <td className="p-4 font-mono text-sm text-green-400">
+                      {formatUSD(Number(ot.total_repuestos_usd || 0) + Number(ot.total_mano_obra_usd || 0))}
+                    </td>
+                    <td className="p-4 text-right flex gap-2 justify-end">
+                      <button 
+                        onClick={() => generateOTPDF(ot)}
+                        className="p-2 hover:bg-hm-surface2 rounded text-hm-accent transition-colors"
+                        title="Descargar PDF"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </button>
+                      {ot.estado !== 'completada' && ot.estado !== 'facturada' && (
+                        <Button 
+                          variant="outline" 
+                          className="px-3 py-1 text-xs"
+                          onClick={() => handleOpenModal(ot)}
+                        >
+                          FINALIZAR
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          <Pagination total={otsFiltradas.length} page={pageOT} perPage={PER_PAGE} onPageChange={setPageOT} />
+        </Card>
+      )}
+
+      {selectedOT && (
+        <ModalFinalizarOT 
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          ot={selectedOT}
+          onConfirm={handleConfirmFinalizar}
+        />
+      )}
+
+      <ModalNuevaOT
+        isOpen={isNuevaOTOpen}
+        onClose={() => setIsNuevaOTOpen(false)}
+        maquinas={maquinas}
+        clientes={clientes}
+        onConfirm={handleCreateOT}
+      />
+
+      <FichaMaquina
+        isOpen={isFichaOpen}
+        onClose={() => setIsFichaOpen(false)}
+        maquinaId={selectedMaquinaId}
+      />
+
+      <ModalMaquina
+        isOpen={isMaquinaModalOpen}
+        onClose={() => { setIsMaquinaModalOpen(false); setEditingMaquina(null) }}
+        maquina={editingMaquina}
+        clientes={clientes}
+        onConfirm={async (payload) => {
+          if (editingMaquina) {
+            await updateMaquina(editingMaquina.id, payload)
+            toast.success('Máquina actualizada correctamente')
+          } else {
+            await createMaquina(payload)
+            toast.success('Máquina agregada a la flota')
+          }
+          setIsMaquinaModalOpen(false)
+          setEditingMaquina(null)
+        }}
+      />
+    </div>
+  )
+}

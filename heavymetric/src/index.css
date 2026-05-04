@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap');
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #2a2f3d transparent;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: #2a2f3d; border-radius: 4px; }
+
+  body {
+    @apply bg-hm-bg text-hm-text antialiased;
+    font-family: 'Barlow', system-ui, sans-serif;
+    font-size: 15px;
+  }
+
+  /* Jerarquía tipográfica clara y legible */
+  h1 { @apply text-2xl font-bold tracking-tight; }
+  h2 { @apply text-base font-bold tracking-wide uppercase text-hm-muted; }
+}
+
+@layer components {
+  /* Cabeceras de sección estilo "ÚLTIMAS TRANSACCIONES" */
+  .section-header {
+    @apply px-5 py-3 border-b border-hm-border bg-hm-surface2/50 text-xs font-bold tracking-widest uppercase text-hm-muted;
+  }
+
+  /* Filas de tabla refinadas */
+  .table-row {
+    @apply border-b border-hm-border/50 hover:bg-hm-surface2/30 transition-colors duration-150;
+  }
+}
