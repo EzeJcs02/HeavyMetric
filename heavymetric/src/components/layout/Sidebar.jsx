@@ -26,7 +26,7 @@ export default function Sidebar({ onNavigate }) {
   const { isOwner, canEdit, perfil } = useAuth()
   const { theme } = useTheme()
   const logoUrl = perfil?.organizaciones?.logo_url
-  const orgNombre = perfil?.organizaciones?.nombre || 'HeavyMetric'
+  const orgNombre = perfil?.organizaciones?.nombre_comercial || 'HeavyMetric'
 
   const modules = [
     { to: '/', label: 'Inicio' },

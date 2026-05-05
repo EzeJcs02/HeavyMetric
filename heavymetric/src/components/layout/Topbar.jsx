@@ -29,7 +29,7 @@ export default function Topbar() {
   const nombreInputRef = useRef(null)
 
   const displayName = perfil?.nombre_completo || user?.email || ''
-  const orgNombre = perfil?.organizaciones?.nombre || 'Mi empresa'
+  const orgNombre = perfil?.organizaciones?.nombre_comercial || 'Mi empresa'
   const logoUrl = perfil?.organizaciones?.logo_url
 
   useEffect(() => {
@@ -53,7 +53,7 @@ export default function Topbar() {
     if (!trimmed || trimmed === orgNombre) { setEditingNombre(false); return }
     const { error } = await supabase
       .from('organizaciones')
-      .update({ nombre: trimmed })
+      .update({ nombre_comercial: trimmed })
       .eq('id', orgId)
     if (error) { toast.error(error.message); return }
     await recargarPerfil()
