@@ -6,6 +6,7 @@ import { Toaster } from 'sonner'
 import Layout from './components/layout/Layout'
 import Login from './pages/auth/Login'
 import Setup from './pages/auth/Setup'
+import Home from './pages/home/Home'
 import Dashboard from './pages/dashboard/Dashboard'
 import Taller from './pages/taller/Taller'
 import Alquileres from './pages/alquileres/Alquileres'
@@ -18,7 +19,8 @@ import Reportes from './pages/reportes/Reportes'
 import NotFound from './pages/NotFound'
 
 const PAGE_TITLES = {
-  '/':            'Dashboard',
+  '/':            'Inicio',
+  '/dashboard':   'Dashboard',
   '/taller':      'Taller',
   '/alquileres':  'Alquileres',
   '/ventas':      'Inventario',
@@ -69,7 +71,8 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/setup" element={<Guard><Setup /></Guard>} />
             <Route path="/" element={<Guard><Layout /></Guard>}>
-              <Route index element={<Dashboard />} />
+              <Route index element={<Home />} />
+              <Route path="dashboard" element={<Guard soloSupervisor><Dashboard /></Guard>} />
               <Route path="taller" element={<Taller />} />
               <Route path="alquileres" element={<Guard soloSupervisor><Alquileres /></Guard>} />
               <Route path="ventas" element={<Ventas />} />
