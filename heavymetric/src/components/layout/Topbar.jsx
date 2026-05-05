@@ -22,8 +22,11 @@ export default function Topbar() {
   const { theme, toggleTheme } = useTheme()
   const [open, setOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [editingNombre, setEditingNombre] = useState(false)
+  const [nombreInput, setNombreInput] = useState('')
   const dropdownRef = useRef(null)
   const fileInputRef = useRef(null)
+  const nombreInputRef = useRef(null)
 
   const displayName = perfil?.nombre_completo || user?.email || ''
   const orgNombre = perfil?.organizaciones?.nombre || 'Mi empresa'
@@ -38,6 +41,25 @@ export default function Topbar() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  function startEditNombre() {
+    setNombreInput(orgNombre)
+    setEditingNombre(true)
+    setTimeout(() => nombreInputRef.current?.focus(), 0)
+  }
+
+  async function saveNombre() {
+    const trimmed = nombreInput.trim()
+    if (!trimmed || trimmed === orgNombre) { setEditingNombre(false); return }
+    const { error } = await supabase
+      .from('organizaciones')
+      .update({ nombre: trimmed })
+      .eq('id', orgId)
+    if (error) { toast.error('Error al guardar'); return }
+    await recargarPerfil()
+    setEditingNombre(false)
+    toast.success('Nombre actualizado')
+  }
 
   async function handleLogoUpload(e) {
     const file = e.target.files?.[0]
@@ -141,7 +163,29 @@ export default function Topbar() {
                 }
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-hm-text truncate">{orgNombre}</div>
+                {editingNombre ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      ref={nombreInputRef}
+                      value={nombreInput}
+                      onChange={e => setNombreInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveNombre(); if (e.key === 'Escape') setEditingNombre(false) }}
+                      className="flex-1 text-sm bg-hm-surface2 border border-hm-accent/40 rounded px-2 py-0.5 text-hm-text outline-none min-w-0"
+                    />
+                    <button onClick={saveNombre} className="text-hm-accent hover:opacity-80 shrink-0">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 group">
+                    <span className="text-sm font-semibold text-hm-text truncate">{orgNombre}</span>
+                    {isOwner && (
+                      <button onClick={startEditNombre} className="opacity-0 group-hover:opacity-100 transition-opacity text-hm-muted hover:text-hm-accent shrink-0">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      </button>
+                    )}
+                  </div>
+                )}
                 {isOwner && (
                   <>
                     <button
