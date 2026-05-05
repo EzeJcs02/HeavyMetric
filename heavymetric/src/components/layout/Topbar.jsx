@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useDolar } from '../../context/DolarContext'
 import { useTheme } from '../../context/ThemeContext'
@@ -15,7 +16,7 @@ function Initials({ name }) {
 
 const ROL_LABEL = { owner: 'Owner', supervisor: 'Supervisor', operativo: 'Operativo' }
 
-export default function Topbar({ onMenuToggle }) {
+export default function Topbar() {
   const { user, perfil, orgId, isOwner, recargarPerfil } = useAuth()
   const { tcVenta, formatARS } = useDolar()
   const { theme, toggleTheme } = useTheme()
@@ -81,16 +82,19 @@ export default function Topbar({ onMenuToggle }) {
 
   return (
     <header className="h-14 bg-hm-surface border-b border-hm-border flex items-center px-4 md:px-6 shrink-0 gap-4">
-      {/* Hamburguesa — solo mobile */}
-      <button
-        onClick={onMenuToggle}
-        className="lg:hidden w-8 h-8 flex items-center justify-center text-hm-muted hover:text-hm-text transition-colors shrink-0"
-        aria-label="Menú"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
+      {/* Logo / link al inicio */}
+      <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+        <div className="w-7 h-7 rounded-lg bg-hm-accent/15 border border-hm-accent/30 flex items-center justify-center shrink-0 overflow-hidden">
+          {logoUrl
+            ? <img src={logoUrl} alt="logo" className="w-full h-full object-cover rounded-lg" />
+            : <span className="text-hm-accent text-[11px] font-black tracking-tight">HM</span>
+          }
+        </div>
+        <div className="hidden sm:block">
+          <div className="text-sm font-bold text-hm-text leading-none">{orgNombre}</div>
+          <div className="text-[10px] font-mono text-hm-muted mt-0.5">v2.5</div>
+        </div>
+      </Link>
 
       <div className="flex-1" />
 
