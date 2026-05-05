@@ -55,7 +55,7 @@ export default function Topbar() {
       .from('organizaciones')
       .update({ nombre: trimmed })
       .eq('id', orgId)
-    if (error) { toast.error('Error al guardar'); return }
+    if (error) { toast.error(error.message); return }
     await recargarPerfil()
     setEditingNombre(false)
     toast.success('Nombre actualizado')
