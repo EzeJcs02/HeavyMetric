@@ -6,6 +6,7 @@ import { Toaster } from 'sonner'
 import Layout from './components/layout/Layout'
 import Login from './pages/auth/Login'
 import Setup from './pages/auth/Setup'
+import ResetPassword from './pages/auth/ResetPassword'
 import Home from './pages/home/Home'
 import Dashboard from './pages/dashboard/Dashboard'
 import Taller from './pages/taller/Taller'
@@ -69,6 +70,7 @@ export default function App() {
           <Toaster richColors position="top-right" theme="dark" />
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/setup" element={<Guard><Setup /></Guard>} />
             <Route path="/" element={<Guard><Layout /></Guard>}>
               <Route index element={<Home />} />

@@ -43,7 +43,7 @@ export default function Login() {
 
     if (mode === 'reset') {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}/reset-password`,
       })
       if (error) setError(error.message)
       else setSuccess('Te enviamos un link para restablecer tu contraseña.')
