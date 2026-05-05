@@ -2,18 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --hm-bg:       #0c0e14;
+  --hm-surface:  #141720;
+  --hm-surface2: #1a1e2b;
+  --hm-border:   #252a38;
+  --hm-accent:   #f0a500;
+  --hm-text:     #dde1ec;
+  --hm-muted:    #5c6278;
+}
+
+:root.light {
+  --hm-bg:       #f0f2f7;
+  --hm-surface:  #ffffff;
+  --hm-surface2: #f5f7fa;
+  --hm-border:   #dde1ec;
+  --hm-accent:   #d4920a;
+  --hm-text:     #1a1d2e;
+  --hm-muted:    #7a8099;
+}
+
 @layer base {
   *,
   *::before,
   *::after {
     scrollbar-width: thin;
-    scrollbar-color: #252a38 transparent;
+    scrollbar-color: var(--hm-border) transparent;
   }
 
   ::-webkit-scrollbar        { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track  { background: transparent; }
-  ::-webkit-scrollbar-thumb  { background: #252a38; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #353b50; }
+  ::-webkit-scrollbar-thumb  { background: var(--hm-border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--hm-surface2); }
 
   body {
     @apply bg-hm-bg text-hm-text antialiased;

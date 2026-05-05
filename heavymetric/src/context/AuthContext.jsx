@@ -32,6 +32,10 @@ export function AuthProvider({ children }) {
     setLoading(false)
   }
 
+  async function recargarPerfil() {
+    if (user) await cargarPerfil(user.id)
+  }
+
   // Resuelve el ID de la organización — la columna en DB se llama organization_id
   const orgId = perfil?.organization_id
     || perfil?.organizacion_id
@@ -41,7 +45,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, perfil, loading, orgId,
+      user, perfil, loading, orgId, recargarPerfil,
       isOwner: perfil?.rol === 'owner',
       isSupervisor: perfil?.rol === 'supervisor',
       isOperativo: perfil?.rol === 'operativo',

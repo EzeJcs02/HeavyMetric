@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useTheme } from '../../context/ThemeContext'
 
 const Icon = ({ path, path2 }) => (
   <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -22,7 +23,10 @@ const ICONS = {
 }
 
 export default function Sidebar({ onNavigate }) {
-  const { isOwner, canEdit } = useAuth()
+  const { isOwner, canEdit, perfil } = useAuth()
+  const { theme } = useTheme()
+  const logoUrl = perfil?.organizaciones?.logo_url
+  const orgNombre = perfil?.organizaciones?.nombre || 'HeavyMetric'
 
   const modules = [
     { to: '/', label: 'Inicio' },
@@ -41,11 +45,14 @@ export default function Sidebar({ onNavigate }) {
     <div className="w-52 bg-hm-surface border-r border-hm-border flex flex-col h-screen sticky top-0">
       <div className="px-5 py-5 border-b border-hm-border/50">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-hm-accent flex items-center justify-center shrink-0">
-            <span className="text-hm-bg text-[11px] font-black tracking-tight">HM</span>
+          <div className="w-7 h-7 rounded-lg bg-hm-accent/15 border border-hm-accent/30 flex items-center justify-center shrink-0 overflow-hidden">
+            {logoUrl
+              ? <img src={logoUrl} alt="logo" className="w-full h-full object-cover rounded-lg" />
+              : <span className="text-hm-accent text-[11px] font-black tracking-tight">HM</span>
+            }
           </div>
           <div>
-            <div className="text-sm font-bold text-hm-text leading-none">HeavyMetric</div>
+            <div className="text-sm font-bold text-hm-text leading-none truncate max-w-[120px]">{orgNombre}</div>
             <div className="text-[10px] font-mono text-hm-muted mt-0.5">v2.5</div>
           </div>
         </div>

@@ -5,13 +5,13 @@ export default {
     extend: {
       colors: {
         hm: {
-          bg:       '#0c0e14',
-          surface:  '#141720',
-          surface2: '#1a1e2b',
-          border:   '#252a38',
-          accent:   '#f0a500',
-          text:     '#dde1ec',
-          muted:    '#5c6278',
+          bg:       'var(--hm-bg)',
+          surface:  'var(--hm-surface)',
+          surface2: 'var(--hm-surface2)',
+          border:   'var(--hm-border)',
+          accent:   'var(--hm-accent)',
+          text:     'var(--hm-text)',
+          muted:    'var(--hm-muted)',
           taller:   '#3b82f6',
           alq:      '#f0a500',
           ventas:   '#22c55e',

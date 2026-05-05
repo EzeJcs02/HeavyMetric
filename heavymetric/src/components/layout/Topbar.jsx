@@ -1,6 +1,9 @@
+import { useRef, useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useDolar } from '../../context/DolarContext'
+import { useTheme } from '../../context/ThemeContext'
 import { supabase } from '../../lib/supabase'
+import { toast } from 'sonner'
 
 function Initials({ name }) {
   const parts = (name || '').trim().split(' ').filter(Boolean)
@@ -10,18 +13,78 @@ function Initials({ name }) {
   return letters.toUpperCase()
 }
 
+const ROL_LABEL = { owner: 'Owner', supervisor: 'Supervisor', operativo: 'Operativo' }
+
 export default function Topbar({ onMenuToggle }) {
-  const { user, perfil } = useAuth()
+  const { user, perfil, orgId, isOwner, recargarPerfil } = useAuth()
   const { tcVenta, formatARS } = useDolar()
+  const { theme, toggleTheme } = useTheme()
+  const [open, setOpen] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const dropdownRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   const displayName = perfil?.nombre_completo || user?.email || ''
+  const orgNombre = perfil?.organizaciones?.nombre || 'Mi empresa'
+  const logoUrl = perfil?.organizaciones?.logo_url
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  async function handleLogoUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file || !orgId) return
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('El archivo no puede superar 2 MB')
+      return
+    }
+
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${orgId}/logo.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('logos')
+        .upload(path, file, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('logos')
+        .getPublicUrl(path)
+
+      const { error: updateError } = await supabase
+        .from('organizaciones')
+        .update({ logo_url: publicUrl })
+        .eq('id', orgId)
+
+      if (updateError) throw updateError
+
+      await recargarPerfil()
+      toast.success('Logo actualizado')
+    } catch (err) {
+      toast.error('Error al subir el logo')
+      console.error(err)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
 
   return (
     <header className="h-14 bg-hm-surface border-b border-hm-border flex items-center px-4 md:px-6 shrink-0 gap-4">
       {/* Hamburguesa — solo mobile */}
       <button
         onClick={onMenuToggle}
-        className="lg:hidden w-8 h-8 flex items-center justify-center text-hm-muted hover:text-white transition-colors shrink-0"
+        className="lg:hidden w-8 h-8 flex items-center justify-center text-hm-muted hover:text-hm-text transition-colors shrink-0"
         aria-label="Menú"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -29,7 +92,6 @@ export default function Topbar({ onMenuToggle }) {
         </svg>
       </button>
 
-      {/* Spacer — empuja el perfil a la derecha */}
       <div className="flex-1" />
 
       {/* Dólar BNA */}
@@ -43,33 +105,99 @@ export default function Topbar({ onMenuToggle }) {
         </div>
       )}
 
-      {/* Perfil + logout */}
-      <div className="flex items-center gap-3 border-l border-hm-border pl-4">
-        <div className="text-right hidden sm:block">
-          <div className="text-sm font-semibold text-hm-text leading-tight">
-            {perfil?.nombre_completo || user?.email}
-          </div>
-          <div className="text-[10px] font-mono text-hm-muted tracking-wider uppercase">
-            {perfil?.rol || 'owner'}
-          </div>
-        </div>
-
-        <div className="w-8 h-8 rounded-full bg-hm-accent/15 border border-hm-accent/30 flex items-center justify-center shrink-0">
-          <span className="text-[11px] font-bold text-hm-accent">
-            <Initials name={displayName} />
-          </span>
-        </div>
-
+      {/* Avatar + dropdown */}
+      <div className="relative border-l border-hm-border pl-4" ref={dropdownRef}>
         <button
-          onClick={() => supabase.auth.signOut()}
-          title="Cerrar sesión"
-          className="w-8 h-8 rounded-full flex items-center justify-center text-hm-muted hover:text-white hover:bg-hm-surface2 border border-transparent hover:border-hm-border transition-all"
+          onClick={() => setOpen(o => !o)}
+          className="flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-hm-surface2 transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
+          <div className="text-right hidden sm:block">
+            <div className="text-sm font-semibold text-hm-text leading-tight">{displayName}</div>
+            <div className="text-[10px] font-mono text-hm-muted tracking-wider uppercase">
+              {ROL_LABEL[perfil?.rol] || perfil?.rol}
+            </div>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-hm-accent/15 border border-hm-accent/30 flex items-center justify-center shrink-0 overflow-hidden">
+            {logoUrl
+              ? <img src={logoUrl} alt="logo" className="w-full h-full object-cover" />
+              : <span className="text-[11px] font-bold text-hm-accent"><Initials name={displayName} /></span>
+            }
+          </div>
         </button>
+
+        {open && (
+          <div className="absolute right-0 top-full mt-2 w-72 bg-hm-surface border border-hm-border rounded-xl shadow-card z-50 overflow-hidden animate-fade-in">
+
+            {/* Empresa */}
+            <div className="px-4 py-3 border-b border-hm-border flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-hm-surface2 border border-hm-border flex items-center justify-center overflow-hidden shrink-0">
+                {logoUrl
+                  ? <img src={logoUrl} alt="logo" className="w-full h-full object-cover" />
+                  : <span className="text-xs font-bold text-hm-accent">{orgNombre.slice(0, 2).toUpperCase()}</span>
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-hm-text truncate">{orgNombre}</div>
+                {isOwner && (
+                  <>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="text-[11px] text-hm-accent hover:underline disabled:opacity-50"
+                    >
+                      {uploading ? 'Subiendo...' : logoUrl ? 'Cambiar logo' : 'Subir logo'}
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                    />
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Usuario */}
+            <div className="px-4 py-3 border-b border-hm-border">
+              <div className="text-sm font-semibold text-hm-text">{displayName}</div>
+              <div className="text-xs text-hm-muted mt-0.5">{user?.email}</div>
+              <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full bg-hm-accent/10 border border-hm-accent/20 text-[10px] font-mono font-bold text-hm-accent tracking-wider uppercase">
+                {ROL_LABEL[perfil?.rol] || perfil?.rol}
+              </span>
+            </div>
+
+            {/* Tema */}
+            <div className="px-4 py-3 border-b border-hm-border flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-hm-text">
+                {theme === 'dark'
+                  ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                  : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                }
+                {theme === 'dark' ? 'Modo oscuro' : 'Modo claro'}
+              </div>
+              <button
+                onClick={toggleTheme}
+                className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${theme === 'light' ? 'bg-hm-accent' : 'bg-hm-border'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${theme === 'light' ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
+            {/* Cerrar sesión */}
+            <button
+              onClick={() => { setOpen(false); supabase.auth.signOut() }}
+              className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-hm-muted hover:text-hm-danger hover:bg-hm-surface2 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Cerrar sesión
+            </button>
+          </div>
+        )}
       </div>
     </header>
   )
