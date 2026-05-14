@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
 import { useLeads, calcularScore } from '../../hooks/useLeads'
 import { useAuth } from '../../context/AuthContext'
 import Modal from '../../components/ui/Modal'
@@ -198,6 +199,29 @@ export default function Leads() {
     } catch (err) { toast.error(err.message) }
   }
 
+  const handleExportExcel = () => {
+    if (!filtrados.length) { toast.error('No hay datos para exportar'); return }
+    const rows = filtrados.map(l => ({
+      EMPRESA:    l.empresa || l.nombre || '—',
+      NOMBRE:     l.nombre || '—',
+      TELEFONO:   l.telefono || '—',
+      EMAIL:      l.email || '—',
+      ORIGEN:     l.origen || '—',
+      RUBRO:      l.rubro || '—',
+      INTERES:    l.producto_interes || '—',
+      GRADO:      l.lead_grade || '—',
+      SCORE:      l.lead_score || 0,
+      ESTADO:     l.estado || '—',
+      COTIZACIONES: l.cotizaciones?.[0]?.count || 0,
+      FECHA:      new Date(l.created_at).toLocaleDateString('es-AR'),
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Leads')
+    XLSX.writeFile(wb, `Leads_${new Date().toISOString().slice(0,10)}.xlsx`)
+    toast.success('Excel generado')
+  }
+
   if (error) return (
     <div className="p-6">
       <Card className="p-6 border-red-800 bg-red-900/20 text-red-400">
@@ -214,9 +238,12 @@ export default function Leads() {
           <h1 className="text-2xl font-bold">Leads CRM</h1>
           <p className="text-sm text-hm-muted mt-1">{leads.length} leads registrados</p>
         </div>
-        <Button variant="primary" onClick={() => { setEditando(null); setModalOpen(true) }}>
-          + NUEVO LEAD
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportExcel}>EXPORTAR EXCEL</Button>
+          <Button variant="primary" onClick={() => { setEditando(null); setModalOpen(true) }}>
+            + NUEVO LEAD
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}

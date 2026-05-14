@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
 import { useClientes } from '../../hooks/useClientes'
 import { useAuth } from '../../context/AuthContext'
 import Modal from '../../components/ui/Modal'
@@ -176,6 +177,27 @@ export default function Clientes() {
     }
   }
 
+  const handleExportExcel = () => {
+    if (!clientesFiltrados.length) { toast.error('No hay datos para exportar'); return }
+    const rows = clientesFiltrados.map(c => ({
+      'RAZÓN SOCIAL':  c.razon_social,
+      'NOMBRE COMERCIAL': c.nombre_comercial || '—',
+      CUIT:            c.cuit || '—',
+      'CONDICIÓN IVA': c.condicion_iva || '—',
+      RUBRO:           c.rubro || '—',
+      PROPENSIÓN:      c.propension_compra || '—',
+      EMAIL:           c.email || '—',
+      TELÉFONO:        c.telefono || '—',
+      CONTACTO:        c.contacto_nombre || '—',
+      DIRECCIÓN:       c.direccion || '—',
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Clientes')
+    XLSX.writeFile(wb, `Clientes_${new Date().toISOString().slice(0,10)}.xlsx`)
+    toast.success('Excel generado')
+  }
+
   if (error) return (
     <div className="p-6">
       <Card className="p-6 border-red-800 bg-red-900/20 text-red-400">
@@ -192,9 +214,12 @@ export default function Clientes() {
           <h1 className="text-2xl font-bold">Clientes</h1>
           <p className="text-sm text-hm-muted mt-1">{clientes.length} clientes activos registrados</p>
         </div>
-        <Button variant="primary" onClick={() => { setEditingCliente(null); setIsModalOpen(true) }}>
-          + NUEVO CLIENTE
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportExcel}>EXPORTAR EXCEL</Button>
+          <Button variant="primary" onClick={() => { setEditingCliente(null); setIsModalOpen(true) }}>
+            + NUEVO CLIENTE
+          </Button>
+        </div>
       </div>
 
       <div className="bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50">

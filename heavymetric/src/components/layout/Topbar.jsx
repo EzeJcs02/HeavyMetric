@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useDolar } from '../../context/DolarContext'
 import { useTheme } from '../../context/ThemeContext'
@@ -20,6 +20,7 @@ export default function Topbar() {
   const { user, perfil, orgId, isOwner, recargarPerfil } = useAuth()
   const { tcVenta, formatARS } = useDolar()
   const { theme, toggleTheme } = useTheme()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [editingNombre, setEditingNombre] = useState(false)
@@ -233,6 +234,16 @@ export default function Topbar() {
               </button>
             </div>
 
+            {/* Mi perfil */}
+            <button
+              onClick={() => { setOpen(false); navigate('/perfil') }}
+              className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-hm-muted hover:text-hm-text hover:bg-hm-surface2 transition-colors border-b border-hm-border"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              Mi perfil
+            </button>
             {/* Cerrar sesión */}
             <button
               onClick={() => { setOpen(false); supabase.auth.signOut() }}

@@ -20,7 +20,9 @@ function ServiceBadge({ estado }) {
 
 export default function Reportes() {
   const [tab, setTab] = useState('rentabilidad')
-  const { rentabilidad, utilizacion, servicePendiente, loading, error } = useReportes()
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
+  const { rentabilidad, utilizacion, servicePendiente, loading, error } = useReportes(desde || null, hasta || null)
   const { formatUSD } = useDolar()
 
   if (error) return (
@@ -62,6 +64,19 @@ export default function Reportes() {
           <p className="text-hm-muted text-sm mt-1">Análisis de rentabilidad, flota y service.</p>
         </div>
         <Button variant="outline" onClick={handleExportExcel} disabled={loading}>EXPORTAR EXCEL</Button>
+      </div>
+
+      {/* Filtro de período */}
+      <div className="flex items-center gap-3 bg-hm-surface2/20 p-3 rounded-lg border border-hm-border/50 w-fit">
+        <span className="text-[10px] font-mono text-hm-muted uppercase tracking-widest">Período</span>
+        <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
+          className="bg-hm-surface2 border border-hm-border rounded px-2 py-1 text-xs text-hm-text focus:outline-none focus:border-hm-accent" />
+        <span className="text-hm-muted text-xs">→</span>
+        <input type="date" value={hasta} onChange={e => setHasta(e.target.value)}
+          className="bg-hm-surface2 border border-hm-border rounded px-2 py-1 text-xs text-hm-text focus:outline-none focus:border-hm-accent" />
+        {(desde || hasta) && (
+          <button onClick={() => { setDesde(''); setHasta('') }} className="text-[10px] font-mono text-hm-muted hover:text-red-400 transition-colors">✕ LIMPIAR</button>
+        )}
       </div>
 
       {/* TABS */}

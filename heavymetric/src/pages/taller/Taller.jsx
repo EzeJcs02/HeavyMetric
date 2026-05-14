@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
 import { useMaquinas } from '../../hooks/useMaquinas'
 import { useClientes } from '../../hooks/useClientes'
 import { useTaller } from '../../hooks/useTaller'
@@ -161,6 +162,26 @@ export default function Taller() {
     </tr>
   )
 
+  const handleExportOTs = () => {
+    if (!otsFiltradas.length) { toast.error('No hay OTs para exportar'); return }
+    const rows = otsFiltradas.map(ot => ({
+      'NRO OT':    `#${ot.numero_ot}`,
+      MÁQUINA:     ot.maquina?.nombre_unidad || '—',
+      CLIENTE:     ot.cliente?.razon_social || '—',
+      INGRESO:     ot.fecha_ingreso || '—',
+      ESTADO:      ot.estado || '—',
+      'REPUESTOS USD': Number(ot.total_repuestos_usd || 0),
+      'MANO OBRA USD': Number(ot.total_mano_obra_usd || 0),
+      'TOTAL USD':    Number(ot.total_repuestos_usd || 0) + Number(ot.total_mano_obra_usd || 0),
+      NPS:         ot.nps_score || '—',
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'OTs')
+    XLSX.writeFile(wb, `OTs_${new Date().toISOString().slice(0,10)}.xlsx`)
+    toast.success('Excel generado')
+  }
+
   if (errorMaq || errorOT) {
     return (
       <div className="p-6">
@@ -194,7 +215,10 @@ export default function Taller() {
             <Button variant="outline" onClick={() => { setEditingMaquina(null); setIsMaquinaModalOpen(true) }}>+ MÁQUINA</Button>
           )}
           {activeTab === 'ots' && (
-            <Button variant="primary" onClick={() => setIsNuevaOTOpen(true)}>NUEVA OT</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleExportOTs}>EXPORTAR EXCEL</Button>
+              <Button variant="primary" onClick={() => setIsNuevaOTOpen(true)}>NUEVA OT</Button>
+            </div>
           )}
         </div>
       </div>

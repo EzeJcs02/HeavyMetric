@@ -14,7 +14,7 @@ import {
 
 export default function Dashboard() {
   const { toARS, formatARS, formatUSD } = useDolar()
-  const { data, loading, error } = useDashboardData()
+  const { data, loading, error, refresh } = useDashboardData()
   const { perfil } = useAuth()
 
   useEffect(() => {
@@ -211,10 +211,18 @@ export default function Dashboard() {
               ) : (
                 <div className="flex flex-col">
                   {alertas.map(al => (
-                    <div key={al.id} className="p-4 border-b border-hm-border last:border-0 flex flex-col gap-1 hover:bg-hm-surface2/30">
-                      <div className="flex justify-between items-start">
-                        <span className="font-medium text-sm">{al.titulo}</span>
-                        <span className="w-2 h-2 rounded-full mt-1 bg-yellow-500 shrink-0"></span>
+                    <div key={al.id} className="p-4 border-b border-hm-border last:border-0 flex flex-col gap-1 hover:bg-hm-surface2/30 group">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="font-medium text-sm flex-1">{al.titulo}</span>
+                        <button
+                          onClick={async () => {
+                            await supabase.from('alertas').update({ resuelta: true }).eq('id', al.id)
+                            refresh()
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-[10px] font-mono text-hm-muted hover:text-green-400 border border-hm-border hover:border-green-500 rounded px-1.5 py-0.5 transition-all shrink-0"
+                        >
+                          ✓
+                        </button>
                       </div>
                       <span className="text-xs text-hm-muted">{al.descripcion}</span>
                     </div>

@@ -20,6 +20,7 @@ import Clientes from './pages/clientes/Clientes'
 import Usuarios from './pages/usuarios/Usuarios'
 import Reportes from './pages/reportes/Reportes'
 import Configuracion from './pages/configuracion/Configuracion'
+import Perfil from './pages/perfil/Perfil'
 import Portal from './pages/portal/Portal'
 import NotFound from './pages/NotFound'
 
@@ -39,6 +40,7 @@ const PAGE_TITLES = {
   '/cotizaciones':  'Cotizaciones',
   '/setup':         'Configuración inicial',
   '/configuracion': 'Configuración',
+  '/perfil':        'Mi Perfil',
 }
 
 function TitleUpdater() {
@@ -96,6 +98,7 @@ export default function App() {
               <Route path="usuarios" element={<Guard soloOwner><Usuarios /></Guard>} />
               <Route path="reportes" element={<Guard soloSupervisor><Reportes /></Guard>} />
               <Route path="configuracion" element={<Guard soloOwner><Configuracion /></Guard>} />
+              <Route path="perfil" element={<Guard><Perfil /></Guard>} />
             </Route>
             <Route path="portal" element={<Guard soloCliente><Portal /></Guard>} />
             <Route path="*" element={<NotFound />} />

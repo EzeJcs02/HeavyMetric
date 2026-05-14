@@ -32,6 +32,10 @@ export default function Usuarios() {
   const [vinculando, setVinculando] = useState(null)
   const [clientes, setClientes] = useState([])
   const [clienteSeleccionado, setClienteSeleccionado] = useState('')
+  const [invitando, setInvitando] = useState(false)
+  const [invForm, setInvForm] = useState({ email: '', nombre: '', rol: 'operativo' })
+  const [invLink, setInvLink] = useState('')
+  const [savingInv, setSavingInv] = useState(false)
 
   useEffect(() => {
     supabase.from('clientes').select('id, razon_social').order('razon_social')
@@ -49,6 +53,21 @@ export default function Usuarios() {
       setVinculando(null)
     } catch (err) { toast.error(err.message) }
     finally { setLoadingAction(false) }
+  }
+
+  const handleCrearInvitacion = async () => {
+    if (!invForm.email) { toast.error('El email es obligatorio'); return }
+    setSavingInv(true)
+    try {
+      const { data, error } = await supabase
+        .from('invitaciones')
+        .insert({ email: invForm.email, nombre: invForm.nombre, rol: invForm.rol, organization_id: miPerfil?.organization_id, created_by: miPerfil?.id })
+        .select('token')
+        .single()
+      if (error) throw error
+      setInvLink(`${window.location.origin}/setup?token=${data.token}`)
+    } catch (err) { toast.error(err.message) }
+    finally { setSavingInv(false) }
   }
 
   const handleCambiarRol = async () => {
@@ -93,6 +112,9 @@ export default function Usuarios() {
           <h1 className="text-2xl font-bold">Usuarios</h1>
           <p className="text-sm text-hm-muted mt-1">Miembros de tu organización</p>
         </div>
+        <Button variant="outline" onClick={() => { setInvitando(true); setInvLink(''); setInvForm({ email: '', nombre: '', rol: 'operativo' }) }}>
+          + INVITAR
+        </Button>
       </div>
 
       <Card className="overflow-hidden">
@@ -172,6 +194,49 @@ export default function Usuarios() {
           </tbody>
         </table>
       </Card>
+
+      {/* Modal invitación */}
+      {invitando && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-hm-surface border border-hm-border rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <h2 className="font-semibold text-base mb-1">Invitar usuario</h2>
+            <p className="text-sm text-hm-muted mb-4">Se generará un enlace de acceso único.</p>
+            {!invLink ? (
+              <>
+                <div className="flex flex-col gap-3 mb-4">
+                  <input placeholder="Email *" value={invForm.email} onChange={e => setInvForm(p => ({ ...p, email: e.target.value }))}
+                    className="w-full bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent" />
+                  <input placeholder="Nombre (opcional)" value={invForm.nombre} onChange={e => setInvForm(p => ({ ...p, nombre: e.target.value }))}
+                    className="w-full bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent" />
+                  <select value={invForm.rol} onChange={e => setInvForm(p => ({ ...p, rol: e.target.value }))}
+                    className="w-full bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent">
+                    <option value="operativo">Operativo</option>
+                    <option value="supervisor">Supervisor</option>
+                    <option value="owner">Owner</option>
+                  </select>
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <Button variant="ghost" onClick={() => setInvitando(false)} disabled={savingInv}>Cancelar</Button>
+                  <Button variant="primary" onClick={handleCrearInvitacion} disabled={savingInv || !invForm.email}>
+                    {savingInv ? 'Generando...' : 'Generar enlace'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-hm-muted mb-2">Compartí este enlace con el usuario. Expira en 7 días.</p>
+                <div className="bg-hm-surface2 border border-hm-border rounded-lg p-3 mb-4 break-all text-xs font-mono text-hm-accent">{invLink}</div>
+                <div className="flex gap-3 justify-end">
+                  <Button variant="ghost" onClick={() => setInvitando(false)}>Cerrar</Button>
+                  <Button variant="primary" onClick={() => { navigator.clipboard.writeText(invLink); toast.success('Enlace copiado') }}>
+                    COPIAR ENLACE
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal cambio de rol */}
       {editandoRol && (
