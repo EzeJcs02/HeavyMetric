@@ -49,6 +49,8 @@ export function AuthProvider({ children }) {
       isOwner: perfil?.rol === 'owner',
       isSupervisor: perfil?.rol === 'supervisor',
       isOperativo: perfil?.rol === 'operativo',
+      isCliente: perfil?.rol === 'cliente',
+      clienteId: perfil?.cliente_id || null,
       canEdit: ['owner', 'supervisor'].includes(perfil?.rol),
       canApprovePrice: perfil?.rol === 'owner',
       canViewFacturacion: ['owner', 'supervisor'].includes(perfil?.rol),

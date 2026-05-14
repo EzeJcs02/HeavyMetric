@@ -1,22 +1,25 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useUsuarios } from '../../hooks/useUsuarios'
 import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabase'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import ModalConfirm from '../../components/ui/ModalConfirm'
 
 const ROL_VARIANT = {
-  owner:       'warn',
-  supervisor:  'info',
-  operativo:   'default',
+  owner:      'warn',
+  supervisor: 'info',
+  operativo:  'default',
+  cliente:    'accent',
 }
 
 const ROL_LABELS = {
   owner:      'Owner',
   supervisor: 'Supervisor',
   operativo:  'Operativo',
+  cliente:    'Cliente',
 }
 
 export default function Usuarios() {
@@ -26,6 +29,27 @@ export default function Usuarios() {
   const [nuevoRol, setNuevoRol] = useState('')
   const [confirmDesactivar, setConfirmDesactivar] = useState(null)
   const [loadingAction, setLoadingAction] = useState(false)
+  const [vinculando, setVinculando] = useState(null)
+  const [clientes, setClientes] = useState([])
+  const [clienteSeleccionado, setClienteSeleccionado] = useState('')
+
+  useEffect(() => {
+    supabase.from('clientes').select('id, razon_social').order('razon_social')
+      .then(({ data }) => setClientes(data || []))
+  }, [])
+
+  const handleVincularCliente = async () => {
+    setLoadingAction(true)
+    try {
+      const { error } = await supabase.from('perfiles')
+        .update({ rol: 'cliente', cliente_id: clienteSeleccionado || null })
+        .eq('id', vinculando.id)
+      if (error) throw error
+      toast.success('Usuario vinculado como cliente')
+      setVinculando(null)
+    } catch (err) { toast.error(err.message) }
+    finally { setLoadingAction(false) }
+  }
 
   const handleCambiarRol = async () => {
     setLoadingAction(true)
@@ -127,6 +151,12 @@ export default function Usuarios() {
                       {!esYo && (
                         <div className="flex items-center justify-end gap-2">
                           <button
+                            onClick={() => { setVinculando(u); setClienteSeleccionado(u.cliente_id || '') }}
+                            className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-blue-500 hover:text-blue-400 transition-colors"
+                          >
+                            PORTAL
+                          </button>
+                          <button
                             onClick={() => { setEditandoRol(u); setNuevoRol(u.rol) }}
                             className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-hm-accent hover:text-hm-accent transition-colors"
                           >
@@ -162,6 +192,31 @@ export default function Usuarios() {
               <Button variant="ghost" onClick={() => setEditandoRol(null)} disabled={loadingAction}>Cancelar</Button>
               <Button variant="primary" onClick={handleCambiarRol} disabled={loadingAction || nuevoRol === editandoRol.rol}>
                 {loadingAction ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal vincular cliente (Portal) */}
+      {vinculando && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-hm-surface border border-hm-border rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <h2 className="font-semibold text-base mb-1">Acceso al Portal Cliente</h2>
+            <p className="text-sm text-hm-muted mb-4">{vinculando.nombre_completo}</p>
+            <p className="text-xs text-hm-muted mb-3">Vinculá este usuario a un cliente para darle acceso al portal. Su rol cambiará a <span className="text-hm-accent font-bold">Cliente</span>.</p>
+            <select
+              value={clienteSeleccionado}
+              onChange={e => setClienteSeleccionado(e.target.value)}
+              className="w-full bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent mb-4"
+            >
+              <option value="">— Seleccionar cliente —</option>
+              {clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
+            </select>
+            <div className="flex gap-3 justify-end">
+              <Button variant="ghost" onClick={() => setVinculando(null)} disabled={loadingAction}>Cancelar</Button>
+              <Button variant="primary" onClick={handleVincularCliente} disabled={loadingAction || !clienteSeleccionado}>
+                {loadingAction ? 'Guardando...' : 'Vincular y dar acceso'}
               </Button>
             </div>
           </div>

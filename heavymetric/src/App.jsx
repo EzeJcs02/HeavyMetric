@@ -19,6 +19,7 @@ import Facturacion from './pages/facturacion/Facturacion'
 import Clientes from './pages/clientes/Clientes'
 import Usuarios from './pages/usuarios/Usuarios'
 import Reportes from './pages/reportes/Reportes'
+import Portal from './pages/portal/Portal'
 import NotFound from './pages/NotFound'
 
 const PAGE_TITLES = {
@@ -47,21 +48,24 @@ function TitleUpdater() {
   return null
 }
 
-function Guard({ children, soloOwner, soloSupervisor }) {
-  const { user, perfil, loading, isOwner, canEdit } = useAuth()
+function Guard({ children, soloOwner, soloSupervisor, soloCliente }) {
+  const { user, perfil, loading, isOwner, canEdit, isCliente } = useAuth()
   const location = useLocation()
-  
+
   if (loading) return <div className="min-h-screen bg-hm-bg flex items-center justify-center text-hm-muted font-mono text-sm">Cargando HeavyMetric...</div>
   if (!user) return <Navigate to="/login" replace />
-  
-  // Si está logueado pero no tiene organización, y no estamos ya en /setup, redirigir a /setup
+
   if (perfil && !perfil.organization_id && location.pathname !== '/setup') {
     return <Navigate to="/setup" replace />
   }
 
+  // Clientes solo pueden acceder al portal
+  if (isCliente && location.pathname !== '/portal') return <Navigate to="/portal" replace />
+
   if (soloOwner && !isOwner) return <Navigate to="/" replace />
   if (soloSupervisor && !canEdit) return <Navigate to="/" replace />
-  
+  if (soloCliente && !isCliente) return <Navigate to="/" replace />
+
   return children
 }
 
@@ -90,6 +94,7 @@ export default function App() {
               <Route path="usuarios" element={<Guard soloOwner><Usuarios /></Guard>} />
               <Route path="reportes" element={<Guard soloSupervisor><Reportes /></Guard>} />
             </Route>
+            <Route path="portal" element={<Guard soloCliente><Portal /></Guard>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
