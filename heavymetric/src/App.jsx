@@ -19,6 +19,7 @@ import Facturacion from './pages/facturacion/Facturacion'
 import Clientes from './pages/clientes/Clientes'
 import Usuarios from './pages/usuarios/Usuarios'
 import Reportes from './pages/reportes/Reportes'
+import Configuracion from './pages/configuracion/Configuracion'
 import Portal from './pages/portal/Portal'
 import NotFound from './pages/NotFound'
 
@@ -37,6 +38,7 @@ const PAGE_TITLES = {
   '/leads':         'Leads CRM',
   '/cotizaciones':  'Cotizaciones',
   '/setup':         'Configuración inicial',
+  '/configuracion': 'Configuración',
 }
 
 function TitleUpdater() {
@@ -93,6 +95,7 @@ export default function App() {
               <Route path="facturacion" element={<Guard soloSupervisor><Facturacion /></Guard>} />
               <Route path="usuarios" element={<Guard soloOwner><Usuarios /></Guard>} />
               <Route path="reportes" element={<Guard soloSupervisor><Reportes /></Guard>} />
+              <Route path="configuracion" element={<Guard soloOwner><Configuracion /></Guard>} />
             </Route>
             <Route path="portal" element={<Guard soloCliente><Portal /></Guard>} />
             <Route path="*" element={<NotFound />} />

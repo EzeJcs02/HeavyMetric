@@ -4,6 +4,7 @@ import { useAlquileres } from '../../hooks/useAlquileres'
 import { useMaquinas } from '../../hooks/useMaquinas'
 import { useClientes } from '../../hooks/useClientes'
 import { useDolar } from '../../context/DolarContext'
+import { useFinanzas } from '../../hooks/useFinanzas'
 import { generateAlquilerPDF } from '../../utils/pdfGenerator'
 import ModalNuevoContrato from '../../components/modulos/alquileres/ModalNuevoContrato'
 import ModalConfirm from '../../components/ui/ModalConfirm'
@@ -32,6 +33,16 @@ export default function Alquileres() {
   const { formatUSD } = useDolar()
 
   const { contratos, loading: loadingAlq, error: errorAlq, createContrato, finalizarContrato, cancelarContrato } = useAlquileres()
+  const { crearFacturaDesdeAlquiler } = useFinanzas()
+
+  const handleFacturar = async (contrato) => {
+    try {
+      await crearFacturaDesdeAlquiler(contrato.id)
+      toast.success(`Factura generada para contrato #${contrato.numero_contrato}`)
+    } catch (err) {
+      toast.error('Error al facturar: ' + err.message)
+    }
+  }
   const { maquinas, loading: loadingMaq, error: errorMaq } = useMaquinas()
   const { clientes, loading: loadingCli, error: errorCli } = useClientes()
 
@@ -287,6 +298,15 @@ export default function Alquileres() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </button>
+                      {(c.estado === 'activo' || c.estado === 'finalizado') && (
+                        <Button
+                          variant="outline"
+                          className="px-3 py-1 text-xs border-green-800/50 text-green-400 hover:bg-green-900/20"
+                          onClick={() => handleFacturar(c)}
+                        >
+                          FACTURAR
+                        </Button>
+                      )}
                       {c.estado !== 'finalizado' && c.estado !== 'cancelado' && (
                         <>
                           <Button

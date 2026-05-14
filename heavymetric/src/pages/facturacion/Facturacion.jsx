@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
+import { supabase } from '../../lib/supabase'
 import ModalCobro from '../../components/modulos/facturacion/ModalCobro'
 import ModalConfirm from '../../components/ui/ModalConfirm'
 import Pagination from '../../components/ui/Pagination'
@@ -26,7 +27,27 @@ export default function Facturacion() {
   useEffect(() => { setPage(1) }, [searchQuery, filterStatus, periodo])
   const { formatUSD, formatARS } = useDolar()
 
-  const { transacciones, loading, error, registrarCobro, anularTransaccion } = useFinanzas()
+  const { transacciones, tipoCambio, loading, error, registrarCobro, anularTransaccion } = useFinanzas()
+  const [showTC, setShowTC] = useState(false)
+  const [tcForm, setTcForm] = useState({ compra: '', venta: '' })
+  const [savingTC, setSavingTC] = useState(false)
+
+  const handleGuardarTC = async () => {
+    if (!tcForm.venta) { toast.error('Ingresá el tipo de cambio venta'); return }
+    setSavingTC(true)
+    try {
+      const { error: err } = await supabase.from('tipo_cambio').upsert({
+        fecha: new Date().toISOString().slice(0, 10),
+        compra: Number(tcForm.compra) || 0,
+        venta: Number(tcForm.venta),
+        fuente: 'BNA'
+      }, { onConflict: 'fecha,fuente' })
+      if (err) throw err
+      toast.success('Tipo de cambio actualizado')
+      setShowTC(false)
+    } catch (err) { toast.error(err.message) }
+    finally { setSavingTC(false) }
+  }
 
   // Filtrado Multicapa (Período + Búsqueda + Estado)
   const transaccionesFiltradas = useMemo(() => {
@@ -143,8 +164,19 @@ export default function Facturacion() {
       <div className="flex items-center justify-between border-b border-hm-border pb-4">
         <h1 className="text-2xl font-bold">Facturación y Cobranzas</h1>
         <div className="flex items-center gap-4">
-          <select 
-            value={periodo} 
+          {/* Tipo de cambio widget */}
+          <div className="flex items-center gap-2">
+            <div className="text-right">
+              <div className="text-[10px] font-mono text-hm-muted">TC BNA HOY</div>
+              <div className="text-sm font-bold text-hm-accent">{tipoCambio ? `$${Number(tipoCambio.venta).toLocaleString('es-AR')}` : '—'}</div>
+            </div>
+            <button onClick={() => { setShowTC(v => !v); setTcForm({ compra: tipoCambio?.compra || '', venta: tipoCambio?.venta || '' }) }}
+              className="px-3 py-1.5 text-xs font-mono border border-hm-border rounded hover:border-hm-accent hover:text-hm-accent transition-colors">
+              {showTC ? 'CANCELAR' : 'ACTUALIZAR TC'}
+            </button>
+          </div>
+          <select
+            value={periodo}
             onChange={(e) => setPeriodo(e.target.value)}
             className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
           >
@@ -158,6 +190,27 @@ export default function Facturacion() {
           </Button>
         </div>
       </div>
+
+      {/* TIPO DE CAMBIO INLINE */}
+      {showTC && (
+        <div className="flex items-center gap-4 bg-hm-accent/5 border border-hm-accent/30 rounded-lg p-4">
+          <span className="text-xs font-mono text-hm-muted uppercase tracking-widest">TC BNA —</span>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-mono text-hm-muted">Compra</label>
+            <input type="number" value={tcForm.compra} onChange={e => setTcForm(p => ({ ...p, compra: e.target.value }))}
+              className="w-28 bg-hm-surface2 border border-hm-border rounded px-2 py-1 text-sm focus:outline-none focus:border-hm-accent" placeholder="0" />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-mono text-hm-muted">Venta *</label>
+            <input type="number" value={tcForm.venta} onChange={e => setTcForm(p => ({ ...p, venta: e.target.value }))}
+              className="w-28 bg-hm-surface2 border border-hm-border rounded px-2 py-1 text-sm focus:outline-none focus:border-hm-accent" placeholder="0" />
+          </div>
+          <button onClick={handleGuardarTC} disabled={savingTC}
+            className="px-4 py-1.5 text-xs font-mono font-bold bg-hm-accent text-black rounded hover:bg-yellow-500 transition-colors disabled:opacity-50">
+            {savingTC ? 'GUARDANDO...' : 'GUARDAR'}
+          </button>
+        </div>
+      )}
 
       {/* BUSCADOR Y FILTROS DE ESTADO */}
       <div className="flex flex-col md:flex-row gap-4 items-end bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50">

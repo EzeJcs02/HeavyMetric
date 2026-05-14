@@ -1,8 +1,11 @@
 import { useState } from 'react'
+import * as XLSX from 'xlsx'
+import { toast } from 'sonner'
 import { useReportes } from '../../hooks/useReportes'
 import { useDolar } from '../../context/DolarContext'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
+import Button from '../../components/ui/Button'
 
 const TABS = [
   { id: 'rentabilidad', label: 'RENTABILIDAD' },
@@ -29,6 +32,28 @@ export default function Reportes() {
     </div>
   )
 
+  const handleExportExcel = () => {
+    try {
+      let rows = [], sheetName = tab
+      if (tab === 'rentabilidad') {
+        rows = rentabilidad.map(c => ({ CLIENTE: c.razon_social, 'FACTURADO USD': c.total_facturado, 'COBRADO USD': c.total_cobrado, 'PENDIENTE USD': c.total_pendiente }))
+        sheetName = 'Rentabilidad'
+      } else if (tab === 'utilizacion') {
+        rows = utilizacion.map(m => ({ UNIDAD: m.nombre_unidad, EQUIPO: `${m.marca} ${m.modelo}`, ESTADO: m.en_taller ? 'Taller' : m.en_alquiler ? 'Alquilada' : 'Disponible', 'HORÓMETRO': m.horometro_actual, 'DÍAS ALQUILADOS': m.dias_alquilados }))
+        sheetName = 'Utilizacion_Flota'
+      } else {
+        rows = servicePendiente.map(m => ({ UNIDAD: m.nombre_unidad, EQUIPO: `${m.marca} ${m.modelo}`, ESTADO: m.estado_service, 'HORÓMETRO': m.horometro_actual, 'HS RESTANTES': m.horas_restantes_service }))
+        sheetName = 'Service_Pendiente'
+      }
+      if (!rows.length) { toast.error('No hay datos para exportar'); return }
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, sheetName)
+      XLSX.writeFile(wb, `Reporte_${sheetName}_${new Date().toISOString().slice(0,10)}.xlsx`)
+      toast.success('Excel generado')
+    } catch (err) { toast.error(err.message) }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between border-b border-hm-border pb-4">
@@ -36,6 +61,7 @@ export default function Reportes() {
           <h1 className="text-2xl font-bold">Reportes</h1>
           <p className="text-hm-muted text-sm mt-1">Análisis de rentabilidad, flota y service.</p>
         </div>
+        <Button variant="outline" onClick={handleExportExcel} disabled={loading}>EXPORTAR EXCEL</Button>
       </div>
 
       {/* TABS */}

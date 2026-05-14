@@ -4,8 +4,10 @@ import { generateCotizacionPDF } from '../../utils/pdfGenerator'
 import { useCotizaciones } from '../../hooks/useCotizaciones'
 import { useClientes } from '../../hooks/useClientes'
 import { useLeads } from '../../hooks/useLeads'
+import { useMaquinas } from '../../hooks/useMaquinas'
 import { useAuth } from '../../context/AuthContext'
 import { useDolar } from '../../context/DolarContext'
+import { supabase } from '../../lib/supabase'
 import Modal from '../../components/ui/Modal'
 import ModalConfirm from '../../components/ui/ModalConfirm'
 import Button from '../../components/ui/Button'
@@ -191,14 +193,41 @@ export default function Cotizaciones() {
   const { clientes } = useClientes()
   const { leads }    = useLeads()
   const { formatUSD } = useDolar()
-  const { canEdit }   = useAuth()
+  const { canEdit, perfil } = useAuth()
 
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [busqueda, setBusqueda]         = useState('')
   const [page, setPage]                 = useState(1)
   const [modalOpen, setModalOpen]       = useState(false)
   const [editando, setEditando]         = useState(null)
-  const [cambiandoEstado, setCambiandoEstado] = useState(null) // { cot, estado }
+  const [cambiandoEstado, setCambiandoEstado] = useState(null)
+  const [creandoOT, setCreandoOT]       = useState(null) // cotización desde la que crear OT
+  const [maquinaOT, setMaquinaOT]       = useState('')
+  const [savingOT, setSavingOT]         = useState(false)
+
+  const { maquinas } = useMaquinas()
+
+  const handleCrearOT = async () => {
+    if (!maquinaOT) { toast.error('Seleccioná una máquina'); return }
+    setSavingOT(true)
+    try {
+      const descripcion = creandoOT.items?.map(i => i.descripcion).filter(Boolean).join(' / ') || creandoOT.titulo || 'Trabajo según cotización'
+      const { error } = await supabase.from('ordenes_trabajo').insert([{
+        organization_id: perfil?.organization_id,
+        maquina_id:      maquinaOT,
+        cliente_id:      creandoOT.cliente_id,
+        descripcion_trabajo: descripcion,
+        fecha_ingreso:   new Date().toISOString().slice(0, 10),
+        estado:          'en_progreso',
+        notas_internas:  `Generada desde Cotización #${creandoOT.numero_cotizacion}`,
+      }])
+      if (error) throw error
+      toast.success(`OT creada desde Cotización #${creandoOT.numero_cotizacion}`)
+      setCreandoOT(null)
+      setMaquinaOT('')
+    } catch (err) { toast.error(err.message) }
+    finally { setSavingOT(false) }
+  }
 
   useEffect(() => { setPage(1) }, [filtroEstado, busqueda])
 
@@ -365,6 +394,9 @@ export default function Cotizaciones() {
                           <button onClick={() => setCambiandoEstado({ cot, estado: 'Aceptada' })} className="px-2 py-1 text-[10px] font-mono font-bold border border-green-500/40 text-green-400 rounded hover:bg-green-500/10 transition-colors">ACEPTAR</button>
                           <button onClick={() => setCambiandoEstado({ cot, estado: 'Rechazada' })} className="px-2 py-1 text-[10px] font-mono font-bold border border-red-500/40 text-red-400 rounded hover:bg-red-500/10 transition-colors">RECHAZAR</button>
                         </>)}
+                        {cot.estado === 'Aceptada' && (
+                          <button onClick={() => { setCreandoOT(cot); setMaquinaOT('') }} className="px-2 py-1 text-[10px] font-mono font-bold border border-hm-accent/40 text-hm-accent rounded hover:bg-hm-accent/10 transition-colors">CREAR OT</button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -384,6 +416,33 @@ export default function Cotizaciones() {
         leads={leads}
         onConfirm={handleConfirm}
       />
+
+      {/* Modal Crear OT desde cotización */}
+      {creandoOT && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-hm-surface border border-hm-border rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <h2 className="font-semibold text-base mb-1">Crear Orden de Trabajo</h2>
+            <p className="text-sm text-hm-muted mb-1">Cotización #{creandoOT.numero_cotizacion} — {nombreCotizacion(creandoOT)}</p>
+            <p className="text-xs text-hm-muted mb-4">Seleccioná la máquina que ingresa al taller.</p>
+            <select
+              value={maquinaOT}
+              onChange={e => setMaquinaOT(e.target.value)}
+              className="w-full bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent mb-4"
+            >
+              <option value="">— Seleccionar máquina —</option>
+              {maquinas.map(m => (
+                <option key={m.id} value={m.id}>{m.nombre_unidad} — {m.marca} {m.modelo}</option>
+              ))}
+            </select>
+            <div className="flex gap-3 justify-end">
+              <Button variant="ghost" onClick={() => setCreandoOT(null)} disabled={savingOT}>Cancelar</Button>
+              <Button variant="primary" onClick={handleCrearOT} disabled={savingOT || !maquinaOT}>
+                {savingOT ? 'Creando...' : 'Crear OT'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ModalConfirm
         isOpen={!!cambiandoEstado}
