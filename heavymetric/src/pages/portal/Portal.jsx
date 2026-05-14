@@ -36,7 +36,7 @@ function EmptyState({ text }) {
 export default function Portal() {
   const { perfil, clienteId } = useAuth()
   const { formatUSD } = useDolar()
-  const [data, setData] = useState({ maquinas: [], ots: [], cotizaciones: [], contratos: [] })
+  const [data, setData] = useState({ maquinas: [], ots: [], cotizaciones: [], contratos: [], facturas: [] })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -46,17 +46,19 @@ export default function Portal() {
 
   const fetchAll = async () => {
     setLoading(true)
-    const [maqRes, otRes, cotRes, ctrRes] = await Promise.all([
+    const [maqRes, otRes, cotRes, ctrRes, facRes] = await Promise.all([
       supabase.from('maquinas').select('id, nombre_unidad, marca, modelo, horometro_actual, en_taller, en_alquiler').eq('cliente_id', clienteId).eq('activa', true),
       supabase.from('ordenes_trabajo').select('id, numero_ot, fecha_ingreso, descripcion_trabajo, estado, total_usd, maquina:maquinas(nombre_unidad)').eq('cliente_id', clienteId).order('created_at', { ascending: false }).limit(10),
       supabase.from('cotizaciones').select('id, numero_cotizacion, titulo, estado, total_usd, fecha_vencimiento, created_at').eq('cliente_id', clienteId).order('created_at', { ascending: false }).limit(10),
       supabase.from('contratos_alquiler').select('id, numero_contrato, fecha_inicio, fecha_fin, estado, total_contrato_usd, maquina:maquinas(nombre_unidad)').eq('cliente_id', clienteId).eq('estado', 'activo'),
+      supabase.from('transacciones').select('id, tipo_documento, numero_comprobante, origen_tipo, monto_total_usd, estado_pago, fecha_emision, fecha_cobro').eq('cliente_id', clienteId).order('fecha_emision', { ascending: false }).limit(20),
     ])
     setData({
-      maquinas:    maqRes.data   || [],
-      ots:         otRes.data    || [],
+      maquinas:     maqRes.data  || [],
+      ots:          otRes.data   || [],
       cotizaciones: cotRes.data  || [],
-      contratos:   ctrRes.data   || [],
+      contratos:    ctrRes.data  || [],
+      facturas:     facRes.data  || [],
     })
     setLoading(false)
   }
@@ -75,8 +77,9 @@ export default function Portal() {
     fetchAll()
   }
 
-  const estadoOT = { en_progreso: { label: 'En taller', v: 'warn' }, completada: { label: 'Completado', v: 'ok' }, facturada: { label: 'Facturado', v: 'blue' }, cancelada: { label: 'Cancelado', v: 'danger' } }
+  const estadoOT  = { en_progreso: { label: 'En taller', v: 'warn' }, completada: { label: 'Completado', v: 'ok' }, facturada: { label: 'Facturado', v: 'blue' }, cancelada: { label: 'Cancelado', v: 'danger' } }
   const estadoCot = { enviada: { label: 'Pendiente', v: 'warn' }, aceptada: { label: 'Aceptada', v: 'ok' }, rechazada: { label: 'Rechazada', v: 'danger' }, borrador: { label: 'Borrador', v: 'default' } }
+  const estadoPago = { pendiente: { label: 'Pendiente', v: 'warn' }, cobrado: { label: 'Cobrado', v: 'ok' }, anulado: { label: 'Anulado', v: 'danger' } }
 
   return (
     <div className="min-h-screen bg-hm-bg text-hm-text">
@@ -208,6 +211,35 @@ export default function Portal() {
                 </div>
               )}
             </section>
+
+            {/* FACTURAS */}
+            {data.facturas.length > 0 && (
+              <section>
+                <SectionTitle>Mis Facturas</SectionTitle>
+                <div className="flex flex-col gap-3">
+                  {data.facturas.map(f => {
+                    const sp = estadoPago[f.estado_pago] || { label: f.estado_pago, v: 'default' }
+                    return (
+                      <div key={f.id} className="bg-hm-surface border border-hm-border rounded-xl p-5 flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="font-mono text-xs text-hm-muted">{f.tipo_documento || 'Factura'}</span>
+                            {f.numero_comprobante && <span className="font-mono text-xs text-hm-muted">#{f.numero_comprobante}</span>}
+                            <Badge variant={sp.v}>{sp.label}</Badge>
+                          </div>
+                          <div className="text-xs font-mono text-hm-muted">{f.fecha_emision}</div>
+                          {f.fecha_cobro && <div className="text-xs text-green-400 font-mono mt-0.5">Cobrado: {f.fecha_cobro}</div>}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-hm-accent">{formatUSD(f.monto_total_usd)}</div>
+                          <div className="text-[10px] font-mono text-hm-muted capitalize mt-0.5">{f.origen_tipo}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
 
             {/* HISTORIAL DE SERVICIOS */}
             <section>

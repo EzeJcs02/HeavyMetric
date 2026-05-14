@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { useMaquinas } from '../../hooks/useMaquinas'
 import { useClientes } from '../../hooks/useClientes'
 import { useTaller } from '../../hooks/useTaller'
+import { useFinanzas } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
 import { generateOTPDF, generateServicioPDF } from '../../utils/pdfGenerator'
 import MaquinaRow from '../../components/modulos/MaquinaRow'
@@ -24,6 +25,7 @@ export default function Taller() {
   const [selectedOT, setSelectedOT] = useState(null)
   const [otACancelar, setOtACancelar] = useState(null)
   const [cancelando, setCancelando] = useState(false)
+  const [facturandoOT, setFacturandoOT] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isNuevaOTOpen, setIsNuevaOTOpen] = useState(false)
   
@@ -44,6 +46,7 @@ export default function Taller() {
   const { maquinas, loading: loadingMaq, error: errorMaq, createMaquina, updateMaquina } = useMaquinas()
   const { clientes } = useClientes()
   const { ots, loading: loadingOT, error: errorOT, finalizarOT, createOT, cancelarOT } = useTaller()
+  const { crearFacturaDesdeOT } = useFinanzas()
 
   // Lógica de Filtrado de Maquinas
   const maquinasFiltradas = useMemo(() => {
@@ -121,6 +124,18 @@ export default function Taller() {
       toast.error('Error al cancelar OT: ' + err.message)
     } finally {
       setCancelando(false)
+    }
+  }
+
+  const handleFacturarOT = async (ot) => {
+    setFacturandoOT(ot.id)
+    try {
+      await crearFacturaDesdeOT(ot.id)
+      toast.success(`OT #${ot.numero_ot} facturada correctamente`)
+    } catch (err) {
+      toast.error('Error al facturar: ' + err.message)
+    } finally {
+      setFacturandoOT(null)
     }
   }
 
@@ -323,6 +338,15 @@ export default function Taller() {
                           title="Parte de Servicio (para firma del cliente)"
                         >
                           PARTE ↓
+                        </button>
+                      )}
+                      {ot.estado === 'completada' && (
+                        <button
+                          onClick={() => handleFacturarOT(ot)}
+                          disabled={facturandoOT === ot.id}
+                          className="px-3 py-1 text-xs font-mono font-bold border border-green-800/50 text-green-400/80 rounded hover:border-green-500 hover:text-green-400 disabled:opacity-50 transition-colors"
+                        >
+                          {facturandoOT === ot.id ? '...' : 'FACTURAR'}
                         </button>
                       )}
                       {ot.estado !== 'completada' && ot.estado !== 'facturada' && ot.estado !== 'cancelada' && (
