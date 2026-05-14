@@ -4,7 +4,7 @@ import { useMaquinas } from '../../hooks/useMaquinas'
 import { useClientes } from '../../hooks/useClientes'
 import { useTaller } from '../../hooks/useTaller'
 import { useDolar } from '../../context/DolarContext'
-import { generateOTPDF } from '../../utils/pdfGenerator'
+import { generateOTPDF, generateServicioPDF } from '../../utils/pdfGenerator'
 import MaquinaRow from '../../components/modulos/MaquinaRow'
 import ModalFinalizarOT from '../../components/modulos/taller/ModalFinalizarOT'
 import ModalNuevaOT from '../../components/modulos/taller/ModalNuevaOT'
@@ -307,15 +307,24 @@ export default function Taller() {
                       {formatUSD(Number(ot.total_repuestos_usd || 0) + Number(ot.total_mano_obra_usd || 0))}
                     </td>
                     <td className="p-4 text-right flex gap-2 justify-end">
-                      <button 
+                      <button
                         onClick={() => generateOTPDF(ot)}
                         className="p-2 hover:bg-hm-surface2 rounded text-hm-accent transition-colors"
-                        title="Descargar PDF"
+                        title="PDF Orden de Trabajo (interno)"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </button>
+                      {(ot.estado === 'completada' || ot.estado === 'facturada') && (
+                        <button
+                          onClick={() => generateServicioPDF(ot)}
+                          className="px-3 py-1 text-xs font-mono font-bold border border-blue-800/50 text-blue-400/80 rounded hover:border-blue-500 hover:text-blue-400 transition-colors"
+                          title="Parte de Servicio (para firma del cliente)"
+                        >
+                          PARTE ↓
+                        </button>
+                      )}
                       {ot.estado !== 'completada' && ot.estado !== 'facturada' && ot.estado !== 'cancelada' && (
                         <>
                           <Button
