@@ -37,7 +37,7 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
     if (!horoForm.horometro_valor) return
     setSavingHoro(true)
     try {
-      const { error } = await supabase.from('historial_horometros').insert({ maquina_id: maquinaId, horometro_valor: Number(horoForm.horometro_valor), fecha_lectura: horoForm.fecha_lectura, observacion: horoForm.observacion || null })
+      const { error } = await supabase.from('historial_horometros').insert({ maquina_id: maquinaId, lectura_horas: Number(horoForm.horometro_valor), fecha_lectura: horoForm.fecha_lectura, notas: horoForm.observacion || null })
       if (error) throw error
       toast.success('Lectura registrada')
       setHoroForm(p => ({ ...p, horometro_valor: '', observacion: '' }))
@@ -180,9 +180,9 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                   <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
                     {horometros.map(h => (
                       <div key={h.id} className="flex items-center justify-between bg-hm-surface2/20 rounded px-4 py-2 border border-hm-border/50 text-sm">
-                        <span className="font-mono text-hm-accent font-bold">{h.horometro_valor} hrs</span>
+                        <span className="font-mono text-hm-accent font-bold">{h.lectura_horas} hrs</span>
                         <span className="text-xs text-hm-muted">{h.fecha_lectura}</span>
-                        {h.observacion && <span className="text-xs text-hm-muted truncate max-w-[200px]">{h.observacion}</span>}
+                        {h.notas && <span className="text-xs text-hm-muted truncate max-w-[200px]">{h.notas}</span>}
                       </div>
                     ))}
                   </div>
