@@ -177,7 +177,12 @@ export function useTaller() {
 
       if (err) throw err
 
-      console.info('[HeavyMetric] OT finalizada:', data)
+      if (payload.nps_score) {
+        await supabase.from('ordenes_trabajo')
+          .update({ nps_score: Number(payload.nps_score) })
+          .eq('id', otId)
+      }
+
       await fetchOts()
       return data
     } catch (err) {

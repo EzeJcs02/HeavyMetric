@@ -7,6 +7,8 @@ import Layout from './components/layout/Layout'
 import Login from './pages/auth/Login'
 import Setup from './pages/auth/Setup'
 import ResetPassword from './pages/auth/ResetPassword'
+import Leads from './pages/leads/Leads'
+import Cotizaciones from './pages/cotizaciones/Cotizaciones'
 import Home from './pages/home/Home'
 import Dashboard from './pages/dashboard/Dashboard'
 import Taller from './pages/taller/Taller'
@@ -20,18 +22,20 @@ import Reportes from './pages/reportes/Reportes'
 import NotFound from './pages/NotFound'
 
 const PAGE_TITLES = {
-  '/':            'Inicio',
-  '/dashboard':   'Dashboard',
-  '/taller':      'Taller',
-  '/alquileres':  'Alquileres',
-  '/ventas':      'Inventario',
-  '/clientes':    'Clientes',
-  '/precios':     'Precios',
-  '/facturacion': 'Facturación',
-  '/login':       'Iniciar sesión',
-  '/usuarios':    'Usuarios',
-  '/reportes':    'Reportes',
-  '/setup':       'Configuración inicial',
+  '/':              'Inicio',
+  '/dashboard':     'Dashboard',
+  '/taller':        'Taller',
+  '/alquileres':    'Alquileres',
+  '/ventas':        'Inventario',
+  '/clientes':      'Clientes',
+  '/precios':       'Precios',
+  '/facturacion':   'Facturación',
+  '/login':         'Iniciar sesión',
+  '/usuarios':      'Usuarios',
+  '/reportes':      'Reportes',
+  '/leads':         'Leads CRM',
+  '/cotizaciones':  'Cotizaciones',
+  '/setup':         'Configuración inicial',
 }
 
 function TitleUpdater() {
@@ -75,6 +79,8 @@ export default function App() {
             <Route path="/" element={<Guard><Layout /></Guard>}>
               <Route index element={<Home />} />
               <Route path="dashboard" element={<Guard soloSupervisor><Dashboard /></Guard>} />
+              <Route path="leads" element={<Guard soloSupervisor><Leads /></Guard>} />
+              <Route path="cotizaciones" element={<Guard soloSupervisor><Cotizaciones /></Guard>} />
               <Route path="taller" element={<Taller />} />
               <Route path="alquileres" element={<Guard soloSupervisor><Alquileres /></Guard>} />
               <Route path="ventas" element={<Ventas />} />

@@ -2,14 +2,116 @@ import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useInventario } from '../../hooks/useInventario'
 import { useDolar } from '../../context/DolarContext'
+import { supabase } from '../../lib/supabase'
 import Pagination from '../../components/ui/Pagination'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Input from '../../components/ui/Input'
+import Modal from '../../components/ui/Modal'
 import ModalConfirm from '../../components/ui/ModalConfirm'
 
 const PER_PAGE = 10
+
+const TIPOS_COMPAT = ['Directa', 'Alternativa', 'Equivalente']
+const CONFIANZA    = ['Alta', 'Media', 'Baja']
+
+// ─── Modal Cross-Reference ────────────────────────────────────────────────────
+function ModalCrossReference({ item, onClose }) {
+  const [refs, setRefs]       = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState(false)
+  const [form, setForm]       = useState({ marca_compatible: '', modelo_compatible: '', tipo_equipo: '', tipo_compatibilidad: 'Directa', nivel_confianza: 'Alta', notas: '' })
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  useEffect(() => { fetchRefs() }, [])
+
+  const fetchRefs = async () => {
+    setLoading(true)
+    const { data } = await supabase.from('cross_reference_repuestos').select('*').eq('inventario_id', item.id).order('created_at')
+    setRefs(data || [])
+    setLoading(false)
+  }
+
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    if (!form.marca_compatible || !form.modelo_compatible) { toast.error('Marca y modelo son obligatorios'); return }
+    setSaving(true)
+    try {
+      const { error } = await supabase.from('cross_reference_repuestos').insert({ ...form, inventario_id: item.id })
+      if (error) throw error
+      toast.success('Compatibilidad agregada')
+      setForm({ marca_compatible: '', modelo_compatible: '', tipo_equipo: '', tipo_compatibilidad: 'Directa', nivel_confianza: 'Alta', notas: '' })
+      await fetchRefs()
+    } catch (err) { toast.error(err.message) }
+    finally { setSaving(false) }
+  }
+
+  const handleDelete = async (id) => {
+    await supabase.from('cross_reference_repuestos').delete().eq('id', id)
+    await fetchRefs()
+  }
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title={`Compatibilidades — ${item.nombre_repuesto}`} maxWidth="max-w-2xl">
+      <div className="flex flex-col gap-5">
+        {/* Lista */}
+        <div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">Compatibilidades registradas</div>
+          {loading ? (
+            <div className="h-20 bg-hm-surface2 rounded animate-pulse" />
+          ) : refs.length === 0 ? (
+            <p className="text-sm text-hm-muted italic p-4 bg-hm-surface2/20 rounded">Sin compatibilidades registradas.</p>
+          ) : (
+            <div className="flex flex-col gap-2 max-h-52 overflow-y-auto">
+              {refs.map(r => (
+                <div key={r.id} className="flex items-center justify-between bg-hm-surface2/30 rounded-lg px-4 py-2 border border-hm-border group">
+                  <div>
+                    <span className="font-medium text-sm">{r.marca_compatible} {r.modelo_compatible}</span>
+                    {r.tipo_equipo && <span className="text-xs text-hm-muted ml-2">({r.tipo_equipo})</span>}
+                    <div className="flex gap-2 mt-0.5">
+                      <Badge variant={r.tipo_compatibilidad === 'Directa' ? 'ok' : r.tipo_compatibilidad === 'Alternativa' ? 'warn' : 'info'}>{r.tipo_compatibilidad}</Badge>
+                      <Badge variant={r.nivel_confianza === 'Alta' ? 'ok' : r.nivel_confianza === 'Media' ? 'warn' : 'danger'}>{r.nivel_confianza}</Badge>
+                    </div>
+                    {r.notas && <p className="text-xs text-hm-muted mt-0.5">{r.notas}</p>}
+                  </div>
+                  <button onClick={() => handleDelete(r.id)} className="opacity-0 group-hover:opacity-100 text-red-400/60 hover:text-red-400 transition-all text-sm px-2">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Formulario */}
+        <form onSubmit={handleAdd} className="border-t border-hm-border pt-4 flex flex-col gap-3">
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest">Agregar compatibilidad</div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Marca compatible *" value={form.marca_compatible} onChange={e => set('marca_compatible', e.target.value)} />
+            <Input label="Modelo compatible *" value={form.modelo_compatible} onChange={e => set('modelo_compatible', e.target.value)} />
+            <Input label="Tipo de equipo" value={form.tipo_equipo} onChange={e => set('tipo_equipo', e.target.value)} placeholder="Ej: Excavadora" />
+            <div className="flex flex-col gap-1">
+              <label className="label-mono">Tipo compatibilidad</label>
+              <select value={form.tipo_compatibilidad} onChange={e => set('tipo_compatibilidad', e.target.value)} className="select-hm">
+                {TIPOS_COMPAT.map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="label-mono">Nivel de confianza</label>
+              <select value={form.nivel_confianza} onChange={e => set('nivel_confianza', e.target.value)} className="select-hm">
+                {CONFIANZA.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <Input label="Notas" value={form.notas} onChange={e => set('notas', e.target.value)} />
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" type="button" onClick={onClose}>CERRAR</Button>
+            <Button type="submit" variant="primary" disabled={saving}>{saving ? 'GUARDANDO...' : '+ AGREGAR'}</Button>
+          </div>
+        </form>
+      </div>
+    </Modal>
+  )
+}
 
 // ─── Modal Ajuste de Stock ────────────────────────────────────────────────────
 function ModalAjusteStock({ item, onConfirm, onClose }) {
@@ -103,6 +205,7 @@ export default function Ventas() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStock, setFilterStock] = useState('todos') // todos, bajo, ok
   const [selectedItem, setSelectedItem] = useState(null)
+  const [crossRefItem, setCrossRefItem] = useState(null)
   const [itemAArchivar, setItemAArchivar] = useState(null)
   const [archivando, setArchivando] = useState(false)
   const [page, setPage] = useState(1)
@@ -305,6 +408,12 @@ export default function Ventas() {
                     <td className="p-4 text-right">
                       <div className="flex gap-2 justify-end">
                         <button
+                          onClick={() => setCrossRefItem(item)}
+                          className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-blue-500 hover:text-blue-400 transition-colors"
+                        >
+                          COMPAT.
+                        </button>
+                        <button
                           onClick={() => setSelectedItem(item)}
                           className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-hm-accent hover:text-hm-accent transition-colors"
                         >
@@ -331,6 +440,11 @@ export default function Ventas() {
           onPageChange={setPage}
         />
       </Card>
+
+      {/* MODAL CROSS REFERENCE */}
+      {crossRefItem && (
+        <ModalCrossReference item={crossRefItem} onClose={() => setCrossRefItem(null)} />
+      )}
 
       {/* MODAL AJUSTE STOCK */}
       {selectedItem && (

@@ -59,4 +59,10 @@
   .label-mono {
     @apply block text-[10px] font-mono font-bold tracking-[0.12em] uppercase text-hm-muted mb-1;
   }
+
+  .select-hm {
+    @apply bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text
+           focus:outline-none focus:border-hm-accent
+           transition-colors w-full;
+  }
 }

@@ -14,7 +14,8 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
     horas_mano_obra: ot?.horas_mano_obra || 0,
     precio_hora_usd: ot?.precio_hora_usd || 45,
     notas_internas: ot?.notas_internas || '',
-    estado: 'completada' // o 'facturada'
+    estado: 'completada',
+    nps_score: null,
   })
 
   const handleChange = (e) => {
@@ -117,6 +118,34 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
             className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors min-h-[100px]"
             placeholder="Detalles técnicos de la reparación, observaciones para el cliente..."
           />
+        </div>
+
+        {/* NPS */}
+        <div className="bg-hm-surface2/30 p-4 border border-hm-border rounded">
+          <h3 className="font-mono text-hm-accent mb-3 tracking-widest text-sm">NPS CLIENTE — OPCIONAL</h3>
+          <p className="text-xs text-hm-muted mb-3">Puntuación del cliente al cerrar el servicio (1 = muy insatisfecho, 10 = muy satisfecho)</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {[1,2,3,4,5,6,7,8,9,10].map(n => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setFormData(p => ({ ...p, nps_score: p.nps_score === n ? null : n }))}
+                className={`w-9 h-9 rounded text-xs font-bold border transition-all ${
+                  formData.nps_score === n
+                    ? n <= 6 ? 'bg-red-500 border-red-500 text-white'
+                      : n <= 8 ? 'bg-yellow-500 border-yellow-500 text-black'
+                      : 'bg-green-500 border-green-500 text-white'
+                    : 'bg-hm-surface2 border-hm-border text-hm-muted hover:border-hm-accent/50'
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+            {formData.nps_score && (
+              <button type="button" onClick={() => setFormData(p => ({ ...p, nps_score: null }))}
+                className="px-2 text-xs text-hm-muted hover:text-red-400 transition-colors">✕</button>
+            )}
+          </div>
         </div>
 
         {/* RESUMEN FINAL */}

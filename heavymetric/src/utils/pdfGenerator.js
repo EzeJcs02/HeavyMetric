@@ -248,6 +248,98 @@ export const generateAlquilerPDF = (contrato) => {
   doc.save(`Contrato_Alquiler_${contrato.numero_contrato}_${contrato.cliente_nombre.replace(/\s+/g, '_')}.pdf`)
 }
 
+// ─── PDF de Cotización ───────────────────────────────────────────────────────
+export const generateCotizacionPDF = (cot) => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.width
+  const M = 14
+
+  header(doc, 'COTIZACIÓN', `#${cot.numero_cotizacion}`)
+
+  const hoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+  doc.setFontSize(8); doc.setTextColor(...C.MUTED); doc.setFont('helvetica', 'normal')
+  doc.text(`Emitido: ${hoy}`, W - M, 48, { align: 'right' })
+
+  let y = 54
+
+  // Datos del cliente/lead
+  y = sectionTitle(doc, 'Datos del Destinatario', y)
+  const nombre = cot.cliente?.razon_social || cot.lead?.empresa || cot.lead?.nombre || '—'
+  labelValue(doc, 'Cliente / Prospecto', nombre, M, y)
+  if (cot.cliente?.cuit) labelValue(doc, 'CUIT', cot.cliente.cuit, M + 100, y)
+  y += 14
+
+  // Condiciones
+  if (cot.condiciones || cot.fecha_vencimiento) {
+    y = sectionTitle(doc, 'Condiciones', y)
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.BLACK)
+    if (cot.fecha_vencimiento) {
+      doc.text(`Válida hasta: ${fmtDate(cot.fecha_vencimiento)}`, M, y); y += 6
+    }
+    if (cot.condiciones) {
+      const lines = doc.splitTextToSize(cot.condiciones, W - M * 2)
+      doc.text(lines, M, y); y += lines.length * 5 + 4
+    }
+  }
+
+  // Items
+  y = sectionTitle(doc, 'Detalle de Productos y Servicios', y)
+  const rows = (cot.items || []).map(i => [
+    i.tipo_item || '—',
+    i.descripcion,
+    Number(i.cantidad),
+    fmt(i.precio_usd),
+    fmt(Number(i.cantidad) * Number(i.precio_usd))
+  ])
+
+  doc.autoTable({
+    startY: y,
+    margin: { left: M, right: M },
+    theme: 'grid',
+    headStyles: { fillColor: C.DARK, textColor: C.ORANGE, fontSize: 8, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 9, textColor: C.BLACK },
+    alternateRowStyles: { fillColor: C.LIGHT },
+    columnStyles: {
+      0: { cellWidth: 24 }, 1: { cellWidth: 80 },
+      2: { cellWidth: 16, halign: 'center' },
+      3: { cellWidth: 32, halign: 'right' }, 4: { cellWidth: 32, halign: 'right' }
+    },
+    head: [['TIPO', 'DESCRIPCIÓN', 'CANT.', 'PRECIO UNIT.', 'SUBTOTAL']],
+    body: rows
+  })
+
+  const fY = doc.lastAutoTable.finalY + 6
+  const xT = W - M - 82
+
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.GRAY)
+  doc.text('SUBTOTAL:', xT, fY)
+  doc.setTextColor(...C.BLACK); doc.text(fmt(cot.subtotal_usd), W - M, fY, { align: 'right' })
+
+  doc.setTextColor(...C.GRAY)
+  doc.text('IVA:', xT, fY + 5)
+  doc.setTextColor(...C.BLACK); doc.text(fmt(cot.iva_usd), W - M, fY + 5, { align: 'right' })
+
+  doc.setFillColor(...C.DARK)
+  doc.roundedRect(xT - 4, fY + 8, 86, 10, 1, 1, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...C.WHITE)
+  doc.text('TOTAL:', xT, fY + 14.5)
+  doc.setTextColor(...C.ORANGE)
+  doc.text(fmt(cot.total_usd), W - M - 2, fY + 14.5, { align: 'right' })
+
+  // Footer
+  const pageCount = doc.internal.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    const pH = doc.internal.pageSize.height
+    doc.setFillColor(...C.DARK); doc.rect(0, pH - 10, W, 10, 'F')
+    doc.setFontSize(7); doc.setTextColor(...C.MUTED); doc.setFont('helvetica', 'normal')
+    doc.text('HeavyMetric — Knock S.A. | Documento no válido como comprobante fiscal.', M, pH - 4)
+    doc.text(`Pág. ${i} / ${pageCount}`, W - M, pH - 4, { align: 'right' })
+  }
+
+  doc.save(`Cotizacion_${cot.numero_cotizacion}_${nombre.replace(/\s+/g, '_')}.pdf`)
+}
+
 // ─── PDF de Orden de Trabajo ─────────────────────────────────────────────────
 export const generateOTPDF = (ot) => {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })

@@ -5,12 +5,9 @@ const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov'
 
 const EMPTY = {
   kpis: {
-    ordenesActivas: 0,
-    alquileresActivos: 0,
-    alquileresPorVencer: 0,
-    facturadoMes: 0,
-    alertasService: 0,
-    alertasServiceUrgentes: 0,
+    ordenesActivas: 0, alquileresActivos: 0, alquileresPorVencer: 0,
+    facturadoMes: 0, alertasService: 0, alertasServiceUrgentes: 0,
+    leadsActivos: 0, leadsGradoA: 0, cotizacionesPendientes: 0, cotizacionesMonto: 0,
   },
   transacciones:     [],
   alertas:           [],
@@ -35,6 +32,8 @@ async function fetchDashboard() {
     { data: solData,     error: errSol   },
     { data: txAnual,     error: errAnual },
     { data: flotaData,   error: errFlota },
+    { data: leadsData,   error: errLeads },
+    { data: cotsData,    error: errCots  },
   ] = await Promise.all([
     supabase.from('ordenes_trabajo').select('*', { count: 'exact', head: true }).in('estado', ['borrador', 'en_progreso']),
     supabase.from('alquileres_activos').select('estado_vencimiento'),
@@ -45,9 +44,11 @@ async function fetchDashboard() {
     supabase.from('solicitudes_edicion').select('id, modulo, descripcion, estado, created_at, solicitante_id, perfiles:solicitante_id(nombre_completo)').eq('estado', 'pendiente').order('created_at', { ascending: false }).limit(5),
     supabase.from('transacciones').select('fecha_emision, monto_total_usd').gte('fecha_emision', inicioAnio).order('fecha_emision'),
     supabase.from('maquinas').select('id, nombre_unidad, activa').eq('activa', true),
+    supabase.from('leads').select('lead_grade, estado').not('estado', 'in', '(Ganado,Perdido)'),
+    supabase.from('cotizaciones').select('estado, total_usd').in('estado', ['Borrador', 'Enviada']),
   ])
 
-  const firstError = errOT || errAlq || errTx || errMs || errUltTx || errAl || errSol || errAnual || errFlota
+  const firstError = errOT || errAlq || errTx || errMs || errUltTx || errAl || errSol || errAnual || errFlota || errLeads || errCots
   if (firstError) throw firstError
 
   const facturado = (txData || []).reduce((acc, t) => acc + Number(t.monto_total_usd), 0)
@@ -66,6 +67,10 @@ async function fetchDashboard() {
       facturadoMes:            facturado,
       alertasService:          (msData || []).length,
       alertasServiceUrgentes:  (msData || []).filter(m => m.estado_service === 'urgente').length,
+      leadsActivos:            (leadsData || []).length,
+      leadsGradoA:             (leadsData || []).filter(l => l.lead_grade === 'A').length,
+      cotizacionesPendientes:  (cotsData || []).length,
+      cotizacionesMonto:       (cotsData || []).reduce((s, c) => s + Number(c.total_usd), 0),
     },
     transacciones:     ultimasTx    || [],
     alertas:           alertasData  || [],

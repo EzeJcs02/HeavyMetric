@@ -12,6 +12,8 @@ import Input from '../../components/ui/Input'
 
 const PER_PAGE = 10
 
+const RUBROS = ['Mineria', 'Agro', 'Vial', 'Construccion', 'Industrial', 'Municipio']
+
 const EMPTY = {
   razon_social: '',
   nombre_comercial: '',
@@ -21,6 +23,8 @@ const EMPTY = {
   telefono: '',
   direccion: '',
   contacto_nombre: '',
+  rubro: '',
+  propension_compra: 'B',
 }
 
 function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
@@ -37,6 +41,8 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
       telefono:         cliente.telefono || '',
       direccion:        cliente.direccion || '',
       contacto_nombre:  cliente.contacto_nombre || '',
+      rubro:            cliente.rubro || '',
+      propension_compra: cliente.propension_compra || 'B',
     } : EMPTY)
   }, [cliente, isOpen])
 
@@ -84,6 +90,24 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
 
         <Input label="Dirección" value={form.direccion} onChange={e => set('direccion', e.target.value)} />
         <Input label="Nombre de Contacto" value={form.contacto_nombre} onChange={e => set('contacto_nombre', e.target.value)} />
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="label-mono">Rubro</label>
+            <select value={form.rubro} onChange={e => set('rubro', e.target.value)} className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors">
+              <option value="">— Sin especificar —</option>
+              {RUBROS.map(r => <option key={r}>{r}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="label-mono">Propensión de compra</label>
+            <select value={form.propension_compra} onChange={e => set('propension_compra', e.target.value)} className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors">
+              <option value="A">A — Alta prioridad</option>
+              <option value="B">B — Media prioridad</option>
+              <option value="C">C — Baja prioridad</option>
+            </select>
+          </div>
+        </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-hm-border">
           <Button variant="outline" type="button" onClick={onClose} disabled={loading}>CANCELAR</Button>
@@ -191,7 +215,8 @@ export default function Clientes() {
             <tr>
               <th className="p-4 font-mono text-xs text-hm-muted">RAZÓN SOCIAL</th>
               <th className="p-4 font-mono text-xs text-hm-muted">CUIT</th>
-              <th className="p-4 font-mono text-xs text-hm-muted">COND. IVA</th>
+              <th className="p-4 font-mono text-xs text-hm-muted">RUBRO</th>
+              <th className="p-4 font-mono text-xs text-hm-muted text-center">PROP.</th>
               <th className="p-4 font-mono text-xs text-hm-muted">EMAIL</th>
               <th className="p-4 font-mono text-xs text-hm-muted">TELÉFONO</th>
               <th className="p-4 font-mono text-xs text-hm-muted">CONTACTO</th>
@@ -202,7 +227,7 @@ export default function Clientes() {
             {loading ? (
               [1, 2, 3, 4].map(i => (
                 <tr key={i} className="border-b border-hm-border">
-                  {[1, 2, 3, 4, 5, 6].map(j => (
+                  {[1, 2, 3, 4, 5, 6, 7].map(j => (
                     <td key={j} className="p-4">
                       <div className="h-4 bg-hm-surface2 rounded animate-pulse" />
                     </td>
@@ -212,7 +237,7 @@ export default function Clientes() {
               ))
             ) : clientesFiltrados.length === 0 ? (
               <tr>
-                <td colSpan="7" className="p-8 text-center text-hm-muted font-mono text-sm">
+                <td colSpan="9" className="p-8 text-center text-hm-muted font-mono text-sm">
                   No se encontraron clientes.
                 </td>
               </tr>
@@ -226,10 +251,15 @@ export default function Clientes() {
                     )}
                   </td>
                   <td className="p-4 font-mono text-sm text-hm-muted">{c.cuit || '—'}</td>
-                  <td className="p-4">
-                    <Badge variant={c.condicion_iva === 'Responsable Inscripto' ? 'info' : 'default'}>
-                      {c.condicion_iva}
-                    </Badge>
+                  <td className="p-4 text-sm text-hm-muted">{c.rubro || '—'}</td>
+                  <td className="p-4 text-center">
+                    {c.propension_compra ? (
+                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs font-black ${
+                        c.propension_compra === 'A' ? 'bg-red-500/20 text-red-300 border-red-500/40' :
+                        c.propension_compra === 'B' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40' :
+                        'bg-hm-surface2 text-hm-muted border-hm-border'
+                      }`}>{c.propension_compra}</span>
+                    ) : <span className="text-hm-muted/50">—</span>}
                   </td>
                   <td className="p-4 text-sm text-hm-muted">{c.email || '—'}</td>
                   <td className="p-4 font-mono text-sm text-hm-muted">{c.telefono || '—'}</td>

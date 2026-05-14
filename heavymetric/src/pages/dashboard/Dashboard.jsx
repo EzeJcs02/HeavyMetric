@@ -1,5 +1,8 @@
+import { useEffect } from 'react'
 import { useDolar } from '../../context/DolarContext'
 import { useDashboardData } from '../../hooks/useDashboardData'
+import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabase'
 import KpiCard from '../../components/ui/KpiCard'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -12,6 +15,13 @@ import {
 export default function Dashboard() {
   const { toARS, formatARS, formatUSD } = useDolar()
   const { data, loading, error } = useDashboardData()
+  const { perfil } = useAuth()
+
+  useEffect(() => {
+    if (!perfil?.organization_id) return
+    supabase.rpc('generar_alertas_automaticas', { p_org_id: perfil.organization_id })
+      .then(({ error: e }) => { if (e) console.warn('alertas auto:', e.message) })
+  }, [perfil?.organization_id])
 
   if (error) {
     return (
@@ -46,13 +56,10 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">Resumen General</h1>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {loading ? (
           <>
-            <Skeleton className="h-[90px]" />
-            <Skeleton className="h-[90px]" />
-            <Skeleton className="h-[90px]" />
-            <Skeleton className="h-[90px]" />
+            {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-[90px]" />)}
           </>
         ) : (
           <>
@@ -65,6 +72,8 @@ export default function Dashboard() {
               accent="green-400"
             />
             <KpiCard label="Alertas Service" value={kpis.alertasService} subtext={`Urgentes: ${kpis.alertasServiceUrgentes}`} accent="red-400" />
+            <KpiCard label="Leads Activos" value={kpis.leadsActivos} subtext={`Grado A: ${kpis.leadsGradoA}`} accent="yellow-400" />
+            <KpiCard label="Cotiz. Pendientes" value={kpis.cotizacionesPendientes} subtext={formatUSD(kpis.cotizacionesMonto)} accent="teal-400" />
           </>
         )}
       </div>

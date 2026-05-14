@@ -1,15 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useMaquinaDetalle } from '../../../hooks/useMaquinaDetalle'
 import { useMaquinas } from '../../../hooks/useMaquinas'
 import { useDolar } from '../../../context/DolarContext'
 import { useAuth } from '../../../context/AuthContext'
 import { exportarOTPdf } from '../../../lib/exportOT'
+import { supabase } from '../../../lib/supabase'
 import Modal from '../../ui/Modal'
 import ModalConfirm from '../../ui/ModalConfirm'
 import Card from '../../ui/Card'
 import Badge from '../../ui/Badge'
 import Button from '../../ui/Button'
+import Input from '../../ui/Input'
 
 export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
   const { maquina, ots, contratos, stats, loading, error } = useMaquinaDetalle(maquinaId)
@@ -18,6 +20,32 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
   const { isOwner } = useAuth()
   const [confirmBaja, setConfirmBaja] = useState(false)
   const [loadingBaja, setLoadingBaja] = useState(false)
+  const [horometros, setHorometros] = useState([])
+  const [loadingHoro, setLoadingHoro] = useState(false)
+  const [horoForm, setHoroForm] = useState({ horometro_valor: '', fecha_lectura: new Date().toISOString().slice(0, 10), observacion: '' })
+  const [savingHoro, setSavingHoro] = useState(false)
+
+  useEffect(() => {
+    if (!maquinaId) return
+    setLoadingHoro(true)
+    supabase.from('historial_horometros').select('*').eq('maquina_id', maquinaId).order('fecha_lectura', { ascending: false })
+      .then(({ data }) => { setHorometros(data || []); setLoadingHoro(false) })
+  }, [maquinaId])
+
+  const handleAddHorometro = async (e) => {
+    e.preventDefault()
+    if (!horoForm.horometro_valor) return
+    setSavingHoro(true)
+    try {
+      const { error } = await supabase.from('historial_horometros').insert({ maquina_id: maquinaId, horometro_valor: Number(horoForm.horometro_valor), fecha_lectura: horoForm.fecha_lectura, observacion: horoForm.observacion || null })
+      if (error) throw error
+      toast.success('Lectura registrada')
+      setHoroForm(p => ({ ...p, horometro_valor: '', observacion: '' }))
+      const { data } = await supabase.from('historial_horometros').select('*').eq('maquina_id', maquinaId).order('fecha_lectura', { ascending: false })
+      setHorometros(data || [])
+    } catch (err) { toast.error(err.message) }
+    finally { setSavingHoro(false) }
+  }
 
   if (!maquinaId) return null
 
@@ -137,6 +165,38 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                 </div>
               </section>
             </div>
+
+            {/* HISTORIAL HORÓMETROS */}
+            <section className="border border-hm-border rounded-xl p-4">
+              <h3 className="font-mono text-sm text-hm-muted mb-4 tracking-widest flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-hm-accent"></span> HISTORIAL DE HORÓMETROS
+              </h3>
+              <div className="flex flex-col gap-4">
+                {loadingHoro ? (
+                  <div className="h-16 bg-hm-surface2 rounded animate-pulse" />
+                ) : horometros.length === 0 ? (
+                  <p className="text-xs text-hm-muted italic">Sin lecturas registradas.</p>
+                ) : (
+                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+                    {horometros.map(h => (
+                      <div key={h.id} className="flex items-center justify-between bg-hm-surface2/20 rounded px-4 py-2 border border-hm-border/50 text-sm">
+                        <span className="font-mono text-hm-accent font-bold">{h.horometro_valor} hrs</span>
+                        <span className="text-xs text-hm-muted">{h.fecha_lectura}</span>
+                        {h.observacion && <span className="text-xs text-hm-muted truncate max-w-[200px]">{h.observacion}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <form onSubmit={handleAddHorometro} className="grid grid-cols-3 gap-3 border-t border-hm-border pt-3">
+                  <Input label="Horómetro (hrs)" type="number" value={horoForm.horometro_valor} onChange={e => setHoroForm(p => ({ ...p, horometro_valor: e.target.value }))} required />
+                  <Input label="Fecha" type="date" value={horoForm.fecha_lectura} onChange={e => setHoroForm(p => ({ ...p, fecha_lectura: e.target.value }))} />
+                  <Input label="Observación" value={horoForm.observacion} onChange={e => setHoroForm(p => ({ ...p, observacion: e.target.value }))} placeholder="Opcional" />
+                  <div className="col-span-3 flex justify-end">
+                    <Button type="submit" variant="primary" disabled={savingHoro}>{savingHoro ? 'GUARDANDO...' : '+ REGISTRAR LECTURA'}</Button>
+                  </div>
+                </form>
+              </div>
+            </section>
 
             <div className="flex justify-between items-center pt-4 border-t border-hm-border">
               {isOwner && (
