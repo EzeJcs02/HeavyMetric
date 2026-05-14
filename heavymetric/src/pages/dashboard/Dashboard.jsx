@@ -56,10 +56,10 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">Resumen General</h1>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
         {loading ? (
           <>
-            {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-[90px]" />)}
+            {[1,2,3,4,5,6,7,8].map(i => <Skeleton key={i} className="h-[90px]" />)}
           </>
         ) : (
           <>
@@ -71,9 +71,21 @@ export default function Dashboard() {
               subtext={toARS ? formatARS(toARS(kpis.facturadoMes)) : 'Cargando ARS...'}
               accent="green-400"
             />
+            <KpiCard
+              label="Cobranza Pend."
+              value={formatUSD(kpis.cobranzaPendiente)}
+              subtext="Sin cobrar"
+              accent={kpis.cobranzaPendiente > 0 ? 'red-400' : 'green-400'}
+            />
             <KpiCard label="Alertas Service" value={kpis.alertasService} subtext={`Urgentes: ${kpis.alertasServiceUrgentes}`} accent="red-400" />
             <KpiCard label="Leads Activos" value={kpis.leadsActivos} subtext={`Grado A: ${kpis.leadsGradoA}`} accent="yellow-400" />
             <KpiCard label="Cotiz. Pendientes" value={kpis.cotizacionesPendientes} subtext={formatUSD(kpis.cotizacionesMonto)} accent="teal-400" />
+            <KpiCard
+              label="NPS Promedio"
+              value={kpis.npsPromedio !== null ? kpis.npsPromedio : '—'}
+              subtext="Últimos 90 días"
+              accent={kpis.npsPromedio === null ? 'hm-muted' : kpis.npsPromedio >= 8 ? 'green-400' : kpis.npsPromedio >= 6 ? 'yellow-400' : 'red-400'}
+            />
           </>
         )}
       </div>

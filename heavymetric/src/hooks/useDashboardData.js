@@ -8,6 +8,7 @@ const EMPTY = {
     ordenesActivas: 0, alquileresActivos: 0, alquileresPorVencer: 0,
     facturadoMes: 0, alertasService: 0, alertasServiceUrgentes: 0,
     leadsActivos: 0, leadsGradoA: 0, cotizacionesPendientes: 0, cotizacionesMonto: 0,
+    cobranzaPendiente: 0, npsPromedio: null,
   },
   transacciones:     [],
   alertas:           [],
@@ -34,6 +35,8 @@ async function fetchDashboard() {
     { data: flotaData,   error: errFlota },
     { data: leadsData,   error: errLeads },
     { data: cotsData,    error: errCots  },
+    { data: pendData,    error: errPend  },
+    { data: npsData,     error: errNps   },
   ] = await Promise.all([
     supabase.from('ordenes_trabajo').select('*', { count: 'exact', head: true }).in('estado', ['borrador', 'en_progreso']),
     supabase.from('alquileres_activos').select('estado_vencimiento'),
@@ -46,9 +49,11 @@ async function fetchDashboard() {
     supabase.from('maquinas').select('id, nombre_unidad, activa').eq('activa', true),
     supabase.from('leads').select('lead_grade, estado').not('estado', 'in', '(Ganado,Perdido)'),
     supabase.from('cotizaciones').select('estado, total_usd').in('estado', ['Borrador', 'Enviada']),
+    supabase.from('transacciones').select('monto_total_usd').eq('estado_pago', 'pendiente'),
+    supabase.from('ordenes_trabajo').select('nps_score').not('nps_score', 'is', null).gte('created_at', new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1).toISOString()),
   ])
 
-  const firstError = errOT || errAlq || errTx || errMs || errUltTx || errAl || errSol || errAnual || errFlota || errLeads || errCots
+  const firstError = errOT || errAlq || errTx || errMs || errUltTx || errAl || errSol || errAnual || errFlota || errLeads || errCots || errPend || errNps
   if (firstError) throw firstError
 
   const facturado = (txData || []).reduce((acc, t) => acc + Number(t.monto_total_usd), 0)
@@ -71,6 +76,10 @@ async function fetchDashboard() {
       leadsGradoA:             (leadsData || []).filter(l => l.lead_grade === 'A').length,
       cotizacionesPendientes:  (cotsData || []).length,
       cotizacionesMonto:       (cotsData || []).reduce((s, c) => s + Number(c.total_usd), 0),
+      cobranzaPendiente:       (pendData || []).reduce((s, t) => s + Number(t.monto_total_usd), 0),
+      npsPromedio:             (npsData || []).length > 0
+        ? Math.round((npsData.reduce((s, o) => s + o.nps_score, 0) / npsData.length) * 10) / 10
+        : null,
     },
     transacciones:     ultimasTx    || [],
     alertas:           alertasData  || [],
