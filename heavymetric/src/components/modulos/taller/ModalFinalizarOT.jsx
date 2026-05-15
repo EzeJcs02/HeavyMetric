@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+import { supabase } from '../../../lib/supabase'
 import Modal from '../../ui/Modal'
 import Input from '../../ui/Input'
 import Button from '../../ui/Button'
@@ -8,6 +9,8 @@ import { useDolar } from '../../../context/DolarContext'
 export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
   const { formatUSD } = useDolar()
   const [loading, setLoading] = useState(false)
+  const [catalogoRep, setCatalogoRep] = useState([])
+  const [repuestosUtilizados, setRepuestosUtilizados] = useState([])
   const [formData, setFormData] = useState({
     horometro_final: ot?.maquina?.horometro_actual || 0,
     mantenimiento_completo: false,
@@ -18,6 +21,19 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
     nps_score: null,
   })
 
+  useEffect(() => {
+    if (!isOpen) return
+    supabase.from('repuestos').select('id, nombre, precio_usd, unidad').eq('activo', true).order('nombre')
+      .then(({ data }) => setCatalogoRep(data || []))
+    // Load existing ot_repuestos if any
+    if (ot?.id) {
+      supabase.from('ot_repuestos').select('*').eq('orden_trabajo_id', ot.id)
+        .then(({ data }) => {
+          if (data?.length) setRepuestosUtilizados(data.map(r => ({ repuesto_id: r.repuesto_id, nombre: r.nombre, cantidad: r.cantidad, precio_unitario_usd: r.precio_unitario_usd })))
+        })
+    }
+  }, [isOpen, ot?.id])
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
     setFormData(prev => ({
@@ -26,15 +42,32 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
     }))
   }
 
+  const addRepuestoRow = () =>
+    setRepuestosUtilizados(p => [...p, { repuesto_id: null, nombre: '', cantidad: 1, precio_unitario_usd: 0 }])
+
+  const removeRepuestoRow = (i) =>
+    setRepuestosUtilizados(p => p.filter((_, idx) => idx !== i))
+
+  const updateRepuestoRow = (i, field, val) =>
+    setRepuestosUtilizados(p => p.map((r, idx) => idx !== i ? r : { ...r, [field]: val }))
+
+  const handleSelectCatalogo = (i, repId) => {
+    const rep = catalogoRep.find(r => r.id === repId)
+    if (rep) updateRepuestoRow(i, 'repuesto_id', rep.id)
+    if (rep) updateRepuestoRow(i, 'nombre', rep.nombre)
+    if (rep) updateRepuestoRow(i, 'precio_unitario_usd', rep.precio_usd)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
       await onConfirm({
         ...formData,
-        horometro_final: Number(formData.horometro_final),
-        horas_mano_obra: Number(formData.horas_mano_obra),
-        precio_hora_usd: Number(formData.precio_hora_usd)
+        horometro_final:  Number(formData.horometro_final),
+        horas_mano_obra:  Number(formData.horas_mano_obra),
+        precio_hora_usd:  Number(formData.precio_hora_usd),
+        repuestosUtilizados: repuestosUtilizados.filter(r => r.nombre.trim()),
       })
       onClose()
     } catch (error) {
@@ -45,8 +78,9 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
   }
 
   // Cálculos dinámicos
-  const totalManoObra = Number(formData.horas_mano_obra) * Number(formData.precio_hora_usd)
-  const totalRepuestos = Number(ot?.total_repuestos_usd || 0)
+  const totalManoObra  = Number(formData.horas_mano_obra) * Number(formData.precio_hora_usd)
+  const totalRepuestos = repuestosUtilizados.filter(r => r.nombre.trim())
+    .reduce((s, r) => s + Number(r.cantidad) * Number(r.precio_unitario_usd), 0)
   const totalOT = totalManoObra + totalRepuestos
 
   return (
@@ -118,6 +152,69 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
             className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors min-h-[100px]"
             placeholder="Detalles técnicos de la reparación, observaciones para el cliente..."
           />
+        </div>
+
+        {/* REPUESTOS UTILIZADOS */}
+        <div className="bg-hm-surface2/30 p-4 border border-hm-border rounded">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-mono text-hm-accent tracking-widest text-sm">REPUESTOS UTILIZADOS</h3>
+            <button type="button" onClick={addRepuestoRow} className="text-xs font-mono text-hm-accent border border-hm-accent/30 hover:border-hm-accent rounded px-2 py-1 transition-colors">+ AGREGAR</button>
+          </div>
+          {repuestosUtilizados.length === 0 ? (
+            <p className="text-xs text-hm-muted font-mono italic">Sin repuestos. Hacé clic en + AGREGAR si usaste piezas.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {repuestosUtilizados.map((r, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-5">
+                    {i === 0 && <label className="text-[9px] font-mono text-hm-muted mb-1 block uppercase">Nombre / Catálogo</label>}
+                    <select
+                      value={r.repuesto_id || ''}
+                      onChange={e => e.target.value ? handleSelectCatalogo(i, e.target.value) : updateRepuestoRow(i, 'repuesto_id', null)}
+                      className="w-full bg-hm-surface2 border border-hm-border rounded px-2 py-1.5 text-xs text-hm-text focus:outline-none focus:border-hm-accent mb-1"
+                    >
+                      <option value="">— libre —</option>
+                      {catalogoRep.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Descripción"
+                      value={r.nombre}
+                      onChange={e => updateRepuestoRow(i, 'nombre', e.target.value)}
+                      className="w-full bg-hm-surface2 border border-hm-border rounded px-2 py-1.5 text-xs text-hm-text placeholder-hm-muted focus:outline-none focus:border-hm-accent"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    {i === 0 && <label className="text-[9px] font-mono text-hm-muted mb-1 block uppercase">Cant.</label>}
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={r.cantidad}
+                      onChange={e => updateRepuestoRow(i, 'cantidad', e.target.value)}
+                      className="w-full bg-hm-surface2 border border-hm-border rounded px-2 py-1.5 text-xs text-hm-text focus:outline-none focus:border-hm-accent"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    {i === 0 && <label className="text-[9px] font-mono text-hm-muted mb-1 block uppercase">Precio USD</label>}
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={r.precio_unitario_usd}
+                      onChange={e => updateRepuestoRow(i, 'precio_unitario_usd', e.target.value)}
+                      className="w-full bg-hm-surface2 border border-hm-border rounded px-2 py-1.5 text-xs text-hm-text focus:outline-none focus:border-hm-accent"
+                    />
+                  </div>
+                  <div className="col-span-1 text-right text-xs font-mono text-green-400 pb-1">
+                    {formatUSD(Number(r.cantidad) * Number(r.precio_unitario_usd))}
+                  </div>
+                  <div className="col-span-1 flex justify-end pb-1">
+                    <button type="button" onClick={() => removeRepuestoRow(i)} className="text-red-400/60 hover:text-red-400 text-xs">✕</button>
+                  </div>
+                </div>
+              ))}
+              <div className="text-right text-xs font-mono text-hm-muted pt-1 border-t border-hm-border">
+                Subtotal repuestos: <span className="text-green-400 font-bold">{formatUSD(totalRepuestos)}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* NPS */}

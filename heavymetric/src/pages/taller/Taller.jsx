@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
+import { supabase } from '../../lib/supabase'
 import { useMaquinas } from '../../hooks/useMaquinas'
 import { useClientes } from '../../hooks/useClientes'
 import { useTaller } from '../../hooks/useTaller'
@@ -106,7 +107,24 @@ export default function Taller() {
 
   const handleConfirmFinalizar = async (payload) => {
     try {
-      await finalizarOT(selectedOT.id, payload)
+      const { repuestosUtilizados, ...otPayload } = payload
+
+      if (repuestosUtilizados?.length > 0) {
+        await supabase.from('ot_repuestos').delete().eq('orden_trabajo_id', selectedOT.id)
+        const rows = repuestosUtilizados.map(r => ({
+          orden_trabajo_id: selectedOT.id,
+          repuesto_id: r.repuesto_id || null,
+          nombre: r.nombre,
+          cantidad: Number(r.cantidad),
+          precio_unitario_usd: Number(r.precio_unitario_usd),
+          subtotal_usd: Number(r.cantidad) * Number(r.precio_unitario_usd),
+        }))
+        await supabase.from('ot_repuestos').insert(rows)
+        const totalRep = rows.reduce((s, r) => s + r.subtotal_usd, 0)
+        await supabase.from('ordenes_trabajo').update({ total_repuestos_usd: totalRep }).eq('id', selectedOT.id)
+      }
+
+      await finalizarOT(selectedOT.id, otPayload)
       toast.success(`Orden de Trabajo #${selectedOT.numero_ot} finalizada con éxito`)
       handleCloseModal()
     } catch (err) {
