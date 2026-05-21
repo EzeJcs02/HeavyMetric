@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
-// Scoring: rubro(35) + origen(25) + urgencia(25) + empresa(15) = 100
+// ── Scoring ──────────────────────────────────────────────────────
 export function calcularScore(rubro, origen, mensaje, empresa) {
   const rubroScore  = { Mineria: 35, Vial: 30, Construccion: 25, Agro: 20, Industrial: 15, Municipio: 10 }
   const origenScore = { Licitacion: 25, Referido: 22, Web: 18, Meta: 15, WhatsApp: 12, Manual: 5 }
 
   let score = 0
-  score += rubroScore[rubro] || 0
+  score += rubroScore[rubro]  || 0
   score += origenScore[origen] || 0
 
   const texto = ((mensaje || '') + ' ' + (empresa || '')).toLowerCase()
-  if (/compra|licitac|urgen|inmedia/.test(texto))   score += 25
-  else if (/alquil|renta|arrend/.test(texto))        score += 20
+  if (/compra|licitac|urgen|inmedia/.test(texto))  score += 25
+  else if (/alquil|renta|arrend/.test(texto))       score += 20
   else if (/servic|manten|repar/.test(texto))        score += 15
-  else                                               score += 10
+  else                                              score += 10
 
   if (empresa && empresa.trim()) score += 15
 
@@ -22,10 +22,11 @@ export function calcularScore(rubro, origen, mensaje, empresa) {
   return { score, grade }
 }
 
+// ── Hook principal ───────────────────────────────────────────────
 export function useLeads() {
-  const [leads, setLeads] = useState([])
+  const [leads, setLeads]   = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError]   = useState(null)
 
   const fetchLeads = async () => {
     try {
@@ -33,7 +34,12 @@ export function useLeads() {
       setError(null)
       const { data, error: err } = await supabase
         .from('leads')
-        .select('*, asignado:perfiles(nombre_completo), cliente:clientes(razon_social), cotizaciones(count)')
+        .select(`
+          *,
+          asignado:responsable_id(nombre_completo),
+          cliente:clientes(razon_social),
+          cotizaciones(count)
+        `)
         .order('created_at', { ascending: false })
       if (err) throw err
       setLeads(data || [])
@@ -65,38 +71,66 @@ export function useLeads() {
     await fetchLeads()
   }
 
-  const avanzarEstado = async (id, nuevoEstado) => {
+  const avanzarEstado = async (id, nuevoEstado, estadoAnterior) => {
     const { error: err } = await supabase
       .from('leads')
       .update({ estado: nuevoEstado })
       .eq('id', id)
     if (err) throw err
+    // Log actividad
+    if (estadoAnterior) {
+      await supabase.from('lead_actividades').insert({
+        lead_id: id,
+        tipo: 'cambio_estado',
+        descripcion: `Estado cambiado de "${estadoAnterior}" a "${nuevoEstado}"`,
+        datos: { de: estadoAnterior, a: nuevoEstado },
+      })
+    }
+    await fetchLeads()
+  }
+
+  const registrarContacto = async (id) => {
+    const ahora = new Date().toISOString()
+    const { error: err } = await supabase
+      .from('leads')
+      .update({ ultimo_contacto: ahora })
+      .eq('id', id)
+    if (err) throw err
+    await supabase.from('lead_actividades').insert({
+      lead_id: id,
+      tipo: 'contacto',
+      descripcion: 'Contacto registrado manualmente',
+    })
     await fetchLeads()
   }
 
   const convertirACliente = async (lead) => {
-    // 1. Crear cliente
     const { data: cliente, error: errC } = await supabase
       .from('clientes')
       .insert([{
-        razon_social:   lead.empresa || lead.nombre,
-        nombre_comercial: lead.empresa || lead.nombre,
-        email:          lead.email,
-        telefono:       lead.telefono,
-        rubro:          lead.rubro,
+        razon_social:      lead.empresa || lead.nombre,
+        nombre_comercial:  lead.empresa || lead.nombre,
+        email:             lead.email,
+        telefono:          lead.telefono,
+        rubro:             lead.rubro,
         propension_compra: lead.lead_grade,
-        organization_id: lead.organization_id,
+        organization_id:   lead.organization_id,
       }])
       .select()
       .single()
     if (errC) throw errC
 
-    // 2. Vincular lead al cliente y marcar Ganado
     const { error: errL } = await supabase
       .from('leads')
       .update({ estado: 'Ganado', cliente_id: cliente.id })
       .eq('id', lead.id)
     if (errL) throw errL
+
+    await supabase.from('lead_actividades').insert({
+      lead_id: lead.id,
+      tipo: 'sistema',
+      descripcion: 'Lead convertido a cliente',
+    })
 
     await fetchLeads()
     return cliente
@@ -104,5 +138,49 @@ export function useLeads() {
 
   useEffect(() => { fetchLeads() }, [])
 
-  return { leads, loading, error, fetchLeads, crearLead, actualizarLead, avanzarEstado, convertirACliente }
+  return {
+    leads, loading, error, fetchLeads,
+    crearLead, actualizarLead, avanzarEstado,
+    registrarContacto, convertirACliente,
+  }
+}
+
+// ── Actividades (usadas en LeadDetalle) ──────────────────────────
+export async function fetchActividades(leadId) {
+  const { data } = await supabase
+    .from('lead_actividades')
+    .select('*, creado_por:perfiles(nombre_completo)')
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  return data || []
+}
+
+export async function agregarActividad(leadId, tipo, descripcion, datos = null) {
+  const { error } = await supabase.from('lead_actividades').insert({
+    lead_id: leadId, tipo, descripcion, datos,
+  })
+  if (error) throw error
+}
+
+// ── Tareas (usadas en LeadDetalle) ───────────────────────────────
+export async function fetchTareas(leadId) {
+  const { data } = await supabase
+    .from('lead_tareas')
+    .select('*, asignado_a:perfiles(nombre_completo)')
+    .eq('lead_id', leadId)
+    .order('vencimiento', { ascending: true, nullsFirst: false })
+  return data || []
+}
+
+export async function crearTarea(leadId, payload) {
+  const { error } = await supabase.from('lead_tareas').insert({ lead_id: leadId, ...payload })
+  if (error) throw error
+  await agregarActividad(leadId, 'tarea_creada', `Tarea creada: "${payload.titulo}"`)
+}
+
+export async function completarTarea(tareaId, leadId) {
+  const { error } = await supabase.from('lead_tareas').update({ completada: true }).eq('id', tareaId)
+  if (error) throw error
+  await agregarActividad(leadId, 'sistema', 'Tarea completada')
 }
