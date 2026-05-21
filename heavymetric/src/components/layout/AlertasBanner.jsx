@@ -3,10 +3,15 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 
 const TIPO_COLOR = {
-  service_urgente:     'red',
-  service_proximo:     'red',
-  stock_minimo:        'yellow',
-  alquiler_vencimiento:'orange',
+  service_urgente:              'red',
+  service_proximo:              'red',
+  stock_minimo:                 'yellow',
+  alquiler_vencimiento:         'orange',
+  lead_sin_contacto:            'orange',
+  cotizacion_sin_seguimiento:   'yellow',
+  cotizacion_critica:           'red',
+  seguimiento_vencido:          'orange',
+  oportunidad_sin_movimiento:   'yellow',
 }
 
 const COLOR_STYLES = {
