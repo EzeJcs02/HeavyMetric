@@ -10,6 +10,7 @@ import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Input from '../../components/ui/Input'
+import ClienteDetalle from '../../components/modulos/clientes/ClienteDetalle'
 
 const PER_PAGE = 10
 
@@ -130,6 +131,7 @@ export default function Clientes() {
   const [clienteAArchivar, setClienteAArchivar] = useState(null)
   const [loadingArchive, setLoadingArchive] = useState(false)
   const [page, setPage] = useState(1)
+  const [detalleCliente, setDetalleCliente] = useState(null)
 
   useEffect(() => { setPage(1) }, [searchQuery])
 
@@ -268,7 +270,7 @@ export default function Clientes() {
               </tr>
             ) : (
               clientesPaginados.map(c => (
-                <tr key={c.id} className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors group">
+                <tr key={c.id} onClick={() => setDetalleCliente(c)} className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors group cursor-pointer">
                   <td className="p-4">
                     <div className="font-medium text-sm">{c.razon_social}</div>
                     {c.nombre_comercial && c.nombre_comercial !== c.razon_social && (
@@ -292,14 +294,14 @@ export default function Clientes() {
                   <td className="p-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => { setEditingCliente(c); setIsModalOpen(true) }}
+                        onClick={e => { e.stopPropagation(); setEditingCliente(c); setIsModalOpen(true) }}
                         className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-hm-accent hover:text-hm-accent transition-colors"
                       >
                         EDITAR
                       </button>
                       {isOwner && (
                         <button
-                          onClick={() => setClienteAArchivar(c)}
+                          onClick={e => { e.stopPropagation(); setClienteAArchivar(c) }}
                           className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-red-500 hover:text-red-400 transition-colors"
                         >
                           ARCHIVAR
@@ -331,6 +333,13 @@ export default function Clientes() {
         message={`¿Archivás a "${clienteAArchivar?.razon_social}"? Dejará de aparecer en la lista activa pero sus datos históricos se conservan.`}
         confirmLabel="Archivar"
         variant="danger"
+      />
+
+      <ClienteDetalle
+        cliente={detalleCliente}
+        isOpen={!!detalleCliente}
+        onClose={() => setDetalleCliente(null)}
+        onEdit={(c) => { setDetalleCliente(null); setEditingCliente(c); setIsModalOpen(true) }}
       />
     </div>
   )

@@ -6,6 +6,7 @@ import { useDolar } from '../../../context/DolarContext'
 import { useAuth } from '../../../context/AuthContext'
 import { exportarOTPdf } from '../../../lib/exportOT'
 import { supabase } from '../../../lib/supabase'
+import { calcServiceState, predecirService } from '../../../hooks/useCliente360'
 import Modal from '../../ui/Modal'
 import ModalConfirm from '../../ui/ModalConfirm'
 import Card from '../../ui/Card'
@@ -86,6 +87,32 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
               <div className="text-right">
                 <div className="text-xs font-mono text-hm-muted uppercase tracking-widest">Horómetro Actual</div>
                 <div className="text-4xl font-bold text-hm-accent">{maquina.horometro_actual} <span className="text-lg text-hm-muted font-normal">hrs</span></div>
+                {/* Predicción de service */}
+                {(() => {
+                  const svc = calcServiceState(maquina)
+                  const pred = predecirService(maquina, horometros)
+                  if (!svc) return null
+                  const barColor = svc.color === 'red' ? 'bg-red-500' : svc.color === 'yellow' ? 'bg-yellow-400' : 'bg-green-500'
+                  const textColor = svc.color === 'red' ? 'text-red-400' : svc.color === 'yellow' ? 'text-yellow-400' : 'text-green-400'
+                  return (
+                    <div className="mt-2 text-left min-w-[180px]">
+                      <div className="flex justify-between text-[9px] font-mono text-hm-muted mb-1">
+                        <span>PRÓXIMO SERVICE</span>
+                        <span className={textColor}>
+                          {svc.estado === 'vencido' ? `VENCIDO ${Math.abs(svc.restantes).toFixed(0)}hs` : `${svc.restantes.toFixed(0)}hs restantes`}
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden mb-1">
+                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(svc.pct, 100)}%` }} />
+                      </div>
+                      {pred && (
+                        <div className={`text-[9px] font-mono ${pred.alerta ? 'text-orange-400' : 'text-hm-muted'}`}>
+                          ⏱ Estimado: {pred.label} · {pred.horasPorDia}hs/día
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
 
