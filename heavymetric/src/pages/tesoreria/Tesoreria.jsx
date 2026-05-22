@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
+import { useFinanzas } from '../../hooks/useFinanzas'
 
 // ─── Mock Data ─── TODO: conectar con tablas SQL en próxima etapa
 const MOCK_CAJAS = [
@@ -20,32 +21,84 @@ const MOCK_CHEQUES_EMITIDOS = [
   { id: 1, banco: 'Macro', numero: '00234501', importe: 180000, vencimiento: '2026-06-10', estado: 'emitido', beneficiario: 'Repuestos Sur S.A.', moneda: 'ARS' },
   { id: 2, banco: 'Santander', numero: '00876543', importe: 3200, vencimiento: '2026-05-29', estado: 'por_debitar', beneficiario: 'Proveedor USA Parts', moneda: 'USD' },
 ]
-const MOCK_COBRANZAS = [
-  { id: 1, cliente: 'Constructora Sur S.A.', factura: 'FC-00123', importe: 450000, vencimiento: '2026-05-28', estado: 'vencida', moneda: 'ARS' },
-  { id: 2, cliente: 'Vialidad Provincial', factura: 'FC-00118', importe: 6500, vencimiento: '2026-06-15', estado: 'pendiente', moneda: 'USD' },
-  { id: 3, cliente: 'Transportes Hnos.', factura: 'FC-00130', importe: 320000, vencimiento: '2026-06-30', estado: 'pendiente', moneda: 'ARS' },
-]
-const MOCK_PAGOS_PROXIMOS = [
-  { id: 1, proveedor: 'Repuestos Sur S.A.', concepto: 'OC #4521 — Filtros', importe: 180000, vencimiento: '2026-06-05', estado: 'programado', moneda: 'ARS' },
-  { id: 2, proveedor: 'USA Parts Intl.', concepto: 'E-Cheq USD', importe: 3200, vencimiento: '2026-05-29', estado: 'urgente', moneda: 'USD' },
-  { id: 3, proveedor: 'Lubricentro Central', concepto: 'Aceites y aditivos', importe: 95000, vencimiento: '2026-06-18', estado: 'programado', moneda: 'ARS' },
-]
-const FLUJO_PROYECTADO = [
-  { label: '7 días',  cobrar: 120000, pagar: 183200, saldo: -63200 },
-  { label: '15 días', cobrar: 570000, pagar: 183200, saldo: 386800 },
-  { label: '30 días', cobrar: 770000, pagar: 275000, saldo: 495000 },
-  { label: '60 días', cobrar: 770000, pagar: 275000, saldo: 495000 },
-  { label: '90 días', cobrar: 770000, pagar: 275000, saldo: 495000 },
-]
+
 
 export default function Tesoreria() {
   const [tab, setTab] = useState('resumen')
+  const { transacciones, compras } = useFinanzas()
+
+  const cobranzasReales = transacciones.filter(t => t.estado_pago === 'pendiente')
+  const pagosReales = compras.filter(c => c.estado === 'recibido' || c.estado === 'pendiente')
+
+  // Calcular flujo proyectado real agrupando por ventanas (7, 15, 30, 60, 90)
+  const hoy = new Date()
+  const agruparFlujo = () => {
+    const ventanas = [
+      { label: '7 días', maxDias: 7, cobrar: 0, pagar: 0, saldo: 0 },
+      { label: '15 días', maxDias: 15, cobrar: 0, pagar: 0, saldo: 0 },
+      { label: '30 días', maxDias: 30, cobrar: 0, pagar: 0, saldo: 0 },
+      { label: '60 días', maxDias: 60, cobrar: 0, pagar: 0, saldo: 0 },
+      { label: '90 días', maxDias: 90, cobrar: 0, pagar: 0, saldo: 0 },
+    ]
+    let sinVencimientoCobrar = 0
+    let sinVencimientoPagar = 0
+
+    cobranzasReales.forEach(c => {
+      // Regla pedida: no inventar fecha, si no hay vencimiento, va a sinVencimiento
+      let fechaObj = null
+      if (c.fecha_vencimiento) {
+         fechaObj = new Date(c.fecha_vencimiento)
+      }
+
+      const monto = (c.monto_total_ars || c.monto_total_usd * 1000)
+
+      if (!fechaObj) {
+         sinVencimientoCobrar += monto
+         return
+      }
+      
+      const dias = Math.ceil((fechaObj - hoy) / (1000*60*60*24))
+      const ventana = ventanas.find(v => dias <= v.maxDias && dias >= 0)
+      if (ventana) ventana.cobrar += monto
+      else if (dias < 0) ventanas[0].cobrar += monto // Vencido entra en urgentes (7 días)
+    })
+
+    pagosReales.forEach(p => {
+      let fechaObj = null
+      if (p.fecha_vencimiento) {
+        fechaObj = new Date(p.fecha_vencimiento)
+      }
+
+      const monto = ((p.total_usd || 0) * 1000)
+
+      if (!fechaObj) {
+        sinVencimientoPagar += monto
+        return
+      }
+
+      const dias = Math.ceil((fechaObj - hoy) / (1000*60*60*24))
+      const ventana = ventanas.find(v => dias <= v.maxDias && dias >= 0)
+      if (ventana) ventana.pagar += monto
+      else if (dias < 0) ventanas[0].pagar += monto // Vencido entra en urgentes
+    })
+
+    ventanas.forEach(v => {
+      v.saldo = v.cobrar - v.pagar
+    })
+
+    return { ventanas, sinVencimientoCobrar, sinVencimientoPagar }
+  }
+
+  const flujoCalculado = agruparFlujo()
+  const FLUJO_PROYECTADO = flujoCalculado.ventanas
+  const SIN_VENCIMIENTO = { cobrar: flujoCalculado.sinVencimientoCobrar, pagar: flujoCalculado.sinVencimientoPagar }
+
+  const totalACobrar = cobranzasReales.reduce((s, c) => s + (c.monto_total_ars || c.monto_total_usd * 1000), 0)
+  const totalAPagar = pagosReales.reduce((s, c) => s + ((c.total_usd || 0) * 1000), 0)
 
   const totalCajaArs = MOCK_CAJAS.reduce((s, c) => s + (c.moneda === 'ARS' ? c.saldo : 0), 0)
   const totalBancosArs = MOCK_BANCOS.reduce((s, c) => s + (c.moneda === 'ARS' ? c.saldo : 0), 0)
   const totalChequesCartera = MOCK_CHEQUES_RECIBIDOS.filter(c => c.estado === 'en_cartera').reduce((s, c) => s + c.importe, 0)
-  const totalACobrar = MOCK_COBRANZAS.reduce((s, c) => s + (c.moneda === 'ARS' ? c.importe : c.importe * 1000), 0)
-  const totalAPagar = MOCK_PAGOS_PROXIMOS.reduce((s, p) => s + (p.moneda === 'ARS' ? p.importe : p.importe * 1000), 0)
   const saldoProyectado = totalCajaArs + totalBancosArs + totalChequesCartera + totalACobrar - totalAPagar
   const chequesProximos = [...MOCK_CHEQUES_RECIBIDOS, ...MOCK_CHEQUES_EMITIDOS].filter(c => {
     const dias = Math.ceil((new Date(c.vencimiento + 'T00:00:00') - new Date()) / (1000*60*60*24))
@@ -126,14 +179,14 @@ export default function Tesoreria() {
             </Card>
             <Card className="p-5">
               <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Facturas Vencidas</div>
-              <div className={`text-2xl font-black ${MOCK_COBRANZAS.filter(c => c.estado === 'vencida').length > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                {MOCK_COBRANZAS.filter(c => c.estado === 'vencida').length}
+              <div className={`text-2xl font-black ${cobranzasReales.filter(c => c.fecha_vencimiento && new Date(c.fecha_vencimiento) < hoy).length > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                {cobranzasReales.filter(c => c.fecha_vencimiento && new Date(c.fecha_vencimiento) < hoy).length}
               </div>
             </Card>
             <Card className="p-5">
               <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Pagos Vencidos</div>
-              <div className={`text-2xl font-black ${MOCK_PAGOS_PROXIMOS.filter(p => p.estado === 'urgente').length > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                {MOCK_PAGOS_PROXIMOS.filter(p => p.estado === 'urgente').length}
+              <div className={`text-2xl font-black ${pagosReales.filter(p => p.fecha_vencimiento && new Date(p.fecha_vencimiento) < hoy).length > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                {pagosReales.filter(p => p.fecha_vencimiento && new Date(p.fecha_vencimiento) < hoy).length}
               </div>
             </Card>
           </div>
@@ -422,12 +475,12 @@ export default function Tesoreria() {
                 <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
                   <div className="text-[9px] font-mono text-green-400 uppercase mb-1">A cobrar</div>
                   <div className="text-2xl font-bold text-green-400">{fmtArs(totalACobrar)}</div>
-                  <div className="text-xs text-hm-muted mt-1">{MOCK_COBRANZAS.length} facturas pendientes</div>
+                  <div className="text-xs text-hm-muted mt-1">{cobranzasReales.length} facturas/OTs</div>
                 </div>
                 <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
                   <div className="text-[9px] font-mono text-red-400 uppercase mb-1">A pagar</div>
                   <div className="text-2xl font-bold text-red-400">{fmtArs(totalAPagar)}</div>
-                  <div className="text-xs text-hm-muted mt-1">{MOCK_PAGOS_PROXIMOS.length} pagos programados</div>
+                  <div className="text-xs text-hm-muted mt-1">{pagosReales.length} comprobantes</div>
                 </div>
                 <div className={`border rounded-xl p-4 ${totalACobrar - totalAPagar >= 0 ? 'bg-hm-accent/5 border-hm-accent/20' : 'bg-red-500/10 border-red-500/30'}`}>
                   <div className={`text-[9px] font-mono uppercase mb-1 ${totalACobrar - totalAPagar >= 0 ? 'text-hm-accent' : 'text-red-400'}`}>Resultado neto</div>
@@ -462,11 +515,20 @@ export default function Tesoreria() {
                         </td>
                       </tr>
                     ))}
+                    <tr className="border-b border-hm-border/30 bg-hm-surface2/10">
+                      <td className="py-2 font-mono text-hm-muted">Sin Vencimiento<br/><span className="text-[9px]">(Pendiente)</span></td>
+                      <td className="py-2 font-bold text-green-400/50">{fmtArs(SIN_VENCIMIENTO.cobrar)}</td>
+                      <td className="py-2 font-bold text-red-400/50">{fmtArs(SIN_VENCIMIENTO.pagar)}</td>
+                      <td className={`py-2 font-bold font-mono ${(SIN_VENCIMIENTO.cobrar - SIN_VENCIMIENTO.pagar) >= 0 ? 'text-hm-accent/50' : 'text-red-400/50'}`}>
+                        {(SIN_VENCIMIENTO.cobrar - SIN_VENCIMIENTO.pagar) >= 0 ? '+' : ''}{fmtArs(SIN_VENCIMIENTO.cobrar - SIN_VENCIMIENTO.pagar)}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
               <div className="text-xs text-hm-muted italic text-center mt-3">
-                Proyección basada en mock data — TODO: conectar con facturas, OTs y compras reales
+                <span className="text-[10px] bg-hm-surface2/50 px-1.5 py-0.5 rounded border border-hm-border text-hm-accent mr-2">[REAL]</span>
+                Proyección generada a partir de transacciones y compras reales sin estado de pago completado.
               </div>
             </div>
           </div>

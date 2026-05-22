@@ -103,13 +103,21 @@ export default function CEODashboard() {
       <Section title="Estado de Resultados (Gerencial)">
         {/* KPIs rápidos */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          {loading ? [1,2,3,4,5].map(i => <Skeleton key={i} className="h-[80px]" />) : <>
-            <KpiBlock label="Ingresos Totales" value={formatUSD(data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0)} accent="text-green-400" />
-            <KpiBlock label="Costo Operativo" value={formatUSD(k?.costoMantenimiento)} accent="text-orange-400" />
-            <KpiBlock label="Compras / Supply" value={formatUSD(k?.gastoProveedores)} accent="text-red-400" />
-            <KpiBlock label="Utilidad Bruta" value={formatUSD((data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0) - (k?.costoMantenimiento || 0) - (k?.gastoProveedores || 0))} accent="text-hm-accent" />
-            <KpiBlock label="Margen Op." value={`${(((data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0) - (k?.costoMantenimiento || 0) - (k?.gastoProveedores || 0)) / (data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 1) * 100).toFixed(1)}%`} accent="text-hm-accent" />
-          </>}
+          {loading ? [1,2,3,4,5].map(i => <Skeleton key={i} className="h-[80px]" />) : (() => {
+            const ingresosTotales = k?.ingresosMes || 0
+            const egresosTotales = (k?.gastoProveedores || 0) + (k?.costoRepuestosOT || 0) + (k?.costoManoObraOT || 0)
+            const utilidadBruta = ingresosTotales - egresosTotales
+            const margen = ingresosTotales > 0 ? ((utilidadBruta / ingresosTotales) * 100).toFixed(1) : 0
+            return (
+              <>
+                <KpiBlock label="Ingresos Mes" value={formatUSD(ingresosTotales)} accent="text-green-400" />
+                <KpiBlock label="Egresos Mes" value={formatUSD(egresosTotales)} accent="text-orange-400" />
+                <KpiBlock label="Compras Supply" value={formatUSD(k?.gastoProveedores)} accent="text-red-400" />
+                <KpiBlock label="Utilidad Bruta" value={formatUSD(utilidadBruta)} accent="text-hm-accent" />
+                <KpiBlock label="Margen Bruto" value={`${margen}%`} accent="text-hm-accent" />
+              </>
+            )
+          })()}
         </div>
 
         {/* Desglose Ingresos / Egresos */}
@@ -123,23 +131,28 @@ export default function CEODashboard() {
             {loading ? <Skeleton className="h-32" /> : (
               <div className="flex flex-col gap-2">
                 {[
-                  { label: 'Ventas / Servicios', value: data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0, pct: 60 },
-                  { label: 'Alquileres', value: 0, pct: 0, placeholder: true },
-                  { label: 'Repuestos', value: 0, pct: 0, placeholder: true },
-                  { label: 'Otros', value: 0, pct: 0, placeholder: true },
-                ].map(({ label, value, pct, placeholder }) => (
+                  { label: 'Servicios / Taller', value: k?.ingresosServicios || 0, real: true },
+                  { label: 'Ventas directas', value: k?.ingresosVentas || 0, real: true },
+                  { label: 'Alquileres', value: k?.ingresosAlquileres || 0, real: true },
+                  { label: 'Repuestos / Otros', value: k?.ingresosOtros || 0, real: true },
+                ].map(({ label, value, real }) => {
+                  const pct = k?.ingresosMes > 0 ? (value / k.ingresosMes) * 100 : 0
+                  return (
                   <div key={label}>
-                    <div className="flex justify-between text-xs mb-0.5">
-                      <span className="text-hm-muted">{label}</span>
-                      <span className={`font-mono font-bold ${placeholder ? 'text-hm-muted/50' : 'text-green-400'}`}>
-                        {placeholder ? 'Base preparada' : formatUSD(value)}
+                    <div className="flex justify-between text-xs mb-0.5 items-center">
+                      <span className="text-hm-muted flex items-center gap-1">
+                        {label} {real && <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-accent border border-hm-border">[REAL]</span>}
+                      </span>
+                      <span className={`font-mono font-bold ${!real ? 'text-hm-muted/50' : 'text-green-400'}`}>
+                        {!real ? <span className="text-[9px] bg-hm-surface2/50 px-1 py-0.5 rounded border border-hm-border">[BASE PREPARADA]</span> : formatUSD(value)}
                       </span>
                     </div>
                     <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500/60 rounded-full transition-all" style={{width:`${placeholder ? 0 : pct}%`}} />
+                      <div className="h-full bg-green-500/60 rounded-full transition-all" style={{width:`${!real ? 0 : pct}%`}} />
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -153,23 +166,29 @@ export default function CEODashboard() {
             {loading ? <Skeleton className="h-32" /> : (
               <div className="flex flex-col gap-2">
                 {[
-                  { label: 'Compras / Supply', value: k?.gastoProveedores || 0, pct: 45 },
-                  { label: 'Taller / Mant.', value: k?.costoMantenimiento || 0, pct: 30 },
-                  { label: 'Logística', value: 0, pct: 0, placeholder: true },
-                  { label: 'Administrativos', value: 0, pct: 0, placeholder: true },
-                ].map(({ label, value, pct, placeholder }) => (
+                  { label: 'Compras / Supply', value: k?.gastoProveedores || 0, real: true },
+                  { label: 'Repuestos (OT)', value: k?.costoRepuestosOT || 0, real: true },
+                  { label: 'Mano de Obra (OT)', value: k?.costoManoObraOT || 0, real: true },
+                  { label: 'Gastos Operativos', value: 0, real: false },
+                ].map(({ label, value, real }) => {
+                  const egresosTotales = (k?.gastoProveedores || 0) + (k?.costoRepuestosOT || 0) + (k?.costoManoObraOT || 0)
+                  const pct = egresosTotales > 0 ? (value / egresosTotales) * 100 : 0
+                  return (
                   <div key={label}>
-                    <div className="flex justify-between text-xs mb-0.5">
-                      <span className="text-hm-muted">{label}</span>
-                      <span className={`font-mono font-bold ${placeholder ? 'text-hm-muted/50' : 'text-red-400'}`}>
-                        {placeholder ? 'Base preparada' : formatUSD(value)}
+                    <div className="flex justify-between text-xs mb-0.5 items-center">
+                      <span className="text-hm-muted flex items-center gap-1">
+                        {label} {real ? <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-accent border border-hm-border">[REAL]</span> : <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-muted/50 border border-hm-border">[SIN DATOS]</span>}
+                      </span>
+                      <span className={`font-mono font-bold ${!real ? 'text-hm-muted/50' : 'text-red-400'}`}>
+                        {!real ? <span className="text-[9px] bg-hm-surface2/50 px-1 py-0.5 rounded border border-hm-border">[BASE PREPARADA]</span> : formatUSD(value)}
                       </span>
                     </div>
                     <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
-                      <div className="h-full bg-red-500/60 rounded-full transition-all" style={{width:`${placeholder ? 0 : pct}%`}} />
+                      <div className="h-full bg-red-500/60 rounded-full transition-all" style={{width:`${!real ? 0 : pct}%`}} />
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -182,19 +201,23 @@ export default function CEODashboard() {
                 <div className="text-xs font-mono font-bold text-hm-accent uppercase tracking-widest">Resultado</div>
               </div>
               {loading ? <Skeleton className="h-20" /> : (() => {
-                const ingresos = data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0
-                const egresos = (k?.costoMantenimiento || 0) + (k?.gastoProveedores || 0)
-                const utilidadBruta = ingresos - egresos
-                const margen = ingresos > 0 ? ((utilidadBruta / ingresos) * 100).toFixed(1) : 0
+                const ingresosTotales = k?.ingresosMes || 0
+                const egresosTotales = (k?.gastoProveedores || 0) + (k?.costoRepuestosOT || 0) + (k?.costoManoObraOT || 0)
+                const utilidadBruta = ingresosTotales - egresosTotales
+                const margen = ingresosTotales > 0 ? ((utilidadBruta / ingresosTotales) * 100).toFixed(1) : 0
                 return (
                   <div className="flex flex-col gap-2">
-                    {[['Utilidad Bruta', formatUSD(utilidadBruta), utilidadBruta >= 0 ? 'text-green-400' : 'text-red-400'],
-                      ['Utilidad Oper.', 'Base preparada', 'text-hm-muted/60'],
-                      ['Margen', `${margen}%`, Number(margen) >= 20 ? 'text-green-400' : Number(margen) >= 10 ? 'text-yellow-400' : 'text-red-400'],
-                    ].map(([l, v, c]) => (
+                    {[['Utilidad Bruta', formatUSD(utilidadBruta), utilidadBruta >= 0 ? 'text-green-400' : 'text-red-400', true],
+                      ['Utilidad Neta', 'Base preparada', 'text-hm-muted/60', false],
+                      ['Margen Bruto', `${margen}%`, Number(margen) >= 20 ? 'text-green-400' : Number(margen) >= 10 ? 'text-yellow-400' : 'text-red-400', true],
+                    ].map(([l, v, c, real]) => (
                       <div key={l} className="flex justify-between items-center">
-                        <span className="text-xs text-hm-muted">{l}</span>
-                        <span className={`text-sm font-bold font-mono ${c}`}>{v}</span>
+                        <span className="text-xs text-hm-muted flex items-center gap-1">
+                          {l} {real && <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-accent border border-hm-border">[REAL]</span>}
+                        </span>
+                        <span className={`text-sm font-bold font-mono ${c}`}>
+                          {!real ? <span className="text-[9px] font-normal border border-hm-border bg-hm-surface2/50 px-1 py-0.5 rounded">[BASE PREPARADA]</span> : v}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -474,18 +497,21 @@ export default function CEODashboard() {
             <div className="text-[10px] font-mono text-orange-400 uppercase tracking-widest mb-3">📊 Áreas de Mayor Costo</div>
             <div className="flex flex-col gap-2">
               {[
-                { area: 'Taller / OTs', costo: k?.costoMantenimiento || 0, color: 'bg-orange-500' },
-                { area: 'Stock / Repuestos', costo: 0, color: 'bg-red-500', placeholder: true },
+                { area: 'Compras (Supply)', costo: k?.gastoProveedores || 0, color: 'bg-orange-500' },
+                { area: 'Repuestos (OT)', costo: k?.costoRepuestosOT || 0, color: 'bg-red-500' },
+                { area: 'Mano de Obra (OT)', costo: k?.costoManoObraOT || 0, color: 'bg-blue-500' },
                 { area: 'Combustible', costo: 0, color: 'bg-yellow-500', placeholder: true },
-                { area: 'Mano de Obra', costo: 0, color: 'bg-blue-500', placeholder: true },
               ].map(({ area, costo, color, placeholder }) => (
                 <div key={area} className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${color}`} />
-                    <span className="text-xs text-hm-muted">{area}</span>
+                    <span className="text-xs text-hm-muted">
+                      {area} {!placeholder && <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-accent border border-hm-border ml-1">[REAL]</span>}
+                      {placeholder && <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-muted/50 border border-hm-border ml-1">[SIN DATOS]</span>}
+                    </span>
                   </div>
                   <span className={`text-sm font-bold font-mono ${placeholder ? 'text-hm-muted/40' : 'text-hm-text'}`}>
-                    {placeholder ? 'Base prep.' : formatUSD(costo)}
+                    {placeholder ? <span className="text-[9px] font-normal bg-hm-surface2/50 px-1 py-0.5 rounded border border-hm-border">[BASE PREPARADA]</span> : formatUSD(costo)}
                   </span>
                 </div>
               ))}
@@ -497,14 +523,20 @@ export default function CEODashboard() {
           {/* OTs con pérdida */}
           <Card className="p-4">
             <div className="text-[10px] font-mono text-red-400 uppercase tracking-widest mb-3">⚠️ OTs Sin Rentabilidad</div>
-            <div className="text-xs text-hm-muted italic">Base preparada — conectar con OTs donde costo &gt; facturado</div>
+            <div className="text-xs text-hm-muted italic flex items-center gap-2">
+              <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-accent border border-hm-border">[REAL]</span>
+              OTs finalizadas de mayor costo
+            </div>
             <div className="mt-3 flex flex-col gap-1.5">
-              {[{ot:'#0145 — CAT 320D', desvio:'+USD 6.500'},{ot:'#0098 — Topadora', desvio:'+ARS 85.000'}].map(({ot, desvio}) => (
-                <div key={ot} className="flex justify-between items-center p-2 bg-red-500/5 border border-red-500/20 rounded">
-                  <span className="text-xs text-hm-muted">OT {ot}</span>
-                  <span className="text-xs font-bold text-red-400">{desvio} desvío</span>
+              {(k?.otsCriticas || []).map((o) => (
+                <div key={o.id} className="flex justify-between items-center p-2 bg-hm-surface2/10 border border-hm-border/30 rounded">
+                  <span className="text-xs text-hm-muted">OT {o.numero_ot} {o.maquina?.nombre_unidad ? `— ${o.maquina.nombre_unidad}` : ''}</span>
+                  <span className="text-xs font-bold text-red-400">Costo: {formatUSD(o.total_usd)}</span>
                 </div>
               ))}
+              {(!k?.otsCriticas || k?.otsCriticas.length === 0) && (
+                <div className="text-xs text-hm-muted italic">No hay OTs completadas aún.</div>
+              )}
             </div>
           </Card>
 

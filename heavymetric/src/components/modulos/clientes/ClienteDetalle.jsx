@@ -640,13 +640,40 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
               }
               const badge = RIESGO_BADGE[riesgoNegocio]
 
-              // Timeline económico mock — TODO: conectar con transacciones reales por fecha
-              const TIMELINE_ECO = [
-                { tipo: 'venta', label: 'OT Completada — CAT 320D', fecha: '22/04/26', valor: 4500, color: 'text-green-400', dot: 'bg-green-500' },
-                { tipo: 'cobro', label: 'Cobro recibido — Transferencia', fecha: '28/04/26', valor: 4500, color: 'text-blue-400', dot: 'bg-blue-500' },
-                { tipo: 'mora', label: 'OT #0087 sin cobrar 30d', fecha: '01/05/26', valor: -2200, color: 'text-red-400', dot: 'bg-red-500' },
-                { tipo: 'venta', label: 'Cotización aceptada', fecha: '12/05/26', valor: 8000, color: 'text-green-400', dot: 'bg-green-500' },
-              ]
+              // Timeline económico real
+              const eventos = []
+              transacciones.forEach(t => {
+                if (t.estado_pago === 'cobrado' && t.fecha_cobro) {
+                  eventos.push({
+                    tipo: 'cobro', label: `Cobro recibido: ${t.tipo_documento || 'Recibo'}`,
+                    fechaRaw: new Date(t.fecha_cobro), fecha: fmtFecha(t.fecha_cobro),
+                    valor: t.monto_total_usd, color: 'text-blue-400', dot: 'bg-blue-500'
+                  })
+                }
+                eventos.push({
+                  tipo: 'factura', label: `Emisión: ${t.tipo_documento || 'Factura'} ${t.numero_comprobante || ''}`,
+                  fechaRaw: new Date(t.fecha_emision), fecha: fmtFecha(t.fecha_emision),
+                  valor: t.monto_total_usd, color: 'text-green-400', dot: 'bg-green-500'
+                })
+                if (t.estado_pago === 'pendiente') {
+                  const dias = Math.floor((new Date() - new Date(t.fecha_emision)) / 86400000)
+                  if (dias > 30) {
+                    eventos.push({
+                      tipo: 'mora', label: `Deuda vencida (${dias}d): ${t.tipo_documento || 'Factura'}`,
+                      fechaRaw: new Date(t.fecha_emision), fecha: fmtFecha(t.fecha_emision),
+                      valor: -t.monto_total_usd, color: 'text-red-400', dot: 'bg-red-500'
+                    })
+                  }
+                }
+              })
+              ots.filter(o => ['completada','facturada'].includes(o.estado)).forEach(o => {
+                eventos.push({
+                  tipo: 'ot', label: `OT Completada #${o.numero_ot} ${o.maquina?.nombre_unidad ? `— ${o.maquina.nombre_unidad}` : ''}`,
+                  fechaRaw: new Date(o.fecha_ingreso), fecha: fmtFecha(o.fecha_ingreso),
+                  valor: o.total_usd || 0, color: 'text-hm-accent', dot: 'bg-hm-accent'
+                })
+              })
+              const TIMELINE_ECO = eventos.sort((a,b) => b.fechaRaw - a.fechaRaw).slice(0, 20)
 
               return (
                 <div className="flex flex-col gap-5">
@@ -671,7 +698,9 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
                         <div key={label} className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
                           <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">{label}</div>
                           <div className={`text-lg font-bold ${real && value > 0 ? color : 'text-hm-muted/50'}`}>
-                            {real && value > 0 ? formatUSD(value) : 'Base preparada'}
+                            {real && value > 0 ? formatUSD(value) : (
+                              <span className="text-[10px] bg-hm-surface2/50 px-1.5 py-0.5 rounded border border-hm-border">[BASE PREPARADA]</span>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -688,11 +717,15 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
                       </div>
                       <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
                         <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Mora histórica</div>
-                        <div className="text-lg font-bold text-hm-muted/50">Base preparada</div>
+                        <div className="mt-1">
+                          <span className="text-[10px] bg-hm-surface2/50 px-1.5 py-0.5 rounded border border-hm-border text-hm-muted/50">[SIN DATOS]</span>
+                        </div>
                       </div>
                       <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
                         <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Cumplimiento pago</div>
-                        <div className="text-lg font-bold text-hm-muted/50">Base preparada</div>
+                        <div className="mt-1">
+                          <span className="text-[10px] bg-hm-surface2/50 px-1.5 py-0.5 rounded border border-hm-border text-hm-muted/50">[SIN DATOS]</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -769,9 +802,11 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
                           </div>
                         </div>
                       ))}
-                      <div className="text-xs text-hm-muted italic text-center py-2">
-                        Timeline económico — TODO: conectar con tabla transacciones reales
-                      </div>
+                      {TIMELINE_ECO.length === 0 && (
+                        <div className="text-xs text-hm-muted italic p-3 text-center bg-hm-surface2/10 rounded-lg border border-white/5">
+                          Sin movimientos económicos recientes para este cliente.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -22,21 +22,30 @@ export function useFinanzas() {
     }
   }
 
+  const [compras, setCompras] = useState([])
+
   const fetchTransacciones = async () => {
     try {
       setLoading(true)
-      const { data, error: err } = await supabase
-        .from('transacciones')
-        .select(`
-          *,
-          cliente:clientes(razon_social),
-          ot:ordenes_trabajo(numero_ot),
-          contrato:contratos_alquiler(numero_contrato)
-        `)
-        .order('fecha_emision', { ascending: false })
+      const [txRes, compRes] = await Promise.all([
+        supabase
+          .from('transacciones')
+          .select(`
+            *,
+            cliente:clientes(razon_social),
+            ot:ordenes_trabajo(numero_ot),
+            contrato:contratos_alquiler(numero_contrato)
+          `)
+          .order('fecha_emision', { ascending: false }),
+        supabase
+          .from('compras')
+          .select('*, proveedor:proveedores(empresa)')
+          .order('created_at', { ascending: false })
+      ])
 
-      if (err) throw err
-      setTransacciones(data || [])
+      if (txRes.error) throw txRes.error
+      setTransacciones(txRes.data || [])
+      setCompras(compRes.data || [])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -159,6 +168,7 @@ export function useFinanzas() {
 
   return {
     transacciones,
+    compras,
     tipoCambio,
     loading,
     error,

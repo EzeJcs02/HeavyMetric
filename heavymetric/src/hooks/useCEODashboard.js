@@ -25,7 +25,7 @@ async function fetchCEOData() {
     { data: compData,  error: e12 },
   ] = await Promise.all([
     // Ingresos del mes actual
-    supabase.from('transacciones').select('monto_total_usd').gte('fecha_emision', inicioMes),
+    supabase.from('transacciones').select('monto_total_usd, origen_tipo').gte('fecha_emision', inicioMes),
 
     // Cobranza pendiente
     supabase.from('transacciones').select('monto_total_usd, cliente_id, clientes(razon_social)').eq('estado_pago', 'pendiente'),
@@ -37,7 +37,7 @@ async function fetchCEOData() {
     supabase.from('transacciones').select('cliente_id, monto_total_usd, clientes(razon_social)').gte('fecha_emision', hace90),
 
     // OTs por estado
-    supabase.from('ordenes_trabajo').select('estado, total_usd, created_at').gte('created_at', inicioAnio),
+    supabase.from('ordenes_trabajo').select('estado, total_usd, total_repuestos_usd, total_mano_obra_usd, numero_ot, maquina:maquinas(nombre_unidad), created_at').gte('created_at', inicioAnio),
 
     // Flota por estado_operativo
     supabase.from('maquinas').select('estado_operativo, activa').eq('activa', true),
@@ -65,9 +65,16 @@ async function fetchCEOData() {
   const criticalError = e1 || e2 || e3 || e7
   if (criticalError) throw criticalError
 
-  // ── Comercial ──
-  const ingresosMes   = (txMes || []).reduce((s, t) => s + Number(t.monto_total_usd), 0)
-  const cobranzaPend  = (txPend || []).reduce((s, t) => s + Number(t.monto_total_usd), 0)
+  // ── Comercial / Ingresos Reales del Mes ──
+  const ingresosMes   = (txMes || []).reduce((s, t) => s + Number(t.monto_total_usd || 0), 0)
+  
+  // Desglose de ingresos reales
+  const ingresosAlquileres = (txMes || []).filter(t => t.origen_tipo === 'alquiler').reduce((s, t) => s + Number(t.monto_total_usd || 0), 0)
+  const ingresosServicios  = (txMes || []).filter(t => t.origen_tipo === 'ot').reduce((s, t) => s + Number(t.monto_total_usd || 0), 0)
+  const ingresosVentas     = (txMes || []).filter(t => t.origen_tipo === 'cotizacion').reduce((s, t) => s + Number(t.monto_total_usd || 0), 0)
+  const ingresosOtros      = (txMes || []).filter(t => !['alquiler','ot','cotizacion'].includes(t.origen_tipo)).reduce((s, t) => s + Number(t.monto_total_usd || 0), 0)
+
+  const cobranzaPend  = (txPend || []).reduce((s, t) => s + Number(t.monto_total_usd || 0), 0)
   const pipelineVal   = (cotsData || []).reduce((s, c) => s + Number(c.total_usd || 0), 0)
 
   // Top clientes (últimos 90 días)
@@ -93,7 +100,16 @@ async function fetchCEOData() {
   // ── Operaciones ──
   const otsPorEstado = { borrador: 0, en_progreso: 0, completada: 0, facturada: 0, cancelada: 0 }
   ;(otData || []).forEach(o => { if (otsPorEstado[o.estado] !== undefined) otsPorEstado[o.estado]++ })
-  const costoMantenimiento = (otData || []).filter(o => o.estado === 'completada').reduce((s, o) => s + Number(o.total_usd || 0), 0)
+  const otsCompletadas = (otData || []).filter(o => ['completada','facturada'].includes(o.estado))
+  
+  const costoMantenimiento = otsCompletadas.reduce((s, o) => s + Number(o.total_usd || 0), 0)
+  const costoRepuestosOT = otsCompletadas.reduce((s, o) => s + Number(o.total_repuestos_usd || 0), 0)
+  const costoManoObraOT = otsCompletadas.reduce((s, o) => s + Number(o.total_mano_obra_usd || 0), 0)
+  
+  // OTs con pérdida (costo > ingreso) -- como es difícil sin saber lo facturado exacto vs costo, 
+  // simularemos basado en margen bajo (o costo mayor a un umbral si lo tenemos).
+  // Por ahora devolvemos las 3 OTs más costosas para la lista "OTs Sin Rentabilidad"
+  const otsCriticas = [...otsCompletadas].sort((a,b) => Number(b.total_usd||0) - Number(a.total_usd||0)).slice(0, 3)
 
   const flotaPorEstado = {}
   ;(flotaData || []).forEach(m => {
@@ -134,9 +150,10 @@ async function fetchCEOData() {
 
   return {
     kpis: {
-      ingresosMes, cobranzaPend, pipelineVal,
+      ingresosMes, ingresosAlquileres, ingresosServicios, ingresosVentas, ingresosOtros,
+      cobranzaPend, pipelineVal,
       otAbiertas:     otsPorEstado.en_progreso + otsPorEstado.borrador,
-      costoMantenimiento,
+      costoMantenimiento, costoRepuestosOT, costoManoObraOT, otsCriticas,
       flotaTotal, flotaOperativa, flotaDetenida, uptime,
       leadsActivos:   (leadsData || []).length,
       leadsGradoA:    (leadsData || []).filter(l => l.lead_grade === 'A').length,

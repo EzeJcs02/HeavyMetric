@@ -391,7 +391,7 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                           <div key={label} className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
                             <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">{label}</div>
                             <div className={`text-base font-bold ${placeholder ? 'text-hm-muted/40' : color}`}>
-                              {placeholder ? 'Base preparada' : formatUSD(value)}
+                              {placeholder ? <span className="text-[10px] bg-hm-surface2/50 px-1.5 py-0.5 rounded border border-hm-border font-normal">[BASE PREPARADA]</span> : formatUSD(value)}
                             </div>
                           </div>
                         ))}
