@@ -66,6 +66,7 @@ export default function Home() {
   const isSupervisor = rol === 'supervisor' || isOwner
   const isOperativo = rol === 'operativo'
 
+  const MODULES = [
     {
       id: 'ventas',
       title: 'Ventas / CRM',
