@@ -88,11 +88,18 @@ export async function fetchRepuestosProveedor(proveedorId) {
 }
 
 // ── Crear/recibir compra ─────────────────────────────────────────
-export async function crearCompra(proveedorId, orgId, items, notas = '') {
+export async function crearCompra(proveedorId, orgId, items, notas = '', extra = {}) {
   const total = items.reduce((s, i) => s + Number(i.cantidad) * Number(i.precio_unitario_usd), 0)
   const { data: compra, error: errC } = await supabase
     .from('compras')
-    .insert([{ proveedor_id: proveedorId, organization_id: orgId, total_usd: total, notas }])
+    .insert([{
+      proveedor_id: proveedorId,
+      organization_id: orgId,
+      total_usd: total,
+      notas,
+      categoria:       extra.categoria       || 'repuesto',
+      centro_costo_id: extra.centro_costo_id || null,
+    }])
     .select().single()
   if (errC) throw errC
 
@@ -108,4 +115,62 @@ export async function crearCompra(proveedorId, orgId, items, notas = '') {
 export async function recibirCompra(compraId) {
   const { error } = await supabase.rpc('recibir_compra', { p_compra_id: compraId })
   if (error) throw error
+}
+
+// ── Risk score (calculado en cliente, no persiste) ───────────────
+// 100 = riesgo cero / 0 = riesgo máximo
+export function calcRiskScore(p) {
+  let score = 100
+  if (p.estado === 'riesgoso')  score -= 40
+  else if (p.estado === 'inactivo') score -= 20
+  // Rating: 5★=0 penalidad, 1★=-40
+  score -= (5 - (p.rating ?? 3)) * 10
+  // Entregas tarde
+  const totalEnt = (p.entregas_a_tiempo ?? 0) + (p.entregas_tarde ?? 0)
+  if (totalEnt > 0) score -= Math.round((p.entregas_tarde / totalEnt) * 30)
+  // Incidencias (cada una resta 10, máx 30)
+  score -= Math.min(30, (p.incidencias ?? 0) * 10)
+  return Math.max(0, Math.min(100, score))
+}
+
+export function riskLabel(score) {
+  if (score >= 75) return { label: 'Bajo',  color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30' }
+  if (score >= 45) return { label: 'Medio', color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/30' }
+  return              { label: 'Alto',  color: 'text-red-400',   bg: 'bg-red-500/10 border-red-500/30' }
+}
+
+// ── Activos vinculados a un proveedor ────────────────────────────
+export async function fetchActivosProveedor(proveedorId) {
+  const { data } = await supabase
+    .from('proveedor_activos')
+    .select('*, maquina:maquinas(id, nombre_unidad, tipo, marca, modelo, estado_operativo)')
+    .eq('proveedor_id', proveedorId)
+  return data || []
+}
+
+export async function vincularActivo(proveedorId, maquinaId, tipoRelacion = 'service', notas = '') {
+  const { error } = await supabase
+    .from('proveedor_activos')
+    .upsert({ proveedor_id: proveedorId, maquina_id: maquinaId, tipo_relacion: tipoRelacion, notas },
+      { onConflict: 'proveedor_id,maquina_id' })
+  if (error) throw error
+}
+
+export async function desvincularActivo(proveedorId, maquinaId) {
+  const { error } = await supabase
+    .from('proveedor_activos')
+    .delete()
+    .eq('proveedor_id', proveedorId)
+    .eq('maquina_id', maquinaId)
+  if (error) throw error
+}
+
+// ── Centros de costo ─────────────────────────────────────────────
+export async function fetchCentrosCosto() {
+  const { data } = await supabase
+    .from('centros_costo')
+    .select('id, nombre')
+    .eq('activo', true)
+    .order('nombre')
+  return data || []
 }

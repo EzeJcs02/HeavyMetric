@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
-import { useProveedores, fetchComprasProveedor, fetchRepuestosProveedor, crearCompra, recibirCompra } from '../../hooks/useProveedores'
+import { useProveedores, fetchComprasProveedor, fetchRepuestosProveedor, crearCompra, recibirCompra, fetchActivosProveedor, vincularActivo, desvincularActivo, calcRiskScore, riskLabel, fetchCentrosCosto } from '../../hooks/useProveedores'
 import { useAuth } from '../../context/AuthContext'
 import { useDolar } from '../../context/DolarContext'
 import Modal from '../../components/ui/Modal'
@@ -31,10 +31,14 @@ const ESTADO_COMPRA_COLOR = {
   cancelado:         'danger',
 }
 
+const CATEGORIAS_COMPRA = ['repuesto','activo','servicio','combustible','lubricante','herramienta','otro']
+const TIPOS_RELACION_ACTIVO = ['fabricante','distribuidor','service','garantia','repuestos']
+
 const EMPTY_FORM = {
   empresa: '', rubro: '', contacto_nombre: '', telefono: '', email: '',
   condicion_pago: 'contado', tiempo_entrega_dias: 3, rating: 3,
   estado: 'activo', observaciones: '',
+  incidencias: 0, entregas_a_tiempo: 0, entregas_tarde: 0,
 }
 
 function Stars({ value, onChange }) {
@@ -67,6 +71,9 @@ function ModalProveedor({ isOpen, onClose, proveedor, onConfirm }) {
       rating:            proveedor.rating ?? 3,
       estado:            proveedor.estado || 'activo',
       observaciones:     proveedor.observaciones || '',
+      incidencias:       proveedor.incidencias ?? 0,
+      entregas_a_tiempo: proveedor.entregas_a_tiempo ?? 0,
+      entregas_tarde:    proveedor.entregas_tarde ?? 0,
     } : EMPTY_FORM)
   }, [proveedor, isOpen])
 
@@ -130,6 +137,13 @@ function ModalProveedor({ isOpen, onClose, proveedor, onConfirm }) {
           <Stars value={form.rating} onChange={v => set('rating', v)} />
         </div>
 
+        <div className="grid grid-cols-3 gap-3 bg-hm-surface2/20 border border-hm-border/50 rounded-lg p-3">
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest col-span-3 mb-1">Performance (para risk score)</div>
+          <Input label="Entregas en tiempo" type="number" min="0" value={form.entregas_a_tiempo} onChange={e => set('entregas_a_tiempo', e.target.value)} />
+          <Input label="Entregas tarde" type="number" min="0" value={form.entregas_tarde} onChange={e => set('entregas_tarde', e.target.value)} />
+          <Input label="Incidencias" type="number" min="0" value={form.incidencias} onChange={e => set('incidencias', e.target.value)} />
+        </div>
+
         <div className="flex flex-col gap-1">
           <label className="label-mono">Observaciones</label>
           <textarea value={form.observaciones} onChange={e => set('observaciones', e.target.value)} rows={2}
@@ -150,9 +164,10 @@ function ModalProveedor({ isOpen, onClose, proveedor, onConfirm }) {
 
 function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
   const [tab, setTab] = useState('info')
-  const [compras, setCompras] = useState([])
+  const [compras, setCompras]   = useState([])
   const [repuestos, setRepuestos] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [activos, setActivos]   = useState([])
+  const [loading, setLoading]   = useState(false)
   const { formatUSD } = useDolar()
   const { perfil } = useAuth()
 
@@ -160,7 +175,14 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
   const [showCompra, setShowCompra] = useState(false)
   const [compraItems, setCompraItems] = useState([{ descripcion: '', cantidad: 1, precio_unitario_usd: 0 }])
   const [compraNota, setCompraNota] = useState('')
+  const [compraCategoria, setCompraCategoria] = useState('repuesto')
   const [savingCompra, setSavingCompra] = useState(false)
+
+  // Vincular activo
+  const [showVincular, setShowVincular] = useState(false)
+  const [maquinasDisp, setMaquinasDisp] = useState([])
+  const [vincForm, setVincForm] = useState({ maquina_id: '', tipo_relacion: 'service', notas: '' })
+  const [savingVinc, setSavingVinc] = useState(false)
 
   useEffect(() => {
     if (!proveedor || !isOpen) return
@@ -169,23 +191,57 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
     Promise.all([
       fetchComprasProveedor(proveedor.id),
       fetchRepuestosProveedor(proveedor.id),
-    ]).then(([c, r]) => { setCompras(c); setRepuestos(r); setLoading(false) })
+      fetchActivosProveedor(proveedor.id),
+    ]).then(([c, r, a]) => { setCompras(c); setRepuestos(r); setActivos(a); setLoading(false) })
   }, [proveedor?.id, isOpen])
+
+  useEffect(() => {
+    if (tab !== 'activos' || maquinasDisp.length > 0) return
+    // Cargar lista de maquinas para vincular
+    import('../../lib/supabase').then(({ supabase }) =>
+      supabase.from('maquinas').select('id, nombre_unidad, tipo, marca').eq('activa', true).order('nombre_unidad')
+        .then(({ data }) => setMaquinasDisp(data || []))
+    )
+  }, [tab])
 
   const handleCrearCompra = async () => {
     const items = compraItems.filter(i => i.descripcion.trim())
     if (!items.length) return
     setSavingCompra(true)
     try {
-      await crearCompra(proveedor.id, perfil?.organization_id, items, compraNota)
+      await crearCompra(proveedor.id, perfil?.organization_id, items, compraNota, { categoria: compraCategoria })
       toast.success('Compra registrada')
       setShowCompra(false)
       setCompraItems([{ descripcion: '', cantidad: 1, precio_unitario_usd: 0 }])
       setCompraNota('')
+      setCompraCategoria('repuesto')
       const c = await fetchComprasProveedor(proveedor.id)
       setCompras(c)
     } catch (err) { toast.error(err.message) }
     finally { setSavingCompra(false) }
+  }
+
+  const handleVincularActivo = async () => {
+    if (!vincForm.maquina_id) return
+    setSavingVinc(true)
+    try {
+      await vincularActivo(proveedor.id, vincForm.maquina_id, vincForm.tipo_relacion, vincForm.notas)
+      toast.success('Activo vinculado')
+      setShowVincular(false)
+      setVincForm({ maquina_id: '', tipo_relacion: 'service', notas: '' })
+      const a = await fetchActivosProveedor(proveedor.id)
+      setActivos(a)
+    } catch (err) { toast.error(err.message) }
+    finally { setSavingVinc(false) }
+  }
+
+  const handleDesvincular = async (maquinaId) => {
+    try {
+      await desvincularActivo(proveedor.id, maquinaId)
+      toast.success('Vínculo eliminado')
+      const a = await fetchActivosProveedor(proveedor.id)
+      setActivos(a)
+    } catch (err) { toast.error(err.message) }
   }
 
   const handleRecibir = async (compraId) => {
@@ -199,6 +255,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
 
   if (!proveedor) return null
   const totalGastado = compras.filter(c => c.estado === 'recibido').reduce((s, c) => s + Number(c.total_usd || 0), 0)
+  const risk = riskLabel(calcRiskScore(proveedor))
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="" maxWidth="max-w-3xl">
@@ -209,6 +266,9 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
             <h2 className="text-xl font-bold">{proveedor.empresa}</h2>
             <span className={`text-[9px] font-mono font-bold border rounded px-2 py-0.5 uppercase ${ESTADO_COLOR[proveedor.estado]}`}>
               {proveedor.estado}
+            </span>
+            <span className={`text-[9px] font-mono font-bold border rounded px-2 py-0.5 ${risk.bg} ${risk.color}`}>
+              RIESGO {risk.label.toUpperCase()} · {calcRiskScore(proveedor)}
             </span>
           </div>
           <div className="flex items-center gap-3 text-sm text-hm-muted">
@@ -239,7 +299,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
 
       {/* Tabs */}
       <div className="flex gap-0 border-b border-hm-border mb-4">
-        {[['info','INFORMACIÓN'],['compras','COMPRAS'],['repuestos','REPUESTOS']].map(([k,l]) => (
+        {[['info','INFORMACIÓN'],['compras','COMPRAS'],['repuestos','REPUESTOS'],['activos','ACTIVOS']].map(([k,l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`px-4 py-2 text-xs font-mono font-bold border-b-2 transition-all ${tab===k ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-hm-text'}`}>
             {l}
@@ -296,6 +356,13 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
               <button onClick={() => setCompraItems(p => [...p, { descripcion: '', cantidad: 1, precio_unitario_usd: 0 }])}
                 className="text-xs text-hm-muted hover:text-hm-text transition-colors self-start">+ agregar ítem</button>
               <Input label="Notas" value={compraNota} onChange={e => setCompraNota(e.target.value)} placeholder="Referencia, observaciones..." />
+              <div className="flex flex-col gap-1">
+                <label className="label-mono">Categoría</label>
+                <select value={compraCategoria} onChange={e => setCompraCategoria(e.target.value)}
+                  className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors">
+                  {CATEGORIAS_COMPRA.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm font-bold text-hm-accent">
                   Total: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
@@ -365,6 +432,68 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+      )}
+      {/* Tab: ACTIVOS */}
+      {tab === 'activos' && (
+        <div className="flex flex-col gap-3">
+          <button onClick={() => setShowVincular(v => !v)}
+            className="text-xs font-mono font-bold border border-hm-accent/40 text-hm-accent rounded-lg px-4 py-2 hover:bg-hm-accent/10 transition-colors self-start">
+            {showVincular ? '✕ Cancelar' : '+ Vincular activo'}
+          </button>
+
+          {showVincular && (
+            <div className="bg-hm-surface2/20 border border-hm-border rounded-lg p-4 flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="label-mono">Activo (máquina)</label>
+                  <select value={vincForm.maquina_id} onChange={e => setVincForm(p => ({ ...p, maquina_id: e.target.value }))}
+                    className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors">
+                    <option value="">— Seleccionar —</option>
+                    {maquinasDisp.map(m => <option key={m.id} value={m.id}>{m.nombre_unidad} {m.marca ? `· ${m.marca}` : ''}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="label-mono">Tipo de relación</label>
+                  <select value={vincForm.tipo_relacion} onChange={e => setVincForm(p => ({ ...p, tipo_relacion: e.target.value }))}
+                    className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors">
+                    {TIPOS_RELACION_ACTIVO.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <Input label="Notas" value={vincForm.notas} onChange={e => setVincForm(p => ({ ...p, notas: e.target.value }))} placeholder="Observaciones sobre este vínculo..." />
+              <div className="flex justify-end">
+                <Button variant="primary" onClick={handleVincularActivo} disabled={savingVinc || !vincForm.maquina_id}>
+                  {savingVinc ? 'VINCULANDO...' : 'VINCULAR'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {loading ? <div className="h-16 bg-hm-surface2 rounded animate-pulse" />
+          : activos.length === 0 ? (
+            <div className="text-center text-hm-muted font-mono text-sm py-6">Sin activos vinculados.</div>
+          ) : (
+            <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
+              {activos.map(a => (
+                <div key={a.id} className="flex items-center justify-between bg-hm-surface2/20 border border-hm-border/50 rounded-lg px-3 py-2">
+                  <div>
+                    <div className="text-sm font-medium">{a.maquina?.nombre_unidad || '—'}</div>
+                    <div className="text-[10px] text-hm-muted font-mono uppercase">
+                      {a.tipo_relacion}
+                      {a.maquina?.tipo ? ` · ${a.maquina.tipo}` : ''}
+                      {a.maquina?.marca ? ` · ${a.maquina.marca}` : ''}
+                      {a.notas ? ` — ${a.notas}` : ''}
+                    </div>
+                  </div>
+                  <button onClick={() => handleDesvincular(a.maquina_id)}
+                    className="text-[9px] font-mono font-bold border border-red-700/50 text-red-400/70 rounded px-2 py-1 hover:border-red-500 hover:text-red-400 transition-colors">
+                    DESVINCULAR
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -472,7 +601,7 @@ export default function Proveedores() {
         <table className="w-full text-left">
           <thead className="bg-hm-surface2/50 border-b border-hm-border">
             <tr>
-              {['EMPRESA','RUBRO','CONTACTO','ESTADO','RATING','ENTREGA','PAGO',''].map(h => (
+              {['EMPRESA','RUBRO','CONTACTO','ESTADO','RATING','RIESGO','ENTREGA','PAGO',''].map(h => (
                 <th key={h} className="p-4 font-mono text-xs text-hm-muted">{h}</th>
               ))}
             </tr>
@@ -481,13 +610,13 @@ export default function Proveedores() {
             {loading ? (
               [1,2,3].map(i => (
                 <tr key={i} className="border-b border-hm-border">
-                  {[1,2,3,4,5,6,7,8].map(j => (
+                  {[1,2,3,4,5,6,7,8,9].map(j => (
                     <td key={j} className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse" /></td>
                   ))}
                 </tr>
               ))
             ) : filtrados.length === 0 ? (
-              <tr><td colSpan={8} className="p-8 text-center text-hm-muted font-mono text-sm">No se encontraron proveedores.</td></tr>
+              <tr><td colSpan={9} className="p-8 text-center text-hm-muted font-mono text-sm">No se encontraron proveedores.</td></tr>
             ) : paginados.map(p => (
               <tr key={p.id} onClick={() => setDetalle(p)}
                 className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors group cursor-pointer">
@@ -507,6 +636,13 @@ export default function Proveedores() {
                       <span key={n} className={`text-xs ${n <= (p.rating||3) ? 'text-yellow-400' : 'text-hm-border'}`}>★</span>
                     ))}
                   </div>
+                </td>
+                <td className="p-4">
+                  {(() => { const r = riskLabel(calcRiskScore(p)); return (
+                    <span className={`text-[9px] font-mono font-bold border rounded px-2 py-0.5 ${r.bg} ${r.color}`}>
+                      {r.label.toUpperCase()} · {calcRiskScore(p)}
+                    </span>
+                  )})()}
                 </td>
                 <td className="p-4 text-sm text-hm-muted">{p.tiempo_entrega_dias ? `${p.tiempo_entrega_dias}d` : '—'}</td>
                 <td className="p-4 text-xs text-hm-muted">{p.condicion_pago || '—'}</td>
