@@ -3,6 +3,8 @@ import { toast } from 'sonner'
 import { isValidCuit, formatCuit } from '../../lib/cuitValidator'
 import { generateOCPDF } from '../../lib/pdfGenerator'
 import { useProveedores, fetchComprasProveedor, fetchRepuestosProveedor, crearCompra, recibirCompra, fetchActivosProveedor, vincularActivo, desvincularActivo, calcRiskScore, riskLabel, fetchCentrosCosto } from '../../hooks/useProveedores'
+import { readDocumentWithOCR } from '../../lib/integrations/ocr'
+import { isIntegrationEnabled } from '../../config/integrations'
 import { useAuth } from '../../context/AuthContext'
 import { useDolar } from '../../context/DolarContext'
 import Modal from '../../components/ui/Modal'
@@ -232,6 +234,30 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
     finally { setSavingCompra(false) }
   }
 
+  const handleOcrScan = async () => {
+    toast.info('Simulando escaneo de remito/factura con OCR...')
+    setSavingCompra(true)
+    try {
+      const res = await readDocumentWithOCR('dummy-file')
+      if (res.success && res.data) {
+        toast.success(`OCR: ${res.data.tipoDocumento} detectado`)
+        setCompraNota(`OCR Auto-fill: ${res.data.numero} - ${res.data.entidad}`)
+        // Set dummy items based on mock OCR
+        setCompraItems([
+          { descripcion: 'FILTRO ACEITE (OCR)', cantidad: 1, precio_unitario_usd: 15 },
+          { descripcion: 'CORREA ALTERNADOR (OCR)', cantidad: 2, precio_unitario_usd: 25 },
+          { descripcion: 'BATERIA 12V 110AH (OCR)', cantidad: 1, precio_unitario_usd: 120 }
+        ])
+      } else {
+        toast.error(res.error || 'Error en OCR')
+      }
+    } catch (err) {
+      toast.error('Error procesando OCR')
+    } finally {
+      setSavingCompra(false)
+    }
+  }
+
   const handleVincularActivo = async () => {
     if (!vincForm.maquina_id) return
     setSavingVinc(true)
@@ -351,7 +377,13 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
 
           {showCompra && (
             <div className="bg-hm-surface2/20 border border-hm-border rounded-lg p-4 flex flex-col gap-3">
-              <div className="text-xs font-mono text-hm-muted mb-1">ÍTEMS</div>
+              <div className="flex justify-between items-center mb-1">
+                <div className="text-xs font-mono text-hm-muted">ÍTEMS</div>
+                <button type="button" onClick={handleOcrScan} disabled={savingCompra}
+                  className="text-[10px] font-mono text-hm-accent border border-hm-accent/50 px-2 py-1 rounded hover:bg-hm-accent/10 transition-colors uppercase">
+                  📷 Escanear Remito OCR
+                </button>
+              </div>
               {compraItems.map((item, idx) => (
                 <div key={idx} className="grid grid-cols-[1fr_80px_100px_32px] gap-2 items-end">
                   <Input placeholder="Descripción" value={item.descripcion}
