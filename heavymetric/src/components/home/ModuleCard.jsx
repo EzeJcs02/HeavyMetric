@@ -5,7 +5,10 @@ export default function ModuleCard({ title, description, icon, colorClass, metri
   const navigate = useNavigate()
 
   return (
-    <Card className="flex flex-col h-full border border-hm-border hover:border-hm-border/80 transition-all p-5 group bg-hm-surface relative overflow-hidden">
+    <Card 
+      onClick={() => navigate(to)}
+      className="flex flex-col h-full border border-hm-border hover:border-hm-accent/50 hover:bg-hm-surface2/50 transition-all p-5 group bg-hm-surface relative overflow-hidden cursor-pointer"
+    >
       {/* Fondo degradado sutil en hover */}
       <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${colorClass} opacity-0 group-hover:opacity-10 transition-opacity blur-2xl rounded-full -translate-y-1/2 translate-x-1/3`} />
 
@@ -38,13 +41,6 @@ export default function ModuleCard({ title, description, icon, colorClass, metri
           <div className="text-xs text-hm-muted italic py-2">Sin métricas registradas.</div>
         )}
       </div>
-
-      <button
-        onClick={() => navigate(to)}
-        className="w-full py-2.5 rounded-lg border border-hm-border bg-hm-surface2 hover:bg-hm-surface text-sm font-bold text-hm-text transition-colors relative z-10 group-hover:border-hm-accent/50 group-hover:text-hm-accent"
-      >
-        ENTRAR →
-      </button>
     </Card>
   )
 }

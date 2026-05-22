@@ -9,17 +9,62 @@ import { supabase } from '../../../lib/supabase'
 import { calcServiceState, predecirService } from '../../../hooks/useCliente360'
 import Modal from '../../ui/Modal'
 import ModalConfirm from '../../ui/ModalConfirm'
-import Card from '../../ui/Card'
 import Badge from '../../ui/Badge'
 import Button from '../../ui/Button'
 import Input from '../../ui/Input'
 import Timeline360 from '../timeline/Timeline360'
 
+const ESTADO_OP_COLOR = {
+  'Operativo':           'text-green-400',
+  'En mantenimiento':    'text-yellow-400',
+  'En taller':           'text-orange-400',
+  'Esperando repuesto':  'text-red-400',
+  'Fuera de servicio':   'text-red-400',
+  'Baja':                'text-hm-muted',
+}
+
+function Kpi({ label, value, sub, color = '' }) {
+  return (
+    <div className="bg-hm-surface2/30 border border-hm-border/50 rounded-lg p-3 flex flex-col gap-0.5">
+      <div className={`text-xl font-bold truncate ${color}`}>{value}</div>
+      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest truncate">{label}</div>
+      {sub && <div className="text-[10px] text-hm-muted truncate">{sub}</div>}
+    </div>
+  )
+}
+
+function TabBtn({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-2 text-[10px] sm:text-xs font-mono font-bold border-b-2 transition-all whitespace-nowrap shrink-0 ${
+        active ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-hm-text'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function EmptyState({ icon, title, desc }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+      <div className="w-12 h-12 rounded-full bg-hm-surface2 border border-hm-border flex items-center justify-center text-xl mb-4">
+        {icon}
+      </div>
+      <div className="text-sm font-bold text-hm-text">{title}</div>
+      <div className="text-xs text-hm-muted mt-1 max-w-sm">{desc}</div>
+    </div>
+  )
+}
+
 export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
+  const [tab, setTab] = useState('resumen')
   const { maquina, ots, contratos, stats, loading, error } = useMaquinaDetalle(maquinaId)
   const { deactivateMaquina } = useMaquinas()
   const { formatUSD } = useDolar()
   const { isOwner } = useAuth()
+  
   const [confirmBaja, setConfirmBaja] = useState(false)
   const [loadingBaja, setLoadingBaja] = useState(false)
   const [horometros, setHorometros] = useState([])
@@ -65,98 +110,206 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
     }
   }
 
+  // Cálculos derivados de OT para costos
+  const totalRepuestos = ots.reduce((acc, o) => acc + Number(o.total_repuestos_usd || 0), 0)
+  const totalManoObra = ots.reduce((acc, o) => acc + Number(o.total_mano_obra_usd || 0), 0)
+
+  // Service State (Alertas)
+  const svc = maquina ? calcServiceState(maquina) : null
+  const svcAlert = svc && ['vencido', 'urgente'].includes(svc.estado)
+  const opAlert = maquina && ['Fuera de servicio', 'Esperando repuesto', 'En taller'].includes(maquina.estado_operativo)
+  const tieneAlertas = svcAlert || opAlert
+
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="Ficha de Unidad" maxWidth="max-w-5xl">
+      <Modal isOpen={isOpen} onClose={onClose} title="" maxWidth="max-w-5xl">
         {loading ? (
-          <div className="p-20 text-center animate-pulse font-mono text-hm-muted">Cargando historial de unidad...</div>
+          <div className="p-20 text-center animate-pulse font-mono text-hm-muted">Cargando Activo 360...</div>
         ) : error ? (
           <div className="p-10 text-center text-red-400">Error: {error}</div>
         ) : (
-          <div className="flex flex-col gap-6">
-
-            <div className="flex justify-between items-start bg-hm-surface2/30 p-6 rounded-xl border border-hm-border">
-              <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <h2 className="text-3xl font-bold">{maquina.nombre_unidad}</h2>
+          <div className="flex flex-col">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5 -mt-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <h2 className="text-2xl font-bold truncate">{maquina.nombre_unidad}</h2>
                   <Badge variant={maquina.en_taller ? 'taller' : maquina.en_alquiler ? 'info' : 'success'}>
                     {maquina.en_taller ? 'EN TALLER' : maquina.en_alquiler ? 'ALQUILADA' : 'DISPONIBLE'}
                   </Badge>
+                  <span className={`text-xs font-mono font-bold ${ESTADO_OP_COLOR[maquina.estado_operativo] || 'text-hm-muted'}`}>
+                    • {maquina.estado_operativo || 'Operativo'}
+                  </span>
                 </div>
-                <p className="text-hm-muted font-mono">{maquina.marca} {maquina.modelo} | PATENTE: {maquina.patente}</p>
+                <div className="text-sm text-hm-muted">
+                  {[maquina.marca, maquina.modelo, maquina.anio].filter(Boolean).join(' · ')} 
+                  {maquina.patente && ` — Patente: ${maquina.patente}`}
+                </div>
               </div>
-              <div className="text-right">
-                <div className="text-xs font-mono text-hm-muted uppercase tracking-widest">Horómetro Actual</div>
-                <div className="text-4xl font-bold text-hm-accent">{maquina.horometro_actual} <span className="text-lg text-hm-muted font-normal">hrs</span></div>
-                {/* Predicción de service */}
-                {(() => {
-                  const svc = calcServiceState(maquina)
-                  const pred = predecirService(maquina, horometros)
-                  if (!svc) return null
-                  const barColor = svc.color === 'red' ? 'bg-red-500' : svc.color === 'yellow' ? 'bg-yellow-400' : 'bg-green-500'
-                  const textColor = svc.color === 'red' ? 'text-red-400' : svc.color === 'yellow' ? 'text-yellow-400' : 'text-green-400'
-                  return (
-                    <div className="mt-2 text-left min-w-[180px]">
-                      <div className="flex justify-between text-[9px] font-mono text-hm-muted mb-1">
+
+              <div className="flex items-center gap-3 shrink-0">
+                {tieneAlertas && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold animate-pulse">
+                    ⚠️ ACTIVO EN RIESGO
+                  </div>
+                )}
+                <div className="bg-hm-surface2 rounded px-3 py-1 text-right">
+                  <div className="text-[10px] font-mono text-hm-muted tracking-widest uppercase">Horómetro</div>
+                  <div className="text-lg font-bold text-hm-accent">{maquina.horometro_actual} <span className="text-xs font-normal">hs</span></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-2 border-b border-hm-border mb-4 overflow-x-auto no-scrollbar scroll-smooth">
+              <TabBtn active={tab==='resumen'}       onClick={() => setTab('resumen')}>RESUMEN</TabBtn>
+              <TabBtn active={tab==='horometros'}    onClick={() => setTab('horometros')}>HORÓMETRO</TabBtn>
+              <TabBtn active={tab==='services'}      onClick={() => setTab('services')}>MANTENIMIENTO</TabBtn>
+              <TabBtn active={tab==='ots'}           onClick={() => setTab('ots')}>OTs ({ots.length})</TabBtn>
+              <TabBtn active={tab==='repuestos'}     onClick={() => setTab('repuestos')}>REPUESTOS</TabBtn>
+              <TabBtn active={tab==='garantias'}     onClick={() => setTab('garantias')}>GARANTÍAS</TabBtn>
+              <TabBtn active={tab==='costos'}        onClick={() => setTab('costos')}>COSTOS</TabBtn>
+              <TabBtn active={tab==='rentabilidad'}  onClick={() => setTab('rentabilidad')}>RENTABILIDAD</TabBtn>
+              <TabBtn active={tab==='disponibilidad'}onClick={() => setTab('disponibilidad')}>DISPONIBILIDAD</TabBtn>
+              <TabBtn active={tab==='timeline'}      onClick={() => setTab('timeline')}>TIMELINE</TabBtn>
+            </div>
+
+            {/* Content Container */}
+            <div className="min-h-[400px]">
+              
+              {/* 1. RESUMEN */}
+              {tab === 'resumen' && (
+                <div className="flex flex-col gap-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <Kpi label="Cliente Asociado" value={maquina.cliente?.razon_social || 'Propia'} />
+                    <Kpi label="Ubicación" value="Base / Taller" sub="Teórica" />
+                    <Kpi label="Criticidad" value={maquina.en_alquiler ? 'Alta (Renta)' : 'Media'} color={maquina.en_alquiler ? 'text-amber-400' : 'text-green-400'} />
+                    <Kpi label="Risk Score" value={maquina.score_disponibilidad ? `${maquina.score_disponibilidad}%` : 'Base prep.'} />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {[
+                      ['Marca', maquina.marca],
+                      ['Modelo', maquina.modelo],
+                      ['Año', maquina.anio],
+                      ['N° Chasis/Serie', maquina.chasis || maquina.numero_serie],
+                      ['Tipo', maquina.tipo],
+                      ['Patente', maquina.patente],
+                    ].map(([label, val]) => (
+                      <div key={label} className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">{label}</div>
+                        <div className="text-sm font-medium">{val || '—'}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-hm-border flex justify-between">
+                    {isOwner && (
+                      <Button variant="danger" onClick={() => setConfirmBaja(true)} disabled={loadingBaja}>
+                        Dar de baja unidad
+                      </Button>
+                    )}
+                    <Button variant="ghost" onClick={onClose} className={!isOwner ? 'ml-auto' : ''}>
+                      Cerrar ficha
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. HORÓMETRO */}
+              {tab === 'horometros' && (
+                <div className="flex flex-col gap-5">
+                  <form onSubmit={handleAddHorometro} className="bg-hm-surface2/30 border border-hm-border rounded-xl p-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                    <Input label="Lectura (Hrs/Km)" type="number" value={horoForm.horometro_valor} onChange={e => setHoroForm(p => ({ ...p, horometro_valor: e.target.value }))} required />
+                    <Input label="Fecha" type="date" value={horoForm.fecha_lectura} onChange={e => setHoroForm(p => ({ ...p, fecha_lectura: e.target.value }))} />
+                    <Input label="Nota" value={horoForm.observacion} onChange={e => setHoroForm(p => ({ ...p, observacion: e.target.value }))} placeholder="Opcional" />
+                    <Button type="submit" variant="primary" disabled={savingHoro} className="w-full h-[42px]">
+                      {savingHoro ? 'GUARDANDO...' : 'REGISTRAR LECTURA'}
+                    </Button>
+                  </form>
+
+                  <div className="max-h-[300px] overflow-y-auto pr-2">
+                    {loadingHoro ? <div className="h-20 bg-hm-surface2 rounded animate-pulse" /> : 
+                     horometros.length === 0 ? <EmptyState icon="⏱️" title="Sin lecturas" desc="No hay historial de horómetros registrado." /> : (
+                      <div className="flex flex-col gap-2">
+                        {horometros.map(h => (
+                          <div key={h.id} className="flex items-center justify-between bg-hm-surface2/20 rounded px-4 py-3 border border-hm-border/50 text-sm hover:bg-hm-surface2/40 transition-colors">
+                            <span className="font-mono text-hm-accent font-bold text-lg">{h.lectura_horas}</span>
+                            <div className="text-right">
+                              <span className="text-xs font-mono text-hm-muted block">{h.fecha_lectura}</span>
+                              {h.notas && <span className="text-xs text-hm-muted max-w-[200px] truncate block">{h.notas}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 3. SERVICES */}
+              {tab === 'services' && (
+                <div className="flex flex-col gap-5">
+                  {svc ? (
+                    <div className="bg-hm-surface2/30 border border-hm-border p-6 rounded-xl">
+                      <h3 className="font-bold text-lg mb-4">Estado del Mantenimiento</h3>
+                      <div className="flex justify-between text-sm font-mono text-hm-muted mb-2">
                         <span>PRÓXIMO SERVICE</span>
-                        <span className={textColor}>
+                        <span className={svc.color === 'red' ? 'text-red-400 font-bold' : svc.color === 'yellow' ? 'text-yellow-400 font-bold' : 'text-green-400 font-bold'}>
                           {svc.estado === 'vencido' ? `VENCIDO ${Math.abs(svc.restantes).toFixed(0)}hs` : `${svc.restantes.toFixed(0)}hs restantes`}
                         </span>
                       </div>
-                      <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden mb-1">
-                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(svc.pct, 100)}%` }} />
+                      <div className="h-3 bg-hm-surface2 rounded-full overflow-hidden mb-3">
+                        <div className={`h-full rounded-full transition-all ${
+                          svc.estado === 'vencido' ? 'bg-red-500' : 
+                          svc.estado === 'urgente' ? 'bg-red-400' : 
+                          svc.estado === 'proximo' ? 'bg-yellow-400' : 'bg-green-500'
+                        }`} style={{ width: `${Math.min(svc.pct, 100)}%` }} />
                       </div>
-                      {pred && (
-                        <div className={`text-[9px] font-mono ${pred.alerta ? 'text-orange-400' : 'text-hm-muted'}`}>
-                          ⏱ Estimado: {pred.label} · {pred.horasPorDia}hs/día
-                        </div>
-                      )}
+                      
+                      {(() => {
+                        const pred = predecirService(maquina, horometros)
+                        if (!pred) return null
+                        return (
+                          <div className={`text-xs font-mono p-3 rounded-lg border ${pred.alerta ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-hm-surface2 border-hm-border text-hm-muted'}`}>
+                            ⏱ Predicción de sistema: <strong>{pred.label}</strong> (Ritmo: {pred.horasPorDia}hs/día)
+                          </div>
+                        )
+                      })()}
                     </div>
-                  )
-                })()}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="p-4 border-l-4 border-l-blue-500 bg-blue-500/5">
-                <div className="text-xs font-mono text-hm-muted mb-1 uppercase">Ingresos Totales (Alquileres)</div>
-                <div className="text-2xl font-bold text-blue-400">{formatUSD(stats.totalIngresos)}</div>
-              </Card>
-              <Card className="p-4 border-l-4 border-l-red-500 bg-red-500/5">
-                <div className="text-xs font-mono text-hm-muted mb-1 uppercase">Gastos Totales (Mantenimiento)</div>
-                <div className="text-2xl font-bold text-red-400">{formatUSD(stats.totalGastos)}</div>
-              </Card>
-              <Card className={`p-4 border-l-4 ${stats.rentabilidad >= 0 ? 'border-l-green-500 bg-green-500/5' : 'border-l-orange-500 bg-orange-500/5'}`}>
-                <div className="text-xs font-mono text-hm-muted mb-1 uppercase">Balance Neto / Rentabilidad</div>
-                <div className={`text-2xl font-bold ${stats.rentabilidad >= 0 ? 'text-green-400' : 'text-orange-400'}`}>
-                  {formatUSD(stats.rentabilidad)}
+                  ) : (
+                    <EmptyState icon="⚙️" title="Sin métricas de mantenimiento" desc="No se ha configurado la frecuencia de service para este activo." />
+                  )}
+                  
+                  <div className="text-xs text-hm-muted px-4">
+                    Historial completo de services y reparaciones se encuentra en la pestaña <strong>OTs</strong>.
+                  </div>
                 </div>
-              </Card>
-            </div>
+              )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <section>
-                <h3 className="font-mono text-sm text-hm-muted mb-3 tracking-widest flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500"></span> HISTORIAL MÉDICO / OTs
-                </h3>
-                <div className="max-h-[300px] overflow-y-auto pr-2 flex flex-col gap-3">
+              {/* 4. OTs */}
+              {tab === 'ots' && (
+                <div className="max-h-[400px] overflow-y-auto pr-2 flex flex-col gap-3">
                   {ots.length === 0 ? (
-                    <p className="text-xs text-hm-muted italic p-4 bg-hm-surface2/20 rounded">No registra intervenciones técnicas.</p>
+                    <EmptyState icon="🔧" title="Sin OTs" desc="No registra órdenes de trabajo históricas." />
                   ) : (
                     ots.map(ot => (
                       <div key={ot.id} className="bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50 hover:border-hm-accent/30 transition-colors group/ot">
-                        <div className="flex justify-between mb-1">
-                          <span className="text-xs font-bold text-hm-accent">OT #{ot.numero_ot}</span>
-                          <span className="text-[10px] font-mono text-hm-muted">{ot.fecha_ingreso}</span>
+                        <div className="flex justify-between mb-2">
+                          <span className="text-sm font-bold text-hm-accent">OT #{ot.numero_ot}</span>
+                          <Badge variant={ot.estado === 'completada' || ot.estado === 'facturada' ? 'success' : ot.estado === 'cancelada' ? 'danger' : 'warning'}>
+                            {ot.estado.replace('_',' ').toUpperCase()}
+                          </Badge>
                         </div>
-                        <p className="text-xs line-clamp-2 mb-2">{ot.descripcion_trabajo}</p>
-                        <div className="flex justify-between items-center text-[10px] font-mono text-hm-muted">
-                          <span>Horas: {ot.horas_mano_obra || 0}h</span>
+                        <p className="text-sm text-hm-text mb-3">{ot.descripcion_trabajo || 'Sin descripción'}</p>
+                        <div className="flex justify-between items-center text-xs font-mono text-hm-muted">
+                          <span>Fecha: {ot.fecha_ingreso}</span>
                           <div className="flex items-center gap-3">
-                            <span className="text-red-400">COSTO: {formatUSD(ot.total_usd)}</span>
+                            <span>Mano Obra: {ot.horas_mano_obra || 0}h</span>
+                            <span className="text-hm-text font-bold">TOTAL: {formatUSD(ot.total_usd)}</span>
                             <button
                               onClick={() => exportarOTPdf(ot, maquina)}
-                              className="opacity-0 group-hover/ot:opacity-100 transition-opacity text-hm-muted hover:text-hm-accent font-mono text-[10px] border border-hm-border rounded px-2 py-0.5 hover:border-hm-accent"
+                              className="text-hm-muted hover:text-hm-accent border border-hm-border rounded px-2 py-1 hover:border-hm-accent transition-colors"
                             >
                               PDF ↓
                             </button>
@@ -166,85 +319,105 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                     ))
                   )}
                 </div>
-              </section>
-
-              <section>
-                <h3 className="font-mono text-sm text-hm-muted mb-3 tracking-widest flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span> HISTORIAL DE RENTAS
-                </h3>
-                <div className="max-h-[300px] overflow-y-auto pr-2 flex flex-col gap-3">
-                  {contratos.length === 0 ? (
-                    <p className="text-xs text-hm-muted italic p-4 bg-hm-surface2/20 rounded">No registra contratos de alquiler.</p>
-                  ) : (
-                    contratos.map(c => (
-                      <div key={c.id} className="bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50 hover:border-blue-500/30 transition-colors">
-                        <div className="flex justify-between mb-1">
-                          <span className="text-xs font-bold text-blue-400">CONTRATO #{c.numero_contrato}</span>
-                          <span className="text-[10px] font-mono text-hm-muted">{c.fecha_inicio} al {c.fecha_fin}</span>
-                        </div>
-                        <p className="text-xs mb-2">Cliente: <span className="text-white">{c.cliente?.razon_social}</span></p>
-                        <div className="flex justify-between items-center text-[10px] font-mono text-hm-muted">
-                          <span>Tarifa: {formatUSD(c.tarifa_diaria_usd)}/día</span>
-                          <span className="text-green-400 font-bold">TOTAL: {formatUSD(c.total_contrato_usd)}</span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
-            </div>
-
-            {/* HISTORIAL HORÓMETROS */}
-            <section className="border border-hm-border rounded-xl p-4">
-              <h3 className="font-mono text-sm text-hm-muted mb-4 tracking-widest flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-hm-accent"></span> HISTORIAL DE HORÓMETROS
-              </h3>
-              <div className="flex flex-col gap-4">
-                {loadingHoro ? (
-                  <div className="h-16 bg-hm-surface2 rounded animate-pulse" />
-                ) : horometros.length === 0 ? (
-                  <p className="text-xs text-hm-muted italic">Sin lecturas registradas.</p>
-                ) : (
-                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
-                    {horometros.map(h => (
-                      <div key={h.id} className="flex items-center justify-between bg-hm-surface2/20 rounded px-4 py-2 border border-hm-border/50 text-sm">
-                        <span className="font-mono text-hm-accent font-bold">{h.lectura_horas} hrs</span>
-                        <span className="text-xs text-hm-muted">{h.fecha_lectura}</span>
-                        {h.notas && <span className="text-xs text-hm-muted truncate max-w-[200px]">{h.notas}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <form onSubmit={handleAddHorometro} className="grid grid-cols-3 gap-3 border-t border-hm-border pt-3">
-                  <Input label="Horómetro (hrs)" type="number" value={horoForm.horometro_valor} onChange={e => setHoroForm(p => ({ ...p, horometro_valor: e.target.value }))} required />
-                  <Input label="Fecha" type="date" value={horoForm.fecha_lectura} onChange={e => setHoroForm(p => ({ ...p, fecha_lectura: e.target.value }))} />
-                  <Input label="Observación" value={horoForm.observacion} onChange={e => setHoroForm(p => ({ ...p, observacion: e.target.value }))} placeholder="Opcional" />
-                  <div className="col-span-3 flex justify-end">
-                    <Button type="submit" variant="primary" disabled={savingHoro}>{savingHoro ? 'GUARDANDO...' : '+ REGISTRAR LECTURA'}</Button>
-                  </div>
-                </form>
-              </div>
-            </section>
-
-            {/* TIMELINE 360 */}
-            <section className="border border-hm-border rounded-xl p-4">
-              <h3 className="font-mono text-sm text-hm-muted mb-4 tracking-widest flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-indigo-500"></span> TIMELINE 360°
-              </h3>
-              <div className="max-h-[400px] overflow-y-auto">
-                <Timeline360 maquinaId={maquina.id} orgId={maquina.organization_id} />
-              </div>
-            </section>
-
-            <div className="flex justify-between items-center pt-4 border-t border-hm-border">
-              {isOwner && (
-                <Button variant="danger" onClick={() => setConfirmBaja(true)} disabled={loadingBaja}>
-                  Dar de baja unidad
-                </Button>
               )}
-              <Button variant="ghost" onClick={onClose} className="ml-auto">
-                Cerrar ficha
-              </Button>
+
+              {/* 5. REPUESTOS USADOS */}
+              {tab === 'repuestos' && (
+                <EmptyState icon="📦" title="Registro de piezas" desc="El sistema está preparado para recibir el desglose de repuestos consumidos por este activo." />
+              )}
+
+              {/* 6. GARANTÍAS */}
+              {tab === 'garantias' && (
+                <EmptyState icon="🛡️" title="Garantía de Fábrica: No Vigente" desc="No se registran planes de garantía activos para este chasis." />
+              )}
+
+              {/* 7. COSTOS */}
+              {tab === 'costos' && (
+                <div className="flex flex-col gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-5">
+                      <div className="text-xs font-mono text-red-400 mb-2 tracking-widest">TOTAL REPUESTOS (HISTÓRICO)</div>
+                      <div className="text-3xl font-bold text-hm-text">{formatUSD(totalRepuestos)}</div>
+                    </div>
+                    <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-5">
+                      <div className="text-xs font-mono text-orange-400 mb-2 tracking-widest">TOTAL MANO DE OBRA (HISTÓRICO)</div>
+                      <div className="text-3xl font-bold text-hm-text">{formatUSD(totalManoObra)}</div>
+                    </div>
+                  </div>
+                  <div className="bg-hm-surface2/30 border border-hm-border rounded-xl p-5 flex justify-between items-center">
+                    <div>
+                      <div className="text-xs font-mono text-hm-muted mb-1 tracking-widest">COSTO ACUMULADO TOTAL (C.A.T)</div>
+                      <div className="text-sm text-hm-muted">Suma de repuestos, servicios y otros gastos imputados.</div>
+                    </div>
+                    <div className="text-2xl font-bold font-mono">{formatUSD(stats.totalGastos)}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* 8. RENTABILIDAD */}
+              {tab === 'rentabilidad' && (
+                <div className="flex flex-col gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-blue-500/5 border-l-4 border-l-blue-500 p-5 rounded-r-xl">
+                      <div className="text-xs font-mono text-blue-400 mb-1 uppercase">Ingresos por Alquiler</div>
+                      <div className="text-2xl font-bold text-hm-text">{formatUSD(stats.totalIngresos)}</div>
+                    </div>
+                    <div className="bg-red-500/5 border-l-4 border-l-red-500 p-5 rounded-r-xl">
+                      <div className="text-xs font-mono text-red-400 mb-1 uppercase">Costos Operativos</div>
+                      <div className="text-2xl font-bold text-hm-text">{formatUSD(stats.totalGastos)}</div>
+                    </div>
+                    <div className={`bg-green-500/5 border-l-4 p-5 rounded-r-xl ${stats.rentabilidad >= 0 ? 'border-l-green-500' : 'border-l-orange-500'}`}>
+                      <div className={`text-xs font-mono mb-1 uppercase ${stats.rentabilidad >= 0 ? 'text-green-400' : 'text-orange-400'}`}>Rentabilidad Neta</div>
+                      <div className="text-2xl font-bold text-hm-text">{formatUSD(stats.rentabilidad)}</div>
+                    </div>
+                  </div>
+
+                  <h3 className="font-mono text-sm text-hm-muted mt-2 tracking-widest uppercase">Historial de Rentas (Contratos)</h3>
+                  <div className="max-h-[200px] overflow-y-auto pr-2 flex flex-col gap-2">
+                    {contratos.length === 0 ? <p className="text-xs text-hm-muted italic">Sin contratos registrados.</p> : (
+                      contratos.map(c => (
+                        <div key={c.id} className="bg-hm-surface2/20 p-3 rounded-lg border border-hm-border/50 flex justify-between items-center text-sm">
+                          <div>
+                            <div className="font-bold text-blue-400">Contrato #{c.numero_contrato}</div>
+                            <div className="text-xs text-hm-muted">{c.cliente?.razon_social} | {c.fecha_inicio} a {c.fecha_fin}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-hm-muted">{formatUSD(c.tarifa_diaria_usd)}/día</div>
+                            <div className="font-bold">{formatUSD(c.total_contrato_usd)}</div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 9. DISPONIBILIDAD */}
+              {tab === 'disponibilidad' && (
+                <div className="flex flex-col gap-6">
+                  <div className="bg-hm-surface2/20 border border-hm-border rounded-xl p-6 text-center">
+                    <div className="text-5xl font-black text-hm-text mb-2">
+                      {maquina.score_disponibilidad || 100}%
+                    </div>
+                    <div className="text-sm font-bold text-hm-muted uppercase tracking-widest">Uptime Histórico</div>
+                    <div className="text-xs text-hm-muted mt-2 max-w-md mx-auto">
+                      Basado en los días que el equipo estuvo fuera de servicio o esperando repuesto, relativo a sus días de vida activa.
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Kpi label="Tiempo Detenido Acumulado" value={`${maquina.tiempo_detenido_horas || 0} horas`} sub="Total histórico" />
+                    <Kpi label="Estado Actual" value={maquina.estado_operativo || 'Operativo'} color={ESTADO_OP_COLOR[maquina.estado_operativo]} />
+                  </div>
+                </div>
+              )}
+
+              {/* 10. TIMELINE */}
+              {tab === 'timeline' && (
+                <div className="max-h-[400px] overflow-y-auto">
+                  <Timeline360 maquinaId={maquina.id} orgId={maquina.organization_id} />
+                </div>
+              )}
+
             </div>
           </div>
         )}
