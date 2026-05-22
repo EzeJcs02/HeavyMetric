@@ -24,14 +24,14 @@ function ModalCrossReference({ item, onClose }) {
   const [form, setForm]       = useState({ marca_compatible: '', modelo_compatible: '', tipo_equipo: '', tipo_compatibilidad: 'Directa', nivel_confianza: 'Alta', notas: '' })
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
-  useEffect(() => { fetchRefs() }, [])
-
   const fetchRefs = async () => {
     setLoading(true)
     const { data } = await supabase.from('cross_reference_repuestos').select('*').eq('inventario_id', item.id).order('created_at')
     setRefs(data || [])
     setLoading(false)
   }
+
+  useEffect(() => { fetchRefs() }, [])
 
   const handleAdd = async (e) => {
     e.preventDefault()

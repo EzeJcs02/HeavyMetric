@@ -23,6 +23,17 @@ import ModalConfirm from '../../components/ui/ModalConfirm'
 
 const PER_PAGE = 10
 
+const SkeletonRow = () => (
+  <tr className="border-b border-hm-border">
+    <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-3/4"></div></td>
+    <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-1/2"></div></td>
+    <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-1/2"></div></td>
+    <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-3/4"></div></td>
+    <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-full"></div></td>
+    <td className="p-4"></td>
+  </tr>
+)
+
 export default function Taller() {
   const [activeTab, setActiveTab] = useState('flota')
   const [selectedOT, setSelectedOT] = useState(null)
@@ -189,17 +200,6 @@ export default function Taller() {
       toast.error('Error al actualizar: ' + err.message)
     }
   }
-
-  const SkeletonRow = () => (
-    <tr className="border-b border-hm-border">
-      <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-3/4"></div></td>
-      <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-1/2"></div></td>
-      <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-1/2"></div></td>
-      <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-3/4"></div></td>
-      <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-full"></div></td>
-      <td className="p-4"></td>
-    </tr>
-  )
 
   const handleExportOTs = () => {
     if (!otsFiltradas.length) { toast.error('No hay OTs para exportar'); return }
