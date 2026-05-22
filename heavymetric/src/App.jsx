@@ -29,6 +29,7 @@ import CEODashboard from './pages/dashboard/CEODashboard'
 import Portal from './pages/portal/Portal'
 import NotFound from './pages/NotFound'
 import Landing from './pages/public/Landing'
+import Aprobaciones from './pages/aprobaciones/Aprobaciones'
 
 const PAGE_TITLES = {
   '/':              'Bienvenido',
@@ -117,6 +118,7 @@ export default function App() {
               <Route path="reportes" element={<Guard soloSupervisor><Reportes /></Guard>} />
               <Route path="configuracion" element={<Guard soloOwner><Configuracion /></Guard>} />
               <Route path="perfil" element={<Guard><Perfil /></Guard>} />
+              <Route path="aprobaciones" element={<Guard soloSupervisor><Aprobaciones /></Guard>} />
             </Route>
             <Route path="portal" element={<Guard soloCliente><Portal /></Guard>} />
             <Route path="*" element={<NotFound />} />

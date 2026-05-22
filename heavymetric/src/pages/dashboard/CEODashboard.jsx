@@ -228,8 +228,72 @@ export default function CEODashboard() {
         </div>
       </Section>
 
+      {/* ── ACCIONES REQUERIDAS (CEO) ── */}
+      <Section title="Acciones que requieren tu decisión">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {/* Aprobaciones pendientes */}
+          <div className="bg-orange-500/5 border border-orange-500/30 rounded-xl p-4 hover:border-orange-500/60 transition-colors">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+              <div className="text-xs font-mono font-bold text-orange-400 uppercase tracking-widest">Aprobaciones pendientes</div>
+            </div>
+            <div className="text-3xl font-black text-orange-400 mb-1">3</div>
+            <div className="text-xs text-hm-muted mb-3">Cotizaciones, compras y OTs esperando tu firma.</div>
+            <a href="/app/aprobaciones" className="text-xs font-mono font-bold border border-orange-500/40 text-orange-400 rounded px-3 py-1.5 hover:bg-orange-500/10 transition-colors inline-block">
+              VER APROBACIONES →
+            </a>
+          </div>
+
+          {/* Riesgos financieros */}
+          <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-4 hover:border-red-500/60 transition-colors">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <div className="text-xs font-mono font-bold text-red-400 uppercase tracking-widest">Riesgos financieros</div>
+            </div>
+            {loading ? <div className="h-20 bg-hm-surface2/30 animate-pulse rounded" /> : (
+              <div className="flex flex-col gap-2">
+                {[
+                  { label: 'Clientes morosos', value: k?.alertasCriticas || 0, link: '/app/clientes' },
+                  { label: 'Facturas vencidas', value: k?.cobranzaPend > 0 ? 1 : 0, link: '/app/clientes' },
+                  { label: 'Cheques por vencer', value: 2, link: '/app/tesoreria' }, // TODO: conectar real
+                ].map(({ label, value, link }) => (
+                  <div key={label} className="flex justify-between items-center">
+                    <a href={link} className="text-xs text-hm-muted hover:text-hm-text transition-colors">{label}</a>
+                    <span className={`text-sm font-bold font-mono ${value > 0 ? 'text-red-400' : 'text-green-400'}`}>{value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Riesgos operativos */}
+          <div className="bg-yellow-500/5 border border-yellow-500/30 rounded-xl p-4 hover:border-yellow-500/60 transition-colors">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full bg-yellow-500" />
+              <div className="text-xs font-mono font-bold text-yellow-400 uppercase tracking-widest">Riesgos operativos</div>
+            </div>
+            {loading ? <div className="h-20 bg-hm-surface2/30 animate-pulse rounded" /> : (
+              <div className="flex flex-col gap-2">
+                {[
+                  { label: 'Máquinas detenidas', value: k?.flotaDetenida || 0, link: '/app/taller' },
+                  { label: 'Stock crítico', value: k?.stockCritico || 0, link: '/app/repuestos' },
+                  { label: 'Proveedores riesgosos', value: k?.provRiesgosos || 0, link: '/app/proveedores' },
+                  { label: 'OTs demoradas', value: k?.otAbiertas > 5 ? k?.otAbiertas - 5 : 0, link: '/app/taller' },
+                ].map(({ label, value, link }) => (
+                  <div key={label} className="flex justify-between items-center">
+                    <a href={link} className="text-xs text-hm-muted hover:text-hm-text transition-colors">{label}</a>
+                    <span className={`text-sm font-bold font-mono ${value > 0 ? 'text-yellow-400' : 'text-green-400'}`}>{value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Section>
+
       {/* ── COMERCIAL ── */}
       <Section title="Comercial">
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           {loading ? [1,2,3,4].map(i => <Skeleton key={i} className="h-[80px]" />) : <>
             <KpiBlock label="Ingresos del mes" value={formatUSD(k?.ingresosMes)} accent="text-green-400" />
