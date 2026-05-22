@@ -189,18 +189,18 @@ export default function Home() {
   const visibleModules = MODULES.filter(m => m.show)
 
   return (
-    <div className="min-h-full flex flex-col px-4 md:px-8 py-6 md:py-8 w-full max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-hm-text tracking-tight">Centro de Operaciones</h1>
-        <p className="text-hm-muted mt-1 text-sm">Accedé rápidamente a las áreas clave de la empresa.</p>
+    <div className="min-h-full flex flex-col px-4 md:px-8 py-3 md:py-4 w-full max-w-7xl mx-auto overflow-hidden">
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold text-hm-text tracking-tight">Centro de Operaciones</h1>
+        <p className="text-hm-muted mt-0.5 text-xs">Accedé rápidamente a las áreas clave de la empresa.</p>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1,2,3,4,5,6].map(i => <div key={i} className="h-64 bg-hm-surface2 rounded-xl animate-pulse" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {visibleModules.map(mod => (
             <ModuleCard
               key={mod.id}
