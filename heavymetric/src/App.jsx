@@ -10,6 +10,7 @@ import ResetPassword from './pages/auth/ResetPassword'
 import Leads from './pages/leads/Leads'
 import Cotizaciones from './pages/cotizaciones/Cotizaciones'
 import Home from './pages/home/Home'
+import MiJornada from './pages/jornada/MiJornada'
 import Dashboard from './pages/dashboard/Dashboard'
 import Taller from './pages/taller/Taller'
 import Alquileres from './pages/alquileres/Alquileres'
@@ -28,7 +29,8 @@ import Portal from './pages/portal/Portal'
 import NotFound from './pages/NotFound'
 
 const PAGE_TITLES = {
-  '/':              'Inicio',
+  '/':              'Centro de Operaciones',
+  '/mi-jornada':    'Mi Jornada',
   '/dashboard':     'Dashboard',
   '/taller':        'Taller',
   '/alquileres':    'Alquileres',
@@ -92,6 +94,7 @@ export default function App() {
             <Route path="/setup" element={<Guard><Setup /></Guard>} />
             <Route path="/" element={<Guard><Layout /></Guard>}>
               <Route index element={<Home />} />
+              <Route path="mi-jornada" element={<Guard><MiJornada /></Guard>} />
               <Route path="dashboard" element={<Guard soloSupervisor><Dashboard /></Guard>} />
               <Route path="leads" element={<Guard soloSupervisor><Leads /></Guard>} />
               <Route path="cotizaciones" element={<Guard soloSupervisor><Cotizaciones /></Guard>} />

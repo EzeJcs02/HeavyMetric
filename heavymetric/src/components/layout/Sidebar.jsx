@@ -1,6 +1,5 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { useTheme } from '../../context/ThemeContext'
 
 const Icon = ({ path, path2 }) => (
   <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -11,6 +10,7 @@ const Icon = ({ path, path2 }) => (
 
 const ICONS = {
   '/':              <Icon path="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />,
+  '/mi-jornada':    <Icon path="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />,
   '/dashboard':     <Icon path="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />,
   '/leads':         <Icon path="M13 10V3L4 14h7v7l9-11h-7z" />,
   '/cotizaciones':  <Icon path="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />,
@@ -25,35 +25,77 @@ const ICONS = {
   '/repuestos':     <Icon path="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />,
   '/proveedores':   <Icon path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />,
   '/ceo':           <Icon path="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />,
+  '/perfil':        <Icon path="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />,
+  '/configuracion': <Icon path="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" path2="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
 }
 
 export default function Sidebar({ onNavigate }) {
   const { isOwner, canEdit, perfil } = useAuth()
-  const { theme } = useTheme()
   const logoUrl = perfil?.organizaciones?.logo_url
   const orgNombre = perfil?.organizaciones?.nombre_comercial || 'HeavyMetric'
 
-  const modules = [
-    { to: '/', label: 'Inicio' },
-    ...(canEdit ? [{ to: '/dashboard', label: 'Resumen' }] : []),
-    ...(canEdit ? [{ to: '/leads', label: 'Leads CRM' }] : []),
-    ...(canEdit ? [{ to: '/cotizaciones', label: 'Cotizaciones' }] : []),
-    { to: '/taller', label: 'Taller' },
-    ...(canEdit ? [{ to: '/alquileres', label: 'Alquileres' }] : []),
-    { to: '/ventas', label: 'Inventario' },
-    ...(canEdit ? [{ to: '/repuestos', label: 'Repuestos' }] : []),
-    ...(canEdit ? [{ to: '/proveedores', label: 'Proveedores' }] : []),
-    ...(canEdit ? [{ to: '/clientes', label: 'Clientes' }] : []),
-    ...(isOwner ? [{ to: '/precios', label: 'Precios' }] : []),
-    ...(isOwner ? [{ to: '/ceo', label: 'CEO Dashboard' }] : []),
-    ...(canEdit ? [{ to: '/facturacion', label: 'Facturación' }] : []),
-    ...(canEdit ? [{ to: '/reportes', label: 'Reportes' }] : []),
-    ...(isOwner ? [{ to: '/usuarios', label: 'Usuarios' }] : []),
+  const GROUPS = [
+    {
+      label: null, // Sin label para Home
+      items: [
+        { to: '/', label: 'Centro de Operaciones' },
+      ]
+    },
+    {
+      label: 'Operaciones',
+      items: [
+        { to: '/taller', label: 'Taller / OTs' },
+        ...(canEdit ? [{ to: '/alquileres', label: 'Alquileres' }] : []),
+      ]
+    },
+    {
+      label: 'Comercial',
+      hide: !canEdit,
+      items: [
+        { to: '/leads', label: 'Leads CRM' },
+        { to: '/clientes', label: 'Clientes' },
+        { to: '/cotizaciones', label: 'Cotizaciones' },
+      ]
+    },
+    {
+      label: 'Supply',
+      hide: !canEdit,
+      items: [
+        { to: '/ventas', label: 'Inventario' },
+        { to: '/repuestos', label: 'Repuestos' },
+        { to: '/proveedores', label: 'Proveedores' },
+      ]
+    },
+    {
+      label: 'Administración',
+      hide: !canEdit,
+      items: [
+        { to: '/facturacion', label: 'Facturación / Cobros' },
+        { to: '/reportes', label: 'Reportes' },
+      ]
+    },
+    {
+      label: 'Gerencia',
+      hide: !isOwner,
+      items: [
+        { to: '/ceo', label: 'CEO Dashboard' },
+        { to: '/precios', label: 'Tarifas / Precios' },
+        { to: '/usuarios', label: 'Usuarios' },
+      ]
+    },
+    {
+      label: 'Usuario',
+      items: [
+        { to: '/mi-jornada', label: 'Mi Jornada' },
+        { to: '/perfil', label: 'Mi Perfil' },
+        ...(isOwner ? [{ to: '/configuracion', label: 'Configuración' }] : []),
+      ]
+    }
   ]
 
   return (
-    <div className="w-52 bg-hm-surface border-r border-hm-border flex flex-col h-screen sticky top-0">
-      <div className="px-5 py-5 border-b border-hm-border/50">
+    <div className="w-56 bg-hm-surface border-r border-hm-border flex flex-col h-screen sticky top-0 overflow-y-auto custom-scrollbar">
+      <div className="px-5 py-5 border-b border-hm-border/50 sticky top-0 bg-hm-surface z-10">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-hm-accent/15 border border-hm-accent/30 flex items-center justify-center shrink-0 overflow-hidden">
             {logoUrl
@@ -68,24 +110,35 @@ export default function Sidebar({ onNavigate }) {
         </div>
       </div>
 
-      <nav className="flex-1 flex flex-col gap-0.5 px-2.5 py-3">
-        {modules.map(m => (
-          <NavLink
-            key={m.to}
-            to={m.to}
-            end={m.to === '/'}
-            onClick={onNavigate}
-            className={({ isActive }) => `
-              flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150
-              ${isActive
-                ? 'bg-hm-accent/10 text-hm-accent font-semibold'
-                : 'text-hm-muted font-medium hover:text-hm-text hover:bg-hm-surface2'
-              }
-            `}
-          >
-            {ICONS[m.to]}
-            {m.label}
-          </NavLink>
+      <nav className="flex-1 flex flex-col px-3 py-4 gap-6">
+        {GROUPS.filter(g => !g.hide).map((group, idx) => (
+          <div key={idx} className="flex flex-col gap-1">
+            {group.label && (
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest px-2 mb-1">
+                {group.label}
+              </div>
+            )}
+            <div className="flex flex-col gap-0.5">
+              {group.items.map(m => (
+                <NavLink
+                  key={m.to}
+                  to={m.to}
+                  end={m.to === '/'}
+                  onClick={onNavigate}
+                  className={({ isActive }) => `
+                    flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150
+                    ${isActive
+                      ? 'bg-hm-accent/10 text-hm-accent font-semibold'
+                      : 'text-hm-muted font-medium hover:text-hm-text hover:bg-hm-surface2'
+                    }
+                  `}
+                >
+                  {ICONS[m.to]}
+                  {m.label}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
     </div>

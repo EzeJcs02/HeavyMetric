@@ -5,7 +5,7 @@ import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import AlertaService from '../../components/modulos/AlertaService'
 
-export default function BandejaHoy() {
+export default function MiJornada() {
   const { perfil, orgId } = useAuth()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -47,7 +47,12 @@ export default function BandejaHoy() {
   const isOperativo = perfil?.rol === 'operativo'
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 p-4 md:p-8 max-w-7xl mx-auto w-full">
+      <div>
+        <h1 className="text-2xl font-bold text-hm-text">Mi Jornada</h1>
+        <p className="text-sm text-hm-muted mt-1">Resumen operativo y tareas pendientes</p>
+      </div>
+      
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-hm-surface border border-hm-border rounded-xl p-5 hover:border-hm-accent/50 transition-colors">
           <div className="text-sm font-mono text-hm-muted mb-2">OTs Abiertas</div>
