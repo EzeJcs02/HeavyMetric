@@ -16,6 +16,8 @@ import Input from '../../components/ui/Input'
 import Pagination from '../../components/ui/Pagination'
 import KpiCard from '../../components/ui/KpiCard'
 import AnalyticsCRM from '../../components/modulos/crm/AnalyticsCRM'
+import WorkflowAlertas from '../../components/modulos/crm/WorkflowAlertas'
+import SeguimientosPanel from '../../components/modulos/crm/SeguimientosPanel'
 
 const PER_PAGE = 12
 
@@ -207,8 +209,14 @@ export default function Leads() {
   const [detalle, setDetalle]         = useState(null)
   const [convirtiendo, setConvirtiendo] = useState(null)
   const [usuarios, setUsuarios]       = useState([])
+  const [filtroAlerta, setFiltroAlerta] = useState(null)
 
   useEffect(() => { setPage(1); setFiltroEstado('todos') }, [busqueda, filtroGrade, pipeline])
+
+  const handleAlertaFiltro = (key) => {
+    setFiltroAlerta(key)
+    if (key) setViewMode('seguimientos')
+  }
 
   // Cargar usuarios para asignación
   useEffect(() => {
@@ -370,10 +378,10 @@ export default function Leads() {
         <div className="flex items-center gap-2">
           {/* Vista toggle */}
           <div className="flex gap-0.5 bg-hm-surface2/40 rounded-lg p-1 border border-hm-border">
-            {[['tabla','☰'],['kanban','⊞'],['analytics','📊']].map(([mode, icon]) => (
+            {[['tabla','☰'],['kanban','⊞'],['seguimientos','⏰'],['analytics','📊']].map(([mode, icon]) => (
               <button
                 key={mode}
-                onClick={() => setViewMode(mode)}
+                onClick={() => { setViewMode(mode); if (mode !== 'seguimientos') setFiltroAlerta(null) }}
                 title={mode}
                 className={`px-3 py-1.5 rounded text-sm transition-all ${
                   viewMode === mode ? 'bg-hm-surface2 text-hm-text' : 'text-hm-muted hover:text-hm-text'
@@ -395,6 +403,13 @@ export default function Leads() {
         <KpiCard label={pipeline === 'ventas' ? 'Ganados' : 'Finalizados'} value={ganados} subtext="Total histórico" accent="green-400" />
         <KpiCard label="Conversión" value={`${conversion}%`} subtext="Sobre total" accent="blue-400" />
       </div>
+
+      {/* ── Workflow Alertas ─────────────────────────────────────── */}
+      <WorkflowAlertas
+        leads={leads}
+        filtroActivo={filtroAlerta}
+        onSetFiltro={handleAlertaFiltro}
+      />
 
       {/* ── Estado pills ─────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-1.5">
@@ -441,6 +456,17 @@ export default function Leads() {
           loading={loading}
           onCardClick={setDetalle}
           onMoveCard={handleMoveCard}
+        />
+      )}
+
+      {/* ── Vista Seguimientos ───────────────────────────────────── */}
+      {viewMode === 'seguimientos' && (
+        <SeguimientosPanel
+          leads={leadsDelPipeline}
+          allLeads={leads}
+          filtroAlerta={filtroAlerta}
+          onCardClick={setDetalle}
+          onLimpiarFiltro={() => setFiltroAlerta(null)}
         />
       )}
 
