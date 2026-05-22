@@ -7,7 +7,7 @@ export default function ModuleCard({ title, description, icon, colorClass, metri
   return (
     <Card 
       onClick={() => navigate(to)}
-      className="flex flex-col h-full border border-hm-border hover:border-hm-accent/50 hover:bg-hm-surface2/50 transition-all p-5 group bg-hm-surface relative overflow-hidden cursor-pointer"
+      className="flex flex-col h-full border border-hm-border hover:border-hm-accent/50 hover:bg-hm-surface2 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-hm-accent/10 p-5 group bg-hm-surface relative overflow-hidden cursor-pointer"
     >
       {/* Fondo degradado sutil en hover */}
       <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${colorClass} opacity-0 group-hover:opacity-10 transition-opacity blur-2xl rounded-full -translate-y-1/2 translate-x-1/3`} />
