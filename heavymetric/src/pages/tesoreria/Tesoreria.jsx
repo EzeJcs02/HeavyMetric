@@ -2,6 +2,8 @@ import { useState } from 'react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import { useFinanzas } from '../../hooks/useFinanzas'
+import { syncEcheqs } from '../../lib/integrations/bancos'
+import { toast } from 'sonner'
 
 // ─── Mock Data ─── TODO: conectar con tablas SQL en próxima etapa
 const MOCK_CAJAS = [
@@ -25,7 +27,25 @@ const MOCK_CHEQUES_EMITIDOS = [
 
 export default function Tesoreria() {
   const [tab, setTab] = useState('resumen')
+  const [syncing, setSyncing] = useState(false)
   const { transacciones, compras } = useFinanzas()
+
+  const handleSyncEcheqs = async () => {
+    setSyncing(true)
+    toast.info('Sincronizando con banco...')
+    try {
+      const res = await syncEcheqs()
+      if (res.success) {
+        toast.success(`Se sincronizaron ${res.nuevosCheques.length} E-Cheqs nuevos`)
+      } else {
+        toast.error(res.error || 'Error al sincronizar')
+      }
+    } catch (err) {
+      toast.error('Error de conexión bancaria')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const cobranzasReales = transacciones.filter(t => t.estado_pago === 'pendiente')
   const pagosReales = compras.filter(c => c.estado === 'recibido' || c.estado === 'pendiente')
@@ -245,8 +265,11 @@ export default function Tesoreria() {
       {/* ── CHEQUES RECIBIDOS ── */}
       {tab === 'cheques_recibidos' && (
         <Card className="overflow-hidden p-0">
-          <div className="p-4 border-b border-hm-border bg-hm-surface2/30">
+          <div className="p-4 border-b border-hm-border bg-hm-surface2/30 flex justify-between items-center">
             <h3 className="font-bold font-mono uppercase tracking-widest text-xs">Cheques y E-Cheqs Recibidos (Cartera)</h3>
+            <Button variant="outline" className="text-xs py-1 px-2" onClick={handleSyncEcheqs} disabled={syncing}>
+              {syncing ? 'Sincronizando...' : 'Sincronizar E-Cheqs'}
+            </Button>
           </div>
           <table className="w-full text-left">
             <thead className="bg-hm-surface2/30 border-b border-hm-border">

@@ -4,6 +4,7 @@ import { useMaquinaDetalle } from '../../../hooks/useMaquinaDetalle'
 import { useMaquinas } from '../../../hooks/useMaquinas'
 import { useDolar } from '../../../context/DolarContext'
 import { useAuth } from '../../../context/AuthContext'
+import { useRubro } from '../../../context/RubroContext'
 import { exportarOTPdf } from '../../../lib/exportOT'
 import { supabase } from '../../../lib/supabase'
 import { calcServiceState, predecirService } from '../../../hooks/useCliente360'
@@ -64,6 +65,7 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
   const { deactivateMaquina } = useMaquinas()
   const { formatUSD } = useDolar()
   const { isOwner } = useAuth()
+  const { taxonomia } = useRubro()
   
   const [confirmBaja, setConfirmBaja] = useState(false)
   const [loadingBaja, setLoadingBaja] = useState(false)
@@ -182,8 +184,8 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                   </div>
                 )}
                 <div className="bg-hm-surface2 rounded px-3 py-1 text-right">
-                  <div className="text-[10px] font-mono text-hm-muted tracking-widest uppercase">Horómetro</div>
-                  <div className="text-lg font-bold text-hm-accent">{maquina.horometro_actual} <span className="text-xs font-normal">hs</span></div>
+                  <div className="text-[10px] font-mono text-hm-muted tracking-widest uppercase">{taxonomia.medidor}</div>
+                  <div className="text-lg font-bold text-hm-accent">{maquina.horometro_actual} <span className="text-xs font-normal">{taxonomia.medidorUnidad}</span></div>
                 </div>
               </div>
             </div>
@@ -249,35 +251,53 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                 </div>
               )}
 
-              {/* 2. OPERACIÓN */}
+              {/* 2. OPERACIÓN / CONTINUIDAD OPERATIVA */}
               {tab === 'operacion' && (
                 <div className="flex flex-col gap-6">
-                  {/* Diferenciadores */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
+                  {/* Diferenciadores Continuidad Operativa */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
                     <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
-                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1 flex items-center justify-between">
-                        Cost of Downtime 
-                        {costoDowntimeTotal > 0 && <span className="text-xs font-bold text-red-400">Total: {formatUSD(costoDowntimeTotal)}</span>}
-                      </div>
-                      <div className="text-xl font-bold text-red-400">{formatUSD(costOfDowntimePorHora)} <span className="text-xs font-normal">/ hora</span></div>
-                      <div className="text-[10px] text-hm-muted mt-0.5">Costo estimado por activo detenido</div>
-                    </div>
-                    <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
-                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1 flex items-center justify-between">
-                        Disponibilidad Física
+                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">
+                        Disponibilidad Real (Uptime)
                       </div>
                       <div className={`text-xl font-bold ${hsColor}`}>{healthScore}%</div>
-                      <div className="text-[10px] text-hm-muted mt-0.5">Uptime calculado vs. Downtime</div>
+                      <div className="text-[10px] text-hm-muted mt-0.5">Basado en historial</div>
                     </div>
                     <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
-                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1 flex items-center justify-between">Lectura Actual</div>
-                      <div className="text-xl font-bold text-hm-text">{maquina.horometro_actual || 0} <span className="text-xs font-normal">hs</span></div>
-                      <div className="text-[10px] text-hm-muted mt-0.5">Última actualización: hoy</div>
+                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">
+                        Downtime Acumulado
+                      </div>
+                      <div className="text-xl font-bold text-orange-400">{maquina.tiempo_detenido_horas || 0} <span className="text-xs font-normal">{taxonomia.medidorUnidad}</span></div>
+                      <div className="text-[10px] text-hm-muted mt-0.5">Tiempo fuera de servicio</div>
+                    </div>
+                    <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">
+                        Cost of Downtime
+                      </div>
+                      <div className="text-xl font-bold text-red-400">{formatUSD(costoDowntimeTotal)}</div>
+                      <div className="text-[10px] text-hm-muted mt-0.5">{formatUSD(costOfDowntimePorHora)}/h estimado</div>
+                    </div>
+                    <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">
+                        Fallas Repetidas (12m)
+                      </div>
+                      <div className={`text-xl font-bold ${fallasRepetidas > 2 ? 'text-red-400' : fallasRepetidas > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+                        {fallasRepetidas}
+                      </div>
+                      <div className="text-[10px] text-hm-muted mt-0.5">Reincidencias</div>
                     </div>
                   </div>
 
+                  <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3 mb-2 flex justify-between items-center">
+                     <div>
+                       <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Lectura Actual de {taxonomia.medidor}</div>
+                       <div className="text-sm text-hm-muted">Última actualización: hoy</div>
+                     </div>
+                     <div className="text-xl font-bold text-hm-text">{maquina.horometro_actual || 0} <span className="text-xs font-normal">{taxonomia.medidorUnidad}</span></div>
+                  </div>
+
                   <form onSubmit={handleAddHorometro} className="bg-hm-surface2/30 border border-hm-border rounded-xl p-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                    <Input label="Lectura (Hrs/Km)" type="number" value={horoForm.horometro_valor} onChange={e => setHoroForm(p => ({ ...p, horometro_valor: e.target.value }))} required />
+                    <Input label={`Lectura (${taxonomia.medidorUnidad})`} type="number" value={horoForm.horometro_valor} onChange={e => setHoroForm(p => ({ ...p, horometro_valor: e.target.value }))} required />
                     <Input label="Fecha" type="date" value={horoForm.fecha_lectura} onChange={e => setHoroForm(p => ({ ...p, fecha_lectura: e.target.value }))} />
                     <Input label="Nota" value={horoForm.observacion} onChange={e => setHoroForm(p => ({ ...p, observacion: e.target.value }))} placeholder="Opcional" />
                     <Button type="submit" variant="primary" disabled={savingHoro} className="w-full h-[42px]">
@@ -313,7 +333,7 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                       <div className="flex justify-between text-sm font-mono text-hm-muted mb-2">
                         <span>PRÓXIMO SERVICE</span>
                         <span className={svc.color === 'red' ? 'text-red-400 font-bold' : svc.color === 'yellow' ? 'text-yellow-400 font-bold' : 'text-green-400 font-bold'}>
-                          {svc.estado === 'vencido' ? `VENCIDO ${Math.abs(svc.restantes).toFixed(0)}hs` : `${svc.restantes.toFixed(0)}hs restantes`}
+                          {svc.estado === 'vencido' ? `VENCIDO ${Math.abs(svc.restantes).toFixed(0)}${taxonomia.medidorUnidad}` : `${svc.restantes.toFixed(0)}${taxonomia.medidorUnidad} restantes`}
                         </span>
                       </div>
                       <div className="h-3 bg-hm-surface2 rounded-full overflow-hidden mb-3">
@@ -329,7 +349,7 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                         if (!pred) return null
                         return (
                           <div className={`text-xs font-mono p-3 rounded-lg border ${pred.alerta ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-hm-surface2 border-hm-border text-hm-muted'}`}>
-                            ⏱ Predicción de sistema: <strong>{pred.label}</strong> (Ritmo: {pred.horasPorDia}hs/día)
+                            ⏱ Predicción de sistema: <strong>{pred.label}</strong> (Ritmo: {pred.horasPorDia}{taxonomia.medidorUnidad}/día)
                           </div>
                         )
                       })()}
@@ -445,8 +465,8 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                       <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">B — Horas</div>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                         <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
-                          <div className="text-[9px] font-mono text-hm-muted uppercase mb-0.5">Horómetro actual</div>
-                          <div className="text-lg font-bold">{maquina.horometro_actual ? `${maquina.horometro_actual}h` : 'Sin datos'}</div>
+                          <div className="text-[9px] font-mono text-hm-muted uppercase mb-0.5">{taxonomia.medidor} actual</div>
+                          <div className="text-lg font-bold">{maquina.horometro_actual ? `${maquina.horometro_actual}${taxonomia.medidorUnidad}` : 'Sin datos'}</div>
                         </div>
                         <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
                           <div className="text-[9px] font-mono text-hm-muted uppercase mb-0.5">Horas detenidas</div>

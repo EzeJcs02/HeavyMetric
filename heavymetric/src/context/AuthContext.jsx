@@ -43,9 +43,25 @@ export function AuthProvider({ children }) {
     || perfil?.organizaciones?.id
     || null
 
+  const rubro = perfil?.organizaciones?.rubro || 'maquinaria'
+  const modulos_activos = perfil?.organizaciones?.modulos_activos || {
+    taller: true,
+    alquileres: true,
+    inventario: true,
+    ventas: true,
+    crm: true,
+    tesoreria: true,
+    campo: true
+  }
+
+  const hasModule = (modulo) => {
+    return modulos_activos[modulo] !== false
+  }
+
   return (
     <AuthContext.Provider value={{
       user, perfil, loading, orgId, recargarPerfil,
+      rubro, modulos_activos, hasModule,
       isOwner: perfil?.rol === 'owner',
       isSupervisor: perfil?.rol === 'supervisor',
       isOperativo: perfil?.rol === 'operativo',

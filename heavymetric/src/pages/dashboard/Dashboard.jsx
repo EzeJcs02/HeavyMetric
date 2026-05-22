@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useDolar } from '../../context/DolarContext'
 import { useDashboardData } from '../../hooks/useDashboardData'
 import { useAuth } from '../../context/AuthContext'
+import { useRubro } from '../../context/RubroContext'
 import { supabase } from '../../lib/supabase'
 import KpiCard from '../../components/ui/KpiCard'
 import Card from '../../components/ui/Card'
@@ -15,7 +16,8 @@ import {
 export default function Dashboard() {
   const { toARS, formatARS, formatUSD } = useDolar()
   const { data, loading, error, refresh } = useDashboardData()
-  const { perfil } = useAuth()
+  const { perfil, hasModule } = useAuth()
+  const { taxonomia } = useRubro()
 
   useEffect(() => {
     if (!perfil?.organization_id) return
@@ -63,8 +65,12 @@ export default function Dashboard() {
           </>
         ) : (
           <>
-            <KpiCard label="Órdenes Activas" value={kpis.ordenesActivas} subtext="Taller" accent="blue-400" />
-            <KpiCard label="Máq. en Alquiler" value={kpis.alquileresActivos} subtext={`${kpis.alquileresPorVencer} por vencer`} accent="hm-accent" />
+            {hasModule('taller') && (
+              <KpiCard label="Órdenes Activas" value={kpis.ordenesActivas} subtext={taxonomia.taller} accent="blue-400" />
+            )}
+            {hasModule('alquileres') && (
+              <KpiCard label={`${taxonomia.activoSingular} en Alquiler`} value={kpis.alquileresActivos} subtext={`${kpis.alquileresPorVencer} por vencer`} accent="hm-accent" />
+            )}
             <KpiCard
               label="Facturado Mes"
               value={formatUSD(kpis.facturadoMes)}
@@ -77,9 +83,15 @@ export default function Dashboard() {
               subtext="Sin cobrar"
               accent={kpis.cobranzaPendiente > 0 ? 'red-400' : 'green-400'}
             />
-            <KpiCard label="Alertas Service" value={kpis.alertasService} subtext={`Urgentes: ${kpis.alertasServiceUrgentes}`} accent="red-400" />
-            <KpiCard label="Leads Activos" value={kpis.leadsActivos} subtext={`Grado A: ${kpis.leadsGradoA}`} accent="yellow-400" />
-            <KpiCard label="Cotiz. Pendientes" value={kpis.cotizacionesPendientes} subtext={formatUSD(kpis.cotizacionesMonto)} accent="teal-400" />
+            {hasModule('taller') && (
+              <KpiCard label="Alertas Service" value={kpis.alertasService} subtext={`Urgentes: ${kpis.alertasServiceUrgentes}`} accent="red-400" />
+            )}
+            {hasModule('crm') && (
+              <>
+                <KpiCard label="Leads Activos" value={kpis.leadsActivos} subtext={`Grado A: ${kpis.leadsGradoA}`} accent="yellow-400" />
+                <KpiCard label="Cotiz. Pendientes" value={kpis.cotizacionesPendientes} subtext={formatUSD(kpis.cotizacionesMonto)} accent="teal-400" />
+              </>
+            )}
             <KpiCard
               label="NPS Promedio"
               value={kpis.npsPromedio !== null ? kpis.npsPromedio : '—'}
@@ -233,25 +245,27 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <h2 className="text-xs font-mono font-bold tracking-widest uppercase text-hm-muted px-1">Alertas de service</h2>
-          <div className="flex flex-col gap-3">
-            {loading ? (
-              <>
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-24 w-full" />
-              </>
-            ) : alertasService.length === 0 ? (
-              <div className="text-center text-hm-muted font-mono text-sm p-4">
-                No hay máquinas con service próximo o vencido.
-              </div>
-            ) : (
-              alertasService.map(maquina => (
-                <AlertaService key={maquina.id} maquina={maquina} />
-              ))
-            )}
+        {hasModule('taller') && (
+          <div className="flex flex-col gap-4">
+            <h2 className="text-xs font-mono font-bold tracking-widest uppercase text-hm-muted px-1">Alertas de service</h2>
+            <div className="flex flex-col gap-3">
+              {loading ? (
+                <>
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </>
+              ) : alertasService.length === 0 ? (
+                <div className="text-center text-hm-muted font-mono text-sm p-4">
+                  No hay {taxonomia.activoPlural.toLowerCase()} con service próximo o vencido.
+                </div>
+              ) : (
+                alertasService.map(maquina => (
+                  <AlertaService key={maquina.id} maquina={maquina} />
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

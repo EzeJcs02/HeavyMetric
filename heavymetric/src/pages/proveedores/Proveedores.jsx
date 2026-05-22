@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
+import { isValidCuit, formatCuit } from '../../lib/cuitValidator'
+import { generateOCPDF } from '../../lib/pdfGenerator'
 import { useProveedores, fetchComprasProveedor, fetchRepuestosProveedor, crearCompra, recibirCompra, fetchActivosProveedor, vincularActivo, desvincularActivo, calcRiskScore, riskLabel, fetchCentrosCosto } from '../../hooks/useProveedores'
 import { useAuth } from '../../context/AuthContext'
 import { useDolar } from '../../context/DolarContext'
@@ -35,7 +37,7 @@ const CATEGORIAS_COMPRA = ['repuesto','activo','servicio','combustible','lubrica
 const TIPOS_RELACION_ACTIVO = ['fabricante','distribuidor','service','garantia','repuestos']
 
 const EMPTY_FORM = {
-  empresa: '', rubro: '', contacto_nombre: '', telefono: '', email: '',
+  empresa: '', cuit: '', rubro: '', contacto_nombre: '', telefono: '', email: '',
   condicion_pago: 'contado', tiempo_entrega_dias: 3, rating: 3,
   estado: 'activo', observaciones: '',
   incidencias: 0, entregas_a_tiempo: 0, entregas_tarde: 0,
@@ -62,6 +64,7 @@ function ModalProveedor({ isOpen, onClose, proveedor, onConfirm }) {
   useEffect(() => {
     setForm(proveedor ? {
       empresa:           proveedor.empresa || '',
+      cuit:              proveedor.cuit || '',
       rubro:             proveedor.rubro || '',
       contacto_nombre:   proveedor.contacto_nombre || '',
       telefono:          proveedor.telefono || '',
@@ -79,6 +82,10 @@ function ModalProveedor({ isOpen, onClose, proveedor, onConfirm }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (form.cuit && !isValidCuit(form.cuit)) {
+      toast.error('El CUIT ingresado no es válido')
+      return
+    }
     setLoading(true)
     try {
       await onConfirm({ ...form, tiempo_entrega_dias: Number(form.tiempo_entrega_dias), rating: Number(form.rating) })
@@ -92,6 +99,11 @@ function ModalProveedor({ isOpen, onClose, proveedor, onConfirm }) {
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-4">
           <Input label="Empresa *" value={form.empresa} onChange={e => set('empresa', e.target.value)} required />
+          <Input label="CUIT" value={form.cuit} onChange={e => set('cuit', formatCuit(e.target.value))} placeholder="30-12345678-9" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Contacto" value={form.contacto_nombre} onChange={e => set('contacto_nombre', e.target.value)} />
           <div className="flex flex-col gap-1">
             <label className="label-mono">Rubro</label>
             <select value={form.rubro} onChange={e => set('rubro', e.target.value)}
@@ -103,12 +115,12 @@ function ModalProveedor({ isOpen, onClose, proveedor, onConfirm }) {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Contacto" value={form.contacto_nombre} onChange={e => set('contacto_nombre', e.target.value)} />
           <Input label="Teléfono" value={form.telefono} onChange={e => set('telefono', e.target.value)} />
+          <Input label="Email" type="email" value={form.email} onChange={e => set('email', e.target.value)} />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Email" type="email" value={form.email} onChange={e => set('email', e.target.value)} />
+          <Input label="Tiempo entrega (días)" type="number" value={form.tiempo_entrega_dias} onChange={e => set('tiempo_entrega_dias', e.target.value)} />
           <div className="flex flex-col gap-1">
             <label className="label-mono">Condición de pago</label>
             <select value={form.condicion_pago} onChange={e => set('condicion_pago', e.target.value)}
@@ -119,7 +131,6 @@ function ModalProveedor({ isOpen, onClose, proveedor, onConfirm }) {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Tiempo entrega (días)" type="number" value={form.tiempo_entrega_dias} onChange={e => set('tiempo_entrega_dias', e.target.value)} />
           <div className="flex flex-col gap-1">
             <label className="label-mono">Estado</label>
             <select value={form.estado} onChange={e => set('estado', e.target.value)}
@@ -390,6 +401,10 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
                   <div className="flex items-center gap-3">
                     <span className="font-mono text-sm font-bold">{formatUSD(c.total_usd)}</span>
                     <Badge variant={ESTADO_COMPRA_COLOR[c.estado] || 'default'}>{c.estado}</Badge>
+                    <button onClick={() => generateOCPDF(c)}
+                      className="text-[9px] font-mono font-bold border border-blue-700/50 text-blue-400/80 rounded px-2 py-1 hover:border-blue-500 hover:text-blue-400 transition-colors">
+                      OC PDF
+                    </button>
                     {c.estado === 'pendiente' && (
                       <button onClick={() => handleRecibir(c.id)}
                         className="text-[9px] font-mono font-bold border border-green-700/50 text-green-400/80 rounded px-2 py-1 hover:border-green-500 hover:text-green-400 transition-colors">

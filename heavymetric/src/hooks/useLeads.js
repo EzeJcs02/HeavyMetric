@@ -136,12 +136,76 @@ export function useLeads() {
     return cliente
   }
 
+  const convertirAVenta = async (lead) => {
+    if (!lead.cliente_id) throw new Error('Debe ser cliente primero')
+    if (!lead.monto_estimado_usd || lead.monto_estimado_usd <= 0) throw new Error('El monto estimado debe ser mayor a 0')
+
+    const { data: tx, error: errTx } = await supabase
+      .from('transacciones')
+      .insert([{
+        organization_id: lead.organization_id,
+        tipo_documento: 'Presupuesto',
+        origen_tipo: 'otro',
+        cliente_id: lead.cliente_id,
+        monto_neto_usd: lead.monto_estimado_usd,
+        monto_total_usd: lead.monto_estimado_usd,
+        estado_pago: 'pendiente',
+        notas: `Venta generada desde Lead: ${lead.producto_interes || 'N/A'}`
+      }])
+      .select()
+      .single()
+    if (errTx) throw errTx
+
+    await supabase.from('lead_actividades').insert({
+      lead_id: lead.id,
+      tipo: 'sistema',
+      descripcion: `Venta generada (Presupuesto) por USD ${lead.monto_estimado_usd}`,
+    })
+    
+    toast.success('Venta registrada en Tesorería')
+    return tx
+  }
+
+  const generarPostventa = async (lead) => {
+    const { data: newLead, error } = await supabase
+      .from('leads')
+      .insert([{
+        organization_id: lead.organization_id,
+        pipeline: 'postventa',
+        estado: 'Reclamo',
+        nombre: lead.nombre,
+        empresa: lead.empresa,
+        telefono: lead.telefono,
+        email: lead.email,
+        rubro: lead.rubro,
+        cliente_id: lead.cliente_id,
+        origen: 'Sistema',
+        prioridad: lead.prioridad,
+        notas: `Generado desde venta ganada. Lead Origen: ${lead.id}`
+      }])
+      .select()
+      .single()
+    
+    if (error) throw error
+
+    await supabase.from('lead_actividades').insert({
+      lead_id: lead.id,
+      tipo: 'sistema',
+      descripcion: 'Lead derivado a Postventa',
+    })
+
+    toast.success('Lead de Postventa generado')
+    await fetchLeads()
+    return newLead
+  }
+
   useEffect(() => { fetchLeads() }, [])
 
   return {
     leads, loading, error, fetchLeads,
     crearLead, actualizarLead, avanzarEstado,
     registrarContacto, convertirACliente,
+    convertirAVenta, generarPostventa,
   }
 }
 

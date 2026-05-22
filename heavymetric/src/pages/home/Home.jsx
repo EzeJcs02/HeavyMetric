@@ -24,6 +24,8 @@ export default function Home() {
     stockCritico: 0,
     leadsActivos: 0,
     alquilados: 0,
+    activosCriticos: 0,
+    aprobacionesPendientes: 0,
   })
   const [loading, setLoading] = useState(true)
 
@@ -36,13 +38,17 @@ export default function Home() {
           { count: servicesProximos },
           { count: stockCritico },
           { count: leadsActivos },
-          { count: alquilados }
+          { count: alquilados },
+          { count: activosCriticos },
+          { count: aprobacionesPendientes }
         ] = await Promise.all([
           supabase.from('ordenes_trabajo').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado', ['en_progreso', 'borrador']),
           supabase.from('maquinas_service').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado_service', ['urgente', 'vencido', 'proximo']),
           supabase.from('inventario').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).lt('stock_actual', 5),
           supabase.from('leads').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado', ['nuevo', 'contactado', 'en_negociacion']),
-          supabase.from('maquinas').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('en_alquiler', true)
+          supabase.from('maquinas').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('en_alquiler', true),
+          supabase.from('maquinas').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado_operativo', ['Fuera de servicio', 'Esperando repuesto']),
+          supabase.from('cotizaciones').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('estado', 'Enviada')
         ])
 
         setData({
@@ -50,7 +56,9 @@ export default function Home() {
           servicesProximos: servicesProximos || 0,
           stockCritico: stockCritico || 0,
           leadsActivos: leadsActivos || 0,
-          alquilados: alquilados || 0
+          alquilados: alquilados || 0,
+          activosCriticos: activosCriticos || 0,
+          aprobacionesPendientes: aprobacionesPendientes || 0,
         })
       } catch (e) {
         console.error("Error fetching home metrics", e)
@@ -215,16 +223,16 @@ export default function Home() {
               <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest flex items-center justify-between group-hover:text-red-400 transition-colors">
                 Riesgos Operativos
               </div>
-              <div className="text-2xl font-bold text-hm-text mt-1">2 Equipos</div>
-              <div className="text-xs text-hm-muted">Flota detenida por repuestos</div>
+              <div className="text-2xl font-bold text-hm-text mt-1">{data.activosCriticos} Equipos</div>
+              <div className="text-xs text-hm-muted">Fuera de servicio o esperando repuesto</div>
             </div>
 
             <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-blue-500/50 transition-colors cursor-pointer group">
               <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest flex items-center justify-between group-hover:text-blue-400 transition-colors">
                 Aprobaciones
               </div>
-              <div className="text-2xl font-bold text-hm-text mt-1">5 Solicitudes</div>
-              <div className="text-xs text-hm-muted">Esperando revisión gerencial</div>
+              <div className="text-2xl font-bold text-hm-text mt-1">{data.aprobacionesPendientes} Solicitudes</div>
+              <div className="text-xs text-hm-muted">Cotizaciones enviadas sin respuesta</div>
             </div>
 
             <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-yellow-500/50 transition-colors cursor-pointer group">
@@ -232,7 +240,7 @@ export default function Home() {
                 Alertas Financieras
               </div>
               <div className="text-2xl font-bold text-hm-text mt-1">1 Cheque</div>
-              <div className="text-xs text-hm-muted">Cheque rechazado / Mora</div>
+              <div className="text-xs text-hm-muted">Cheque rechazado / Mora (Mock)</div>
             </div>
           </div>
 
@@ -251,7 +259,9 @@ export default function Home() {
               </div>
               <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
                 <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Estado General</div>
-                <div className="text-xl font-bold text-hm-text">OPERATIVO</div>
+                <div className={`text-xl font-bold ${data.activosCriticos > 2 ? 'text-red-400' : 'text-hm-text'}`}>
+                  {data.activosCriticos > 2 ? 'CRÍTICO' : 'OPERATIVO'}
+                </div>
               </div>
               <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
                 <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Stock Inmovilizado</div>
@@ -259,7 +269,9 @@ export default function Home() {
               </div>
               <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
                 <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Activos Críticos</div>
-                <div className="text-xl font-bold text-red-400">2 EQUIPOS</div>
+                <div className={`text-xl font-bold ${data.activosCriticos > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                  {data.activosCriticos} {data.activosCriticos === 1 ? 'EQUIPO' : 'EQUIPOS'}
+                </div>
               </div>
             </div>
           </div>

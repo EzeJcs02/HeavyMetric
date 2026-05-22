@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
-import { generateCotizacionPDF } from '../../utils/pdfGenerator'
+import { generateCotizacionPDF, generatePresupuestoPDF } from '../../lib/pdfGenerator'
 import { useCotizaciones } from '../../hooks/useCotizaciones'
 import { useClientes } from '../../hooks/useClientes'
 import { useLeads } from '../../hooks/useLeads'
@@ -18,15 +18,16 @@ import Pagination from '../../components/ui/Pagination'
 
 const PER_PAGE = 10
 
-const ESTADOS = ['Borrador', 'Enviada', 'Aceptada', 'Rechazada', 'Vencida']
+const ESTADOS = ['Borrador', 'Enviada', 'Aprobada', 'Rechazada', 'Vencida', 'Convertida']
 const TIPOS   = ['Maquina', 'Implemento', 'Repuesto', 'Servicio', 'Otro']
 
 const ESTADO_VARIANT = {
-  Borrador:  'default',
-  Enviada:   'info',
-  Aceptada:  'ok',
-  Rechazada: 'danger',
-  Vencida:   'warn',
+  Borrador:   'default',
+  Enviada:    'info',
+  Aprobada:   'ok',
+  Rechazada:  'danger',
+  Vencida:    'warn',
+  Convertida: 'success',
 }
 
 const EMPTY_ITEM = { tipo_item: 'Servicio', descripcion: '', cantidad: 1, precio_usd: 0, tasa_iva: 0.21 }
@@ -245,9 +246,9 @@ export default function Cotizaciones() {
 
   // KPIs
   const totalMonto  = cotizaciones.reduce((s, c) => s + Number(c.total_usd), 0)
-  const aceptadas   = cotizaciones.filter(c => c.estado === 'Aceptada').length
+  const aceptadas   = cotizaciones.filter(c => c.estado === 'Aprobada' || c.estado === 'Convertida').length
   const pendientes  = cotizaciones.filter(c => ['Borrador', 'Enviada'].includes(c.estado)).length
-  const montoAceptado = cotizaciones.filter(c => c.estado === 'Aceptada').reduce((s, c) => s + Number(c.total_usd), 0)
+  const montoAceptado = cotizaciones.filter(c => c.estado === 'Aprobada' || c.estado === 'Convertida').reduce((s, c) => s + Number(c.total_usd), 0)
 
   const handleConfirm = async (payload, items) => {
     try {
@@ -385,17 +386,21 @@ export default function Cotizaciones() {
                     <td className="p-4 font-mono text-xs text-hm-muted">{new Date(cot.created_at).toLocaleDateString('es-AR')}</td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => generateCotizacionPDF(cot)} className="px-2 py-1 text-[10px] font-mono font-bold border border-hm-border rounded hover:border-blue-400 hover:text-blue-400 transition-colors">PDF ↓</button>
+                        <button onClick={() => generateCotizacionPDF(cot)} className="px-2 py-1 text-[10px] font-mono font-bold border border-hm-border rounded hover:border-blue-400 hover:text-blue-400 transition-colors">COT PDF</button>
+                        <button onClick={() => generatePresupuestoPDF(cot)} className="px-2 py-1 text-[10px] font-mono font-bold border border-hm-border rounded hover:border-purple-400 hover:text-purple-400 transition-colors">PRE PDF</button>
                         <button onClick={() => { setEditando(cot); setModalOpen(true) }} className="px-2 py-1 text-[10px] font-mono font-bold border border-hm-border rounded hover:border-hm-accent hover:text-hm-accent transition-colors">EDITAR</button>
                         {cot.estado === 'Borrador' && (
                           <button onClick={() => setCambiandoEstado({ cot, estado: 'Enviada' })} className="px-2 py-1 text-[10px] font-mono font-bold border border-blue-500/40 text-blue-400 rounded hover:bg-blue-500/10 transition-colors">ENVIAR</button>
                         )}
                         {cot.estado === 'Enviada' && (<>
-                          <button onClick={() => setCambiandoEstado({ cot, estado: 'Aceptada' })} className="px-2 py-1 text-[10px] font-mono font-bold border border-green-500/40 text-green-400 rounded hover:bg-green-500/10 transition-colors">ACEPTAR</button>
+                          <button onClick={() => setCambiandoEstado({ cot, estado: 'Aprobada' })} className="px-2 py-1 text-[10px] font-mono font-bold border border-green-500/40 text-green-400 rounded hover:bg-green-500/10 transition-colors">APROBAR</button>
                           <button onClick={() => setCambiandoEstado({ cot, estado: 'Rechazada' })} className="px-2 py-1 text-[10px] font-mono font-bold border border-red-500/40 text-red-400 rounded hover:bg-red-500/10 transition-colors">RECHAZAR</button>
                         </>)}
-                        {cot.estado === 'Aceptada' && (
+                        {cot.estado === 'Aprobada' && (
                           <button onClick={() => { setCreandoOT(cot); setMaquinaOT('') }} className="px-2 py-1 text-[10px] font-mono font-bold border border-hm-accent/40 text-hm-accent rounded hover:bg-hm-accent/10 transition-colors">CREAR OT</button>
+                        )}
+                        {cot.estado === 'Aprobada' && (
+                          <button onClick={() => setCambiandoEstado({ cot, estado: 'Convertida' })} className="px-2 py-1 text-[10px] font-mono font-bold border border-green-500/40 text-green-400 rounded hover:bg-green-500/10 transition-colors">CONVERTIR</button>
                         )}
                       </div>
                     </td>

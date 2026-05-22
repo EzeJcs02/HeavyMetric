@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { useEffect } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { DolarProvider } from './context/DolarContext'
+import { RubroProvider } from './context/RubroContext'
 import { Toaster } from 'sonner'
 import Layout from './components/layout/Layout'
 import Login from './pages/auth/Login'
@@ -31,7 +32,10 @@ import NotFound from './pages/NotFound'
 import Landing from './pages/public/Landing'
 import Aprobaciones from './pages/aprobaciones/Aprobaciones'
 import Placeholder from './components/layout/Placeholder'
-// import Activo360 from './pages/activos/Activo360' // Próximo paso: refactor de FichaMaquina a esta página
+import Activo360 from './pages/activos/Activo360'
+import AppCampo from './pages/campo/AppCampo'
+import OTMobileList from './pages/campo/OTMobileList'
+import OTMobileDetail from './pages/campo/OTMobileDetail'
 
 const PAGE_TITLES = {
   '/':              'Bienvenido',
@@ -81,8 +85,8 @@ function TitleUpdater() {
   return null
 }
 
-function Guard({ children, soloOwner, soloSupervisor, soloCliente }) {
-  const { user, perfil, loading, isOwner, canEdit, isCliente } = useAuth()
+function Guard({ children, soloOwner, soloSupervisor, soloCliente, module }) {
+  const { user, perfil, loading, isOwner, canEdit, isCliente, hasModule } = useAuth()
   const location = useLocation()
 
   if (loading) return <div className="min-h-screen bg-hm-bg flex items-center justify-center text-hm-muted font-mono text-sm">Cargando HeavyMetric...</div>
@@ -99,14 +103,17 @@ function Guard({ children, soloOwner, soloSupervisor, soloCliente }) {
   if (soloSupervisor && !canEdit) return <Navigate to="/app" replace />
   if (soloCliente && !isCliente) return <Navigate to="/app" replace />
 
+  if (module && !hasModule(module)) return <Navigate to="/app" replace />
+
   return children
 }
 
 export default function App() {
   return (
     <AuthProvider>
-      <DolarProvider>
-        <BrowserRouter>
+      <RubroProvider>
+        <DolarProvider>
+          <BrowserRouter>
           <TitleUpdater />
           <Toaster richColors position="top-right" theme="dark" />
           <Routes>
@@ -118,26 +125,28 @@ export default function App() {
               <Route index element={<Home />} />
               <Route path="mi-jornada" element={<Guard><MiJornada /></Guard>} />
               <Route path="dashboard" element={<Guard soloSupervisor><Dashboard /></Guard>} />
-              <Route path="leads" element={<Guard soloSupervisor><Leads /></Guard>} />
-              <Route path="cotizaciones" element={<Guard soloSupervisor><Cotizaciones /></Guard>} />
-              <Route path="taller" element={<Taller />} />
-              <Route path="alquileres" element={<Guard soloSupervisor><Alquileres /></Guard>} />
-              <Route path="ventas" element={<Ventas />} />
-              <Route path="repuestos" element={<Guard soloSupervisor><Repuestos /></Guard>} />
-              <Route path="proveedores" element={<Guard soloSupervisor><Proveedores /></Guard>} />
+              <Route path="leads" element={<Guard soloSupervisor module="crm"><Leads /></Guard>} />
+              <Route path="cotizaciones" element={<Guard soloSupervisor module="crm"><Cotizaciones /></Guard>} />
+              <Route path="taller" element={<Guard module="taller"><Taller /></Guard>} />
+              <Route path="alquileres" element={<Guard soloSupervisor module="alquileres"><Alquileres /></Guard>} />
+              <Route path="ventas" element={<Guard module="ventas"><Ventas /></Guard>} />
+              <Route path="repuestos" element={<Guard soloSupervisor module="inventario"><Repuestos /></Guard>} />
+              <Route path="proveedores" element={<Guard soloSupervisor module="tesoreria"><Proveedores /></Guard>} />
               <Route path="ceo" element={<Guard soloOwner><CEODashboard /></Guard>} />
               <Route path="clientes" element={<Guard soloSupervisor><Clientes /></Guard>} />
               <Route path="precios" element={<Guard soloOwner><Precios /></Guard>} />
               <Route path="facturacion" element={<Guard soloSupervisor><Facturacion /></Guard>} />
-              <Route path="tesoreria" element={<Guard soloSupervisor><Tesoreria /></Guard>} />
+              <Route path="tesoreria" element={<Guard soloSupervisor module="tesoreria"><Tesoreria /></Guard>} />
               <Route path="usuarios" element={<Guard soloOwner><Usuarios /></Guard>} />
               <Route path="reportes" element={<Guard soloSupervisor><Reportes /></Guard>} />
               <Route path="configuracion" element={<Guard soloOwner><Configuracion /></Guard>} />
               <Route path="perfil" element={<Guard><Perfil /></Guard>} />
               <Route path="aprobaciones" element={<Guard soloSupervisor><Aprobaciones /></Guard>} />
               
+              {/* Activo 360 */}
+              <Route path="activo360" element={<Guard soloSupervisor><Activo360 /></Guard>} />
+              
               {/* Placeholders Discretos */}
-              <Route path="activo360" element={<Guard soloSupervisor><Placeholder title="Activo 360" description="Gestión unificada de Flota, Máquinas y Movilidad. (En migración)" /></Guard>} />
               <Route path="postventa" element={<Guard soloSupervisor><Placeholder title="Postventa y Reclamos" description="Gestión de tickets de postventa, garantías y atención al cliente." /></Guard>} />
               <Route path="stock" element={<Guard soloSupervisor><Placeholder title="Control de Stock" description="Administración avanzada de inventario inmovilizado y rotación." /></Guard>} />
               <Route path="documentacion" element={<Guard soloSupervisor><Placeholder title="Documentación Técnica" description="Repositorio de manuales, seguros y habilitaciones de activos." /></Guard>} />
@@ -151,11 +160,19 @@ export default function App() {
               <Route path="ia-silenciosa" element={<Guard soloOwner><Placeholder title="Motor de IA Silenciosa" description="Reglas heurísticas y analítica predictiva sobre operaciones." isOwnerOnly /></Guard>} />
               <Route path="roles" element={<Guard soloOwner><Placeholder title="Roles y Permisos" description="Configuración de control de acceso avanzado." isOwnerOnly /></Guard>} />
             </Route>
+            
+            {/* FASE I: APP CAMPO / TÉCNICOS */}
+            <Route path="/campo" element={<Guard module="campo"><AppCampo /></Guard>}>
+              <Route index element={<OTMobileList />} />
+              <Route path="ot/:id" element={<OTMobileDetail />} />
+            </Route>
+            
             <Route path="portal" element={<Guard soloCliente><Portal /></Guard>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-      </DolarProvider>
+        </DolarProvider>
+      </RubroProvider>
     </AuthProvider>
   )
 }

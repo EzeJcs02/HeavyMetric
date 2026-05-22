@@ -172,15 +172,33 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
           </div>
         ) : (
           <>
-            {/* 1. RESUMEN */}
+            {/* 1. RESUMEN / CLIENTE 360 */}
             {tab === 'resumen' && (
               <div className="flex flex-col gap-5">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Kpi label="Flota activa" value={kpis.flotaCount} sub={kpis.flotaDetenidos > 0 ? `${kpis.flotaDetenidos} detenidos` : 'todos operativos'} color={kpis.flotaDetenidos > 0 ? 'text-orange-400' : 'text-green-400'} />
-                  <Kpi label="Leads activos" value={kpis.leadsActivos} />
-                  <Kpi label="OTs abiertas" value={kpis.otsAbiertas} color={kpis.otsAbiertas > 0 ? 'text-yellow-400' : ''} />
-                  <Kpi label="Deuda pendiente" value={kpis.deudaPendiente > 0 ? formatUSD(kpis.deudaPendiente) : 'Sin deuda'} color={kpis.deudaPendiente > 0 ? 'text-red-400' : 'text-green-400'} />
+                  <Kpi label="Activos / Flota" value={kpis.flotaCount} sub={kpis.flotaDetenidos > 0 ? `${kpis.flotaDetenidos} detenidos` : 'Todos operativos'} color={kpis.flotaDetenidos > 0 ? 'text-orange-400' : 'text-green-400'} />
+                  <Kpi label="Services Próximos" value={servicesCriticos.length} color={servicesCriticos.length > 0 ? 'text-red-400' : 'text-green-400'} sub={servicesCriticos.length > 0 ? 'Requieren atención' : 'Al día'} />
+                  <Kpi label="OTs Abiertas" value={kpis.otsAbiertas} color={kpis.otsAbiertas > 0 ? 'text-yellow-400' : 'text-green-400'} sub={kpis.otsAbiertas > 0 ? 'En progreso / Taller' : 'Sin OTs pendientes'} />
+                  <Kpi label="Deuda / Riesgo" value={kpis.deudaPendiente > 0 ? formatUSD(kpis.deudaPendiente) : 'Sin deuda'} color={kpis.deudaPendiente > 0 ? 'text-red-400' : 'text-green-400'} sub={hayDeuda ? 'Riesgo financiero' : 'Riesgo bajo'} />
                 </div>
+                
+                <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-xl p-4 flex flex-col md:flex-row items-center gap-4 text-center md:text-left justify-between">
+                  <div>
+                    <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Cruce 360° Operativo y Financiero</div>
+                    <div className="text-sm">
+                      Este cliente tiene <strong>{flota.length}</strong> activos vinculados. 
+                      Actualmente registran <strong>{servicesCriticos.length}</strong> servicios críticos, 
+                      generando <strong>{kpis.otsAbiertas}</strong> OTs abiertas, y 
+                      <strong> 0 </strong> garantías ejecutadas.
+                    </div>
+                  </div>
+                  <div className={`px-4 py-2 rounded font-bold border whitespace-nowrap ${
+                    tieneAlertas ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'
+                  }`}>
+                    Riesgo Integral: {tieneAlertas ? 'ALTO' : 'ESTABLE'}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
                     <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Ubicación Principal</div>

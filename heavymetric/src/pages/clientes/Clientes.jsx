@@ -1,8 +1,11 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
+import { isValidCuit, formatCuit } from '../../lib/cuitValidator'
 import * as XLSX from 'xlsx'
 import { useClientes } from '../../hooks/useClientes'
 import { useAuth } from '../../context/AuthContext'
+import { lookupCuit } from '../../lib/integrations/arca'
+import { isIntegrationEnabled } from '../../config/integrations'
 import Modal from '../../components/ui/Modal'
 import ModalConfirm from '../../components/ui/ModalConfirm'
 import Pagination from '../../components/ui/Pagination'
@@ -52,9 +55,38 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (form.cuit && !isValidCuit(form.cuit)) {
+      toast.error('El CUIT ingresado no es válido')
+      return
+    }
     setLoading(true)
     try {
       await onConfirm(form)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleArcaLookup = async () => {
+    if (!form.cuit) {
+      toast.error('Ingrese un CUIT primero')
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await lookupCuit(form.cuit)
+      if (res.success && res.data) {
+        setForm(prev => ({
+          ...prev,
+          razon_social: res.data.razonSocial || prev.razon_social,
+          condicion_iva: res.data.condicionIVA || prev.condicion_iva
+        }))
+        toast.success('Datos obtenidos de ARCA')
+      } else {
+        toast.error(res.error || 'Error al consultar ARCA')
+      }
+    } catch (err) {
+      toast.error('Error de conexión con ARCA')
     } finally {
       setLoading(false)
     }
@@ -69,7 +101,16 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Input label="CUIT" value={form.cuit} onChange={e => set('cuit', e.target.value)} placeholder="30-12345678-9" />
+          <div className="flex flex-col gap-1">
+            <Input label="CUIT" value={form.cuit} onChange={e => set('cuit', formatCuit(e.target.value))} placeholder="30-12345678-9" />
+            <button
+              type="button"
+              onClick={handleArcaLookup}
+              className="text-[10px] font-mono text-hm-accent hover:underline text-left uppercase tracking-widest mt-1"
+            >
+              Obtener datos de ARCA
+            </button>
+          </div>
           <div className="flex flex-col gap-1">
             <label className="label-mono">Condición IVA</label>
             <select

@@ -15,6 +15,7 @@ import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import Pagination from '../../components/ui/Pagination'
 import KpiCard from '../../components/ui/KpiCard'
+import AnalyticsCRM from '../../components/modulos/crm/AnalyticsCRM'
 
 const PER_PAGE = 12
 
@@ -22,25 +23,28 @@ const PER_PAGE = 12
 const PIPELINES = {
   ventas: {
     label: 'Ventas',
-    estados: ['Nuevo','Contactado','Calificado','Cotizacion Enviada','Negociacion','Ganado','Perdido'],
+    estados: ['Lead','Contactado','Calificado','Cotización','Negociación','Ganado','Perdido'],
     terminales: ['Ganado','Perdido'],
   },
   postventa: {
     label: 'Postventa',
-    estados: ['Solicitud Recibida','Revision','OT Creada','En Proceso','Esperando Repuestos','Finalizado','Facturado'],
-    terminales: ['Finalizado','Facturado'],
+    estados: ['Reclamo','Diagnóstico','OT','Repuestos','Resolución','Cierre'],
+    terminales: ['Cierre'],
   },
 }
 
 // Compatibilidad: mapear estados viejos al pipeline ventas
-const ORIGENES_VENTAS = ['Nuevo','Contactado','Cotizado','Negociacion','Ganado','Perdido']
+const ORIGENES_VENTAS = ['Nuevo','Lead','Contactado','Cotizado','Cotización','Negociación','Negociacion','Ganado','Perdido']
 
 const ESTADO_VARIANT = {
-  Nuevo: 'info', Contactado: 'warn', Calificado: 'warn',
-  'Cotizacion Enviada': 'alq', Negociacion: 'ventas', Ganado: 'ok', Perdido: 'danger',
+  Lead: 'info', Contactado: 'warn', Calificado: 'warn',
+  'Cotización': 'alq', Negociación: 'ventas', Ganado: 'ok', Perdido: 'danger',
+  Reclamo: 'danger', Diagnóstico: 'warn', OT: 'alq',
+  Repuestos: 'warn', Resolución: 'ventas', Cierre: 'ok',
+  // legacy
+  Nuevo: 'info', 'Cotizacion Enviada': 'alq', Negociacion: 'ventas',
   'Solicitud Recibida': 'info', Revision: 'warn', 'OT Creada': 'alq',
   'En Proceso': 'ventas', 'Esperando Repuestos': 'danger', Finalizado: 'ok', Facturado: 'ok',
-  // legacy
   Cotizado: 'alq',
 }
 
@@ -49,6 +53,7 @@ const GRADE_STYLE = {
   B: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
   C: 'bg-hm-surface2 text-hm-muted border-hm-border',
 }
+const GRADE_LABEL = { A: 'Caliente', B: 'Tibio', C: 'Frío' }
 
 const ORIGENES = ['Manual','Meta','Web','WhatsApp','Referido','Licitacion']
 const RUBROS   = ['Mineria','Agro','Vial','Construccion','Industrial','Municipio']
@@ -56,7 +61,7 @@ const EMPTY_FORM = {
   nombre: '', empresa: '', telefono: '', email: '',
   origen: 'Manual', rubro: '', producto_interes: '', mensaje: '', notas: '',
   prioridad: 'media', pipeline: 'ventas', responsable_id: '',
-  proximo_seguimiento: '',
+  proximo_seguimiento: '', monto_estimado_usd: 0,
 }
 
 // ── ScorePreview ─────────────────────────────────────────────────
@@ -68,7 +73,9 @@ function ScorePreview({ rubro, origen, mensaje, empresa }) {
         <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Score estimado</div>
         <div className="text-2xl font-bold">{score}<span className="text-sm text-hm-muted">/100</span></div>
       </div>
-      <div className={`ml-auto px-3 py-1.5 rounded border text-lg font-black ${GRADE_STYLE[grade]}`}>{grade}</div>
+      <div className={`ml-auto px-3 py-1.5 rounded border text-lg font-black ${GRADE_STYLE[grade]}`}>
+        {grade} <span className="text-sm opacity-80 font-normal">({GRADE_LABEL[grade]})</span>
+      </div>
     </div>
   )
 }
@@ -89,6 +96,7 @@ function ModalLead({ isOpen, onClose, lead, onConfirm, usuarios }) {
       pipeline: lead.pipeline || 'ventas',
       responsable_id: lead.responsable_id || '',
       proximo_seguimiento: lead.proximo_seguimiento?.slice(0,10) || '',
+      monto_estimado_usd: lead.monto_estimado_usd || 0,
     } : EMPTY_FORM)
   }, [lead, isOpen])
 
@@ -159,7 +167,10 @@ function ModalLead({ isOpen, onClose, lead, onConfirm, usuarios }) {
             onChange={e => set('proximo_seguimiento', e.target.value)}
           />
         </div>
-        <Input label="Producto / Interés" value={form.producto_interes} onChange={e => set('producto_interes', e.target.value)} />
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Producto / Interés" value={form.producto_interes} onChange={e => set('producto_interes', e.target.value)} />
+          <Input label="Monto Estimado (USD)" type="number" min="0" step="0.01" value={form.monto_estimado_usd} onChange={e => set('monto_estimado_usd', e.target.value)} />
+        </div>
         <div className="flex flex-col gap-1">
           <label className="label-mono">Mensaje</label>
           <textarea
@@ -182,7 +193,7 @@ function ModalLead({ isOpen, onClose, lead, onConfirm, usuarios }) {
 
 // ── Página principal ─────────────────────────────────────────────
 export default function Leads() {
-  const { leads, loading, error, crearLead, actualizarLead, avanzarEstado, registrarContacto, convertirACliente } = useLeads()
+  const { leads, loading, error, crearLead, actualizarLead, avanzarEstado, registrarContacto, convertirACliente, convertirAVenta, generarPostventa } = useLeads()
   const { perfil } = useAuth()
 
   const [pipeline, setPipeline]       = useState('ventas')
@@ -287,6 +298,18 @@ export default function Leads() {
     } catch (err) { toast.error(err.message) }
   }
 
+  const handleCrearVenta = async (lead) => {
+    try {
+      await convertirAVenta(lead)
+    } catch (err) { toast.error(err.message) }
+  }
+
+  const handleCrearPostventa = async (lead) => {
+    try {
+      await generarPostventa(lead)
+    } catch (err) { toast.error(err.message) }
+  }
+
   const handleExportExcel = () => {
     if (!filtrados.length) { toast.error('No hay datos para exportar'); return }
     const rows = filtrados.map(l => ({
@@ -347,7 +370,7 @@ export default function Leads() {
         <div className="flex items-center gap-2">
           {/* Vista toggle */}
           <div className="flex gap-0.5 bg-hm-surface2/40 rounded-lg p-1 border border-hm-border">
-            {[['tabla','☰'],['kanban','⊞']].map(([mode, icon]) => (
+            {[['tabla','☰'],['kanban','⊞'],['analytics','📊']].map(([mode, icon]) => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
@@ -421,6 +444,11 @@ export default function Leads() {
         />
       )}
 
+      {/* ── Vista Analytics ──────────────────────────────────────── */}
+      {viewMode === 'analytics' && (
+        <AnalyticsCRM leads={leadsDelPipeline} />
+      )}
+
       {/* ── Vista Tabla ──────────────────────────────────────────── */}
       {viewMode === 'tabla' && (
         <Card className="overflow-hidden">
@@ -478,8 +506,9 @@ export default function Leads() {
                         </span>
                       </td>
                       <td className="p-4 text-center">
-                        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full border text-xs font-black ${GRADE_STYLE[lead.lead_grade]}`}>
-                          {lead.lead_grade}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${GRADE_STYLE[lead.lead_grade]}`}>
+                          <span className="font-black text-xs">{lead.lead_grade}</span>
+                          <span className="opacity-80 uppercase tracking-wider">{GRADE_LABEL[lead.lead_grade]}</span>
                         </span>
                       </td>
                       <td className="p-4 text-sm text-hm-muted">
@@ -510,11 +539,18 @@ export default function Leads() {
                               onClick={() => setConvirtiendo(lead)}
                               className="px-2 py-1 text-[10px] font-mono bg-green-500/10 border border-green-500/40 text-green-400 rounded hover:bg-green-500/20 transition-colors"
                             >
-                              CONVERTIR
+                              CREAR CLIENTE
                             </button>
                           )}
                           {lead.estado === 'Ganado' && lead.cliente_id && (
-                            <span className="px-2 py-1 text-[10px] font-mono text-green-400/60">✓ CLIENTE</span>
+                            <div className="flex gap-1">
+                              <button onClick={() => handleCrearVenta(lead)} className="px-2 py-1 text-[10px] font-mono bg-blue-500/10 border border-blue-500/40 text-blue-400 rounded hover:bg-blue-500/20">
+                                $ VENTA
+                              </button>
+                              <button onClick={() => handleCrearPostventa(lead)} className="px-2 py-1 text-[10px] font-mono bg-purple-500/10 border border-purple-500/40 text-purple-400 rounded hover:bg-purple-500/20">
+                                ➔ POSTVENTA
+                              </button>
+                            </div>
                           )}
                         </div>
                       </td>

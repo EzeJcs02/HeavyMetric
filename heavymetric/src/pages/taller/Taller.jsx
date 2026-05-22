@@ -7,7 +7,8 @@ import { useClientes } from '../../hooks/useClientes'
 import { useTaller } from '../../hooks/useTaller'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
-import { generateOTPDF, generateServicioPDF } from '../../utils/pdfGenerator'
+import { useRubro } from '../../context/RubroContext'
+import { generateOTPDF, generateServicioPDF } from '../../lib/pdfGenerator'
 import MaquinaRow from '../../components/modulos/MaquinaRow'
 import ModalFinalizarOT from '../../components/modulos/taller/ModalFinalizarOT'
 import ModalNuevaOT from '../../components/modulos/taller/ModalNuevaOT'
@@ -59,6 +60,7 @@ export default function Taller() {
   useEffect(() => { setPageOT(1) }, [searchQuery])
 
   const { formatUSD } = useDolar()
+  const { taxonomia } = useRubro()
   const { maquinas, loading: loadingMaq, error: errorMaq, createMaquina, updateMaquina } = useMaquinas()
   const { clientes } = useClientes()
   const { ots, loading: loadingOT, error: errorOT, finalizarOT, createOT, cancelarOT } = useTaller()
@@ -238,9 +240,9 @@ export default function Taller() {
         <div className="flex gap-6">
           <button 
             onClick={() => setActiveTab('flota')}
-            className={`text-xl font-bold transition-colors ${activeTab === 'flota' ? 'text-white' : 'text-hm-muted hover:text-white'}`}
+            className={`text-xl font-bold transition-colors uppercase ${activeTab === 'flota' ? 'text-white' : 'text-hm-muted hover:text-white'}`}
           >
-            FLOTA
+            {taxonomia.activoPlural}
           </button>
           <button 
             onClick={() => setActiveTab('ots')}
@@ -251,7 +253,7 @@ export default function Taller() {
         </div>
         <div className="flex gap-2">
           {activeTab === 'flota' && (
-            <Button variant="outline" onClick={() => { setEditingMaquina(null); setIsMaquinaModalOpen(true) }}>+ MÁQUINA</Button>
+            <Button variant="outline" onClick={() => { setEditingMaquina(null); setIsMaquinaModalOpen(true) }}>+ {taxonomia.activoSingular.toUpperCase()}</Button>
           )}
           {activeTab === 'ots' && (
             <div className="flex gap-2">
@@ -269,7 +271,7 @@ export default function Taller() {
           <div className="text-lg font-bold">{maquinas.length > 0 ? Math.round(maquinas.reduce((acc, m) => acc + (m.score_disponibilidad || 100), 0) / maquinas.length) : 100}%</div>
         </Card>
         <Card className="p-3 border-l-2 border-l-orange-500">
-          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">Máquinas Detenidas</div>
+          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">{taxonomia.activoPlural} Detenidas</div>
           <div className="text-lg font-bold">{maquinas.filter(m => ['Fuera de servicio', 'En taller', 'Esperando repuesto'].includes(m.estado_operativo)).length}</div>
         </Card>
         <Card className="p-3 border-l-2 border-l-blue-500">
@@ -298,7 +300,7 @@ export default function Taller() {
           <label className="text-[10px] font-mono text-hm-muted mb-1 block uppercase tracking-widest">Buscador Global</label>
           <Input 
             type="text"
-            placeholder={activeTab === 'flota' ? "Buscar por unidad, marca o cliente..." : "Buscar por Nro OT, unidad o cliente..."}
+            placeholder={activeTab === 'flota' ? `Buscar por ${taxonomia.activoSingular.toLowerCase()}, marca o cliente...` : `Buscar por Nro OT, ${taxonomia.activoSingular.toLowerCase()} o cliente...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -333,11 +335,11 @@ export default function Taller() {
           <table className="w-full text-left">
             <thead className="bg-hm-surface2/50 border-b border-hm-border">
               <tr>
-                <th className="p-4 font-mono text-xs text-hm-muted">UNIDAD</th>
-                <th className="p-4 font-mono text-xs text-hm-muted">EQUIPO</th>
-                <th className="p-4 font-mono text-xs text-hm-muted">PATENTE</th>
-                <th className="p-4 font-mono text-xs text-hm-muted">CLIENTE</th>
-                <th className="p-4 font-mono text-xs text-hm-muted">HORÓMETRO</th>
+                <th className="p-4 font-mono text-xs text-hm-muted uppercase">{taxonomia.activoSingular}</th>
+                <th className="p-4 font-mono text-xs text-hm-muted uppercase">EQUIPO</th>
+                <th className="p-4 font-mono text-xs text-hm-muted uppercase">PATENTE</th>
+                <th className="p-4 font-mono text-xs text-hm-muted uppercase">CLIENTE</th>
+                <th className="p-4 font-mono text-xs text-hm-muted uppercase">{taxonomia.medidor}</th>
                 <th className="p-4"></th>
               </tr>
             </thead>
@@ -351,7 +353,7 @@ export default function Taller() {
               ) : maquinasFiltradas.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="p-8 text-center text-hm-muted font-mono text-sm">
-                    No se encontraron máquinas con los filtros actuales.
+                    No se encontraron {taxonomia.activoPlural.toLowerCase()} con los filtros actuales.
                   </td>
                 </tr>
               ) : (
@@ -373,12 +375,12 @@ export default function Taller() {
           <table className="w-full text-left">
             <thead className="bg-hm-surface2/50 border-b border-hm-border">
               <tr>
-                <th className="p-4 font-mono text-xs text-hm-muted">NRO</th>
-                <th className="p-4 font-mono text-xs text-hm-muted">MÁQUINA</th>
-                <th className="p-4 font-mono text-xs text-hm-muted">CLIENTE</th>
-                <th className="p-4 font-mono text-xs text-hm-muted">INGRESO</th>
-                <th className="p-4 font-mono text-xs text-hm-muted">ESTADO</th>
-                <th className="p-4 font-mono text-xs text-hm-muted">TOTAL</th>
+                <th className="p-4 font-mono text-xs text-hm-muted uppercase">NRO</th>
+                <th className="p-4 font-mono text-xs text-hm-muted uppercase">{taxonomia.activoSingular}</th>
+                <th className="p-4 font-mono text-xs text-hm-muted uppercase">CLIENTE</th>
+                <th className="p-4 font-mono text-xs text-hm-muted uppercase">INGRESO</th>
+                <th className="p-4 font-mono text-xs text-hm-muted uppercase">ESTADO</th>
+                <th className="p-4 font-mono text-xs text-hm-muted uppercase">TOTAL</th>
                 <th className="p-4"></th>
               </tr>
             </thead>
@@ -507,7 +509,7 @@ export default function Taller() {
       <ModalConfirm
         isOpen={!!otACancelar}
         titulo="Cancelar Orden de Trabajo"
-        mensaje={`¿Cancelar la OT #${otACancelar?.numero_ot}? La máquina quedará disponible.`}
+        mensaje={`¿Cancelar la OT #${otACancelar?.numero_ot}? El ${taxonomia.activoSingular.toLowerCase()} quedará disponible.`}
         confirmLabel="Cancelar OT"
         onConfirm={handleConfirmarCancelar}
         onClose={() => setOtACancelar(null)}
@@ -522,10 +524,10 @@ export default function Taller() {
         onConfirm={async (payload) => {
           if (editingMaquina) {
             await updateMaquina(editingMaquina.id, payload)
-            toast.success('Máquina actualizada correctamente')
+            toast.success(`${taxonomia.activoSingular} actualizada correctamente`)
           } else {
             await createMaquina(payload)
-            toast.success('Máquina agregada a la flota')
+            toast.success(`${taxonomia.activoSingular} agregada a la flota`)
           }
           setIsMaquinaModalOpen(false)
           setEditingMaquina(null)

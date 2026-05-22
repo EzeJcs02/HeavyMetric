@@ -1,51 +1,780 @@
-/**
- * pdfGenerator.js
- * Motor base para generar PDFs desde componentes de React usando html2canvas y jsPDF.
- * Configurado para formato A4.
- */
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 
-import html2canvas from 'html2canvas'
-import { jsPDF } from 'jspdf'
+// ─── Paleta corporativa HeavyMetric ───────────────────────────────────────────
+const C = {
+  DARK:    [15,  23,  42],   // #0F172A — fondo header
+  ORANGE:  [245, 158, 11],   // #F59E0B — acento HeavyMetric
+  GRAY:    [71,  85,  105],  // slate-600
+  LIGHT:   [248, 250, 252],  // slate-50
+  WHITE:   [255, 255, 255],
+  BLACK:   [15,  23,  42],
+  MUTED:   [148, 163, 184],  // slate-400
+  BORDER:  [226, 232, 240],  // slate-200
+}
 
-/**
- * Genera y descarga un PDF a partir del ID de un elemento HTML.
- * @param {string} elementId - ID del contenedor a exportar.
- * @param {string} filename - Nombre del archivo a descargar (ej: 'cotizacion-001.pdf').
- * @param {object} options - Opciones adicionales.
- */
-export const generarPDF = async (elementId, filename = 'documento.pdf', options = {}) => {
-  const element = document.getElementById(elementId)
-  if (!element) {
-    console.error(`Elemento con ID ${elementId} no encontrado para generar PDF.`)
-    return false
+const fmt = (n) => `USD ${Number(n || 0).toFixed(2)}`
+const fmtDate = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'
+
+// ─── Helpers de layout ────────────────────────────────────────────────────────
+function header(doc, titulo, numero) {
+  const W = doc.internal.pageSize.width
+
+  // Banda superior oscura
+  doc.setFillColor(...C.DARK)
+  doc.rect(0, 0, W, 42, 'F')
+
+  // Franja naranja inferior del header
+  doc.setFillColor(...C.ORANGE)
+  doc.rect(0, 38, W, 4, 'F')
+
+  // Logo texto
+  doc.setTextColor(...C.WHITE)
+  doc.setFontSize(20)
+  doc.setFont('helvetica', 'bold')
+  doc.text('HEAVY', 14, 22)
+  doc.setTextColor(...C.ORANGE)
+  doc.text('METRIC', 14 + doc.getTextWidth('HEAVY'), 22)
+
+  doc.setTextColor(...C.MUTED)
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Knock S.A. — Sistema de Gestión Operativa', 14, 30)
+
+  // Título documento (derecha)
+  doc.setTextColor(...C.WHITE)
+  doc.setFontSize(13)
+  doc.setFont('helvetica', 'bold')
+  doc.text(titulo, W - 14, 20, { align: 'right' })
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...C.ORANGE)
+  doc.text(`Nro. ${numero}`, W - 14, 29, { align: 'right' })
+}
+
+function sectionTitle(doc, txt, y) {
+  doc.setFillColor(...C.DARK)
+  doc.rect(14, y - 4, doc.internal.pageSize.width - 28, 7, 'F')
+  doc.setTextColor(...C.ORANGE)
+  doc.setFontSize(7.5)
+  doc.setFont('helvetica', 'bold')
+  doc.text(txt.toUpperCase(), 16, y + 0.5)
+  return y + 8
+}
+
+function labelValue(doc, label, value, x, y) {
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...C.GRAY)
+  doc.text(label.toUpperCase(), x, y)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...C.BLACK)
+  doc.text(String(value || '—'), x, y + 5)
+}
+
+// ─── PDF de Contrato de Alquiler ─────────────────────────────────────────────
+export const generateAlquilerPDF = (contrato) => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.width
+  const M = 14  // margen
+
+  // ── PÁGINA 1 ──────────────────────────────────────────────────────────────
+  header(doc, 'CONTRATO DE ALQUILER', `#${contrato.numero_contrato}`)
+
+  // Fecha de emisión
+  const hoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+  doc.setFontSize(8)
+  doc.setTextColor(...C.MUTED)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Emitido: ${hoy}`, W - M, 48, { align: 'right' })
+
+  // ── DATOS DEL LOCADOR ─────────────────────────────────────────────────────
+  let y = 54
+  y = sectionTitle(doc, '1. Datos del Locador', y)
+
+  labelValue(doc, 'Razón Social',  'Knock S.A.',                       M,        y)
+  labelValue(doc, 'CUIT',          '30-71234567-8',                    M + 65,   y)
+  labelValue(doc, 'Condición IVA', 'Responsable Inscripto',            M + 110,  y)
+  y += 14
+
+  labelValue(doc, 'Domicilio Comercial', 'Av. Industrial 1234, CABA',  M,        y)
+  labelValue(doc, 'Contacto',            'operaciones@knocksa.com.ar', M + 110,  y)
+  y += 16
+
+  // ── DATOS DEL LOCATARIO ───────────────────────────────────────────────────
+  y = sectionTitle(doc, '2. Datos del Locatario', y)
+
+  labelValue(doc, 'Razón Social',   contrato.cliente_nombre,           M,        y)
+  labelValue(doc, 'Condición IVA',  contrato.condicion_iva || '—',     M + 110,  y)
+  y += 16
+
+  // ── OBJETO DEL CONTRATO ───────────────────────────────────────────────────
+  y = sectionTitle(doc, '3. Objeto del Contrato — Equipo', y)
+
+  labelValue(doc, 'Identificación',  contrato.nombre_unidad,           M,        y)
+  labelValue(doc, 'Marca / Modelo',  `${contrato.marca} ${contrato.modelo}`, M + 75, y)
+  labelValue(doc, 'Patente / Serie', contrato.patente || '—',          M + 140,  y)
+  y += 16
+
+  // ── PERÍODO Y CONDICIONES ECONÓMICAS ─────────────────────────────────────
+  y = sectionTitle(doc, '4. Período y Condiciones Económicas', y)
+
+  const diasContrato = Math.max(1, Math.ceil(
+    (new Date(contrato.fecha_fin) - new Date(contrato.fecha_inicio)) / 86400000
+  ))
+
+  doc.autoTable({
+    startY: y,
+    margin: { left: M, right: M },
+    theme: 'grid',
+    headStyles: { fillColor: C.DARK, textColor: C.ORANGE, fontSize: 8, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 9, textColor: C.BLACK },
+    alternateRowStyles: { fillColor: C.LIGHT },
+    columnStyles: { 0: { cellWidth: 42 }, 1: { cellWidth: 42 }, 2: { cellWidth: 25, halign: 'center' }, 3: { cellWidth: 35, halign: 'right' }, 4: { cellWidth: 35, halign: 'right' } },
+    head: [['INICIO', 'VENCIMIENTO', 'DÍAS', 'TARIFA DIARIA', 'TOTAL PROYECTADO']],
+    body: [[
+      fmtDate(contrato.fecha_inicio),
+      fmtDate(contrato.fecha_fin),
+      diasContrato,
+      fmt(contrato.tarifa_diaria_usd),
+      fmt(contrato.total_contrato_usd)
+    ]]
+  })
+  y = doc.lastAutoTable.finalY + 6
+
+  // Depósito de garantía
+  if (contrato.deposito_usd > 0) {
+    doc.setFillColor(...C.LIGHT)
+    doc.setDrawColor(...C.BORDER)
+    doc.roundedRect(M, y, W - M * 2, 9, 1, 1, 'FD')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(...C.GRAY)
+    doc.text('DEPÓSITO DE GARANTÍA:', M + 3, y + 5.5)
+    doc.setTextColor(...C.ORANGE)
+    doc.text(fmt(contrato.deposito_usd), W - M - 3, y + 5.5, { align: 'right' })
+    y += 14
+  } else {
+    y += 4
   }
 
-  try {
-    // Configuramos html2canvas para mejor calidad
-    const canvas = await html2canvas(element, {
-      scale: 2, // Aumenta la resolución
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff'
-    })
+  // ── CLÁUSULAS GENERALES ───────────────────────────────────────────────────
+  y = sectionTitle(doc, '5. Cláusulas Generales', y)
 
-    const imgData = canvas.toDataURL('image/png')
-    
-    // Configuramos PDF en formato A4 (210x297mm)
-    const pdf = new jsPDF({
-      orientation: options.orientation || 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    })
+  const clausulas = [
+    '1. El Locatario recibirá el equipo en perfecto estado de funcionamiento y se compromete a devolverlo en idénticas condiciones, salvo desgaste normal de uso.',
+    '2. Queda prohibido el subalquiler, cesión o transferencia del equipo a terceros sin autorización escrita del Locador.',
+    '3. El combustible, lubricantes y consumibles durante el período de alquiler corren por cuenta exclusiva del Locatario.',
+    '4. En caso de avería por mal uso, el Locatario asume el costo total de la reparación según presupuesto aprobado por el Locador.',
+    '5. El pago deberá efectuarse dentro de los 10 días corridos de emitida la factura correspondiente. Pasado dicho plazo, se aplicará un interés punitorio del 3% mensual.',
+    '6. El depósito de garantía será devuelto íntegramente dentro de los 5 días hábiles posteriores a la devolución del equipo en buen estado.',
+    '7. Cualquier controversia que surja del presente contrato será sometida a la jurisdicción de los tribunales ordinarios de la Ciudad Autónoma de Buenos Aires.',
+  ]
 
-    const pdfWidth = pdf.internal.pageSize.getWidth()
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...C.GRAY)
 
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-    pdf.save(filename)
-    return true
-  } catch (error) {
-    console.error('Error generando PDF:', error)
-    return false
+  clausulas.forEach((c) => {
+    const lines = doc.splitTextToSize(c, W - M * 2)
+    if (y + lines.length * 4.5 > 255) {
+      doc.addPage()
+      header(doc, 'CONTRATO DE ALQUILER', `#${contrato.numero_contrato}`)
+      y = 52
+    }
+    doc.text(lines, M, y)
+    y += lines.length * 4.5 + 2
+  })
+
+  y += 6
+
+  // Condiciones especiales del contrato
+  if (contrato.condiciones) {
+    y = sectionTitle(doc, '6. Condiciones Especiales Pactadas', y)
+    doc.setFontSize(8.5)
+    doc.setFont('helvetica', 'italic')
+    doc.setTextColor(...C.BLACK)
+    const lines = doc.splitTextToSize(contrato.condiciones, W - M * 2)
+    doc.text(lines, M, y)
+    y += lines.length * 5 + 8
   }
+
+  // ── CUADRO DE FIRMAS ─────────────────────────────────────────────────────
+  if (y > 245) { doc.addPage(); header(doc, 'CONTRATO DE ALQUILER', `#${contrato.numero_contrato}`); y = 52 }
+
+  y = Math.max(y, 235) // empujar al fondo de la página
+  const colW = (W - M * 2 - 10) / 2
+
+  // Firma Locador
+  doc.setDrawColor(...C.BORDER)
+  doc.setLineWidth(0.3)
+  doc.line(M, y, M + colW, y)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.setTextColor(...C.DARK)
+  doc.text('Knock S.A. — Locador', M, y + 5)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  doc.setTextColor(...C.MUTED)
+  doc.text('Firma y Sello', M, y + 9)
+
+  // Firma Locatario
+  const x2 = M + colW + 10
+  doc.line(x2, y, x2 + colW, y)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.setTextColor(...C.DARK)
+  doc.text(contrato.cliente_nombre, x2, y + 5)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  doc.setTextColor(...C.MUTED)
+  doc.text('Locatario — Firma y Aclaración', x2, y + 9)
+
+  // ── FOOTER ────────────────────────────────────────────────────────────────
+  const pageCount = doc.internal.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    const pH = doc.internal.pageSize.height
+    doc.setFillColor(...C.DARK)
+    doc.rect(0, pH - 10, W, 10, 'F')
+    doc.setFontSize(7)
+    doc.setTextColor(...C.MUTED)
+    doc.setFont('helvetica', 'normal')
+    doc.text('HeavyMetric — Knock S.A. | Documento generado por sistema. Original válido con firmas de ambas partes.', M, pH - 4)
+    doc.text(`Pág. ${i} / ${pageCount}`, W - M, pH - 4, { align: 'right' })
+  }
+
+  doc.save(`Contrato_Alquiler_${contrato.numero_contrato}_${contrato.cliente_nombre.replace(/\s+/g, '_')}.pdf`)
+}
+
+// ─── PDF de Cotización ───────────────────────────────────────────────────────
+export const generateCotizacionPDF = (cot) => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.width
+  const M = 14
+
+  header(doc, 'COTIZACIÓN', `#${cot.numero_cotizacion}`)
+
+  const hoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+  doc.setFontSize(8); doc.setTextColor(...C.MUTED); doc.setFont('helvetica', 'normal')
+  doc.text(`Emitido: ${hoy}`, W - M, 48, { align: 'right' })
+
+  let y = 54
+
+  // Datos del cliente/lead
+  y = sectionTitle(doc, 'Datos del Destinatario', y)
+  const nombre = cot.cliente?.razon_social || cot.lead?.empresa || cot.lead?.nombre || '—'
+  labelValue(doc, 'Cliente / Prospecto', nombre, M, y)
+  if (cot.cliente?.cuit) labelValue(doc, 'CUIT', cot.cliente.cuit, M + 100, y)
+  y += 14
+
+  // Condiciones
+  if (cot.condiciones || cot.fecha_vencimiento) {
+    y = sectionTitle(doc, 'Condiciones', y)
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.BLACK)
+    if (cot.fecha_vencimiento) {
+      doc.text(`Válida hasta: ${fmtDate(cot.fecha_vencimiento)}`, M, y); y += 6
+    }
+    if (cot.condiciones) {
+      const lines = doc.splitTextToSize(cot.condiciones, W - M * 2)
+      doc.text(lines, M, y); y += lines.length * 5 + 4
+    }
+  }
+
+  // Items
+  y = sectionTitle(doc, 'Detalle de Productos y Servicios', y)
+  const rows = (cot.items || []).map(i => [
+    i.tipo_item || '—',
+    i.descripcion,
+    Number(i.cantidad),
+    fmt(i.precio_usd),
+    fmt(Number(i.cantidad) * Number(i.precio_usd))
+  ])
+
+  doc.autoTable({
+    startY: y,
+    margin: { left: M, right: M },
+    theme: 'grid',
+    headStyles: { fillColor: C.DARK, textColor: C.ORANGE, fontSize: 8, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 9, textColor: C.BLACK },
+    alternateRowStyles: { fillColor: C.LIGHT },
+    columnStyles: {
+      0: { cellWidth: 24 }, 1: { cellWidth: 80 },
+      2: { cellWidth: 16, halign: 'center' },
+      3: { cellWidth: 32, halign: 'right' }, 4: { cellWidth: 32, halign: 'right' }
+    },
+    head: [['TIPO', 'DESCRIPCIÓN', 'CANT.', 'PRECIO UNIT.', 'SUBTOTAL']],
+    body: rows
+  })
+
+  const fY = doc.lastAutoTable.finalY + 6
+  const xT = W - M - 82
+
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.GRAY)
+  doc.text('SUBTOTAL:', xT, fY)
+  doc.setTextColor(...C.BLACK); doc.text(fmt(cot.subtotal_usd), W - M, fY, { align: 'right' })
+
+  doc.setTextColor(...C.GRAY)
+  doc.text('IVA:', xT, fY + 5)
+  doc.setTextColor(...C.BLACK); doc.text(fmt(cot.iva_usd), W - M, fY + 5, { align: 'right' })
+
+  doc.setFillColor(...C.DARK)
+  doc.roundedRect(xT - 4, fY + 8, 86, 10, 1, 1, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...C.WHITE)
+  doc.text('TOTAL:', xT, fY + 14.5)
+  doc.setTextColor(...C.ORANGE)
+  doc.text(fmt(cot.total_usd), W - M - 2, fY + 14.5, { align: 'right' })
+
+  // Footer
+  const pageCount = doc.internal.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    const pH = doc.internal.pageSize.height
+    doc.setFillColor(...C.DARK); doc.rect(0, pH - 10, W, 10, 'F')
+    doc.setFontSize(7); doc.setTextColor(...C.MUTED); doc.setFont('helvetica', 'normal')
+    doc.text('HeavyMetric — Knock S.A. | Documento no válido como comprobante fiscal.', M, pH - 4)
+    doc.text(`Pág. ${i} / ${pageCount}`, W - M, pH - 4, { align: 'right' })
+  }
+
+  doc.save(`Cotizacion_${cot.numero_cotizacion}_${nombre.replace(/\s+/g, '_')}.pdf`)
+}
+
+// ─── PDF de Parte de Servicio (firma cliente al retirar máquina) ─────────────
+export const generateServicioPDF = (ot) => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.width
+  const M = 14
+
+  header(doc, 'PARTE DE SERVICIO', `OT-${ot.numero_ot}`)
+
+  const hoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+  doc.setFontSize(8); doc.setTextColor(...C.MUTED); doc.setFont('helvetica', 'normal')
+  doc.text(`Fecha de entrega: ${hoy}`, W - M, 48, { align: 'right' })
+
+  let y = 54
+
+  y = sectionTitle(doc, '1. Datos del Cliente', y)
+  labelValue(doc, 'Razón Social', ot.cliente?.razon_social || '—', M, y)
+  y += 14
+
+  y = sectionTitle(doc, '2. Datos del Equipo', y)
+  labelValue(doc, 'Unidad', ot.maquina?.nombre_unidad || '—', M, y)
+  labelValue(doc, 'Marca / Modelo', `${ot.maquina?.marca || ''} ${ot.maquina?.modelo || ''}`, M + 75, y)
+  y += 12
+  labelValue(doc, 'Horómetro Ingreso', `${ot.horometro_inicial || '—'} hrs`, M, y)
+  labelValue(doc, 'Horómetro Entrega', `${ot.horometro_final || '—'} hrs`, M + 75, y)
+  y += 14
+
+  y = sectionTitle(doc, '3. Trabajo Realizado', y)
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.BLACK)
+  const descLines = doc.splitTextToSize(ot.descripcion_trabajo || 'Sin descripción.', W - M * 2)
+  doc.text(descLines, M, y)
+  y += descLines.length * 5 + 6
+
+  if (ot.notas_internas) {
+    doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.GRAY)
+    const notasLines = doc.splitTextToSize('Notas técnicas: ' + ot.notas_internas, W - M * 2)
+    doc.text(notasLines, M, y)
+    y += notasLines.length * 4.5 + 6
+  }
+
+  if (ot.repuestos?.length > 0) {
+    y = sectionTitle(doc, '4. Repuestos / Materiales Utilizados', y)
+    doc.autoTable({
+      startY: y, margin: { left: M, right: M }, theme: 'grid',
+      headStyles: { fillColor: C.DARK, textColor: C.ORANGE, fontSize: 8 },
+      bodyStyles: { fontSize: 9 }, alternateRowStyles: { fillColor: C.LIGHT },
+      columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 20, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+      head: [['DESCRIPCIÓN', 'CANT.', 'P. UNIT.', 'SUBTOTAL']],
+      body: ot.repuestos.map(r => [r.descripcion || 'Repuesto', r.cantidad, fmt(r.precio_usd), fmt(r.subtotal_usd)])
+    })
+    y = doc.lastAutoTable.finalY + 8
+  }
+
+  y = sectionTitle(doc, '5. Resumen de Costos', y)
+  const moTotal = Number(ot.horas_mano_obra || 0) * Number(ot.precio_hora_usd || 0)
+  const repTotal = Number(ot.total_repuestos_usd || 0)
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.GRAY)
+  doc.text('Repuestos / Materiales:', M, y)
+  doc.setTextColor(...C.BLACK); doc.text(fmt(repTotal), W - M, y, { align: 'right' })
+  y += 6
+  doc.setTextColor(...C.GRAY)
+  doc.text(`Mano de Obra (${ot.horas_mano_obra || 0} hs × ${fmt(ot.precio_hora_usd || 0)}):`, M, y)
+  doc.setTextColor(...C.BLACK); doc.text(fmt(moTotal), W - M, y, { align: 'right' })
+  y += 4
+  doc.setFillColor(...C.DARK); doc.roundedRect(M, y, W - M * 2, 10, 1, 1, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...C.WHITE)
+  doc.text('TOTAL:', M + 4, y + 6.5)
+  doc.setTextColor(...C.ORANGE); doc.text(fmt(moTotal + repTotal), W - M - 4, y + 6.5, { align: 'right' })
+  y += 16
+
+  if (y > 240) { doc.addPage(); header(doc, 'PARTE DE SERVICIO', `OT-${ot.numero_ot}`); y = 52 }
+  y = Math.max(y, 218)
+
+  y = sectionTitle(doc, '6. Conformidad del Cliente', y)
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.GRAY)
+  doc.text('El cliente declara haber recibido el equipo en conformidad con los trabajos realizados descritos en el presente parte.', M, y)
+  y += 12
+
+  const colW = (W - M * 2 - 10) / 2
+  doc.setDrawColor(...C.BORDER); doc.setLineWidth(0.3)
+  doc.line(M, y, M + colW, y)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...C.DARK)
+  doc.text('Técnico Responsable — Knock S.A.', M, y + 5)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.MUTED)
+  doc.text('Firma y Sello', M, y + 9)
+
+  const x2 = M + colW + 10
+  doc.line(x2, y, x2 + colW, y)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...C.DARK)
+  doc.text(ot.cliente?.razon_social || 'Cliente', x2, y + 5)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.MUTED)
+  doc.text('Conformidad — Firma y Aclaración', x2, y + 9)
+
+  const pageCount = doc.internal.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    const pH = doc.internal.pageSize.height
+    doc.setFillColor(...C.DARK); doc.rect(0, pH - 10, W, 10, 'F')
+    doc.setFontSize(7); doc.setTextColor(...C.MUTED); doc.setFont('helvetica', 'normal')
+    doc.text('HeavyMetric — Knock S.A. | Parte de Servicio — Válido con firmas de ambas partes.', M, pH - 4)
+    doc.text(`Pág. ${i} / ${pageCount}`, W - M, pH - 4, { align: 'right' })
+  }
+
+  doc.save(`Parte_Servicio_OT${ot.numero_ot}_${(ot.cliente?.razon_social || 'cliente').replace(/\s+/g, '_')}.pdf`)
+}
+
+// ─── PDF de Orden de Trabajo ─────────────────────────────────────────────────
+export const generateOTPDF = (ot) => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.width
+  const M = 14
+
+  header(doc, 'ORDEN DE TRABAJO', `OT-${ot.numero_ot}`)
+
+  let y = 52
+  y = sectionTitle(doc, 'Datos del Cliente', y)
+  labelValue(doc, 'Razón Social', ot.cliente?.razon_social || '—', M,       y)
+  labelValue(doc, 'ID Registro',  ot.cliente_id?.split('-')[0],    M + 95,  y)
+  y += 14
+
+  y = sectionTitle(doc, 'Datos del Equipo', y)
+  labelValue(doc, 'Unidad',        ot.maquina?.nombre_unidad || '—',                        M,       y)
+  labelValue(doc, 'Marca / Modelo',`${ot.maquina?.marca || ''} ${ot.maquina?.modelo || ''}`,M + 75, y)
+  labelValue(doc, 'Horómetro',     `${ot.maquina?.horometro_actual || 0} hrs`,              M + 140, y)
+  y += 14
+
+  y = sectionTitle(doc, 'Descripción del Trabajo', y)
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...C.BLACK)
+  const desc = doc.splitTextToSize(ot.descripcion_trabajo || 'Sin descripción.', W - M * 2)
+  doc.text(desc, M, y)
+  y += desc.length * 5 + 8
+
+  const repRows = (ot.repuestos || []).map(r => [
+    r.inventario_id?.split('-')[0] || '—',
+    r.descripcion || 'Repuesto',
+    r.cantidad,
+    fmt(r.precio_usd),
+    fmt(r.subtotal_usd)
+  ])
+  repRows.push(['MO', 'Mano de Obra', `${ot.horas_mano_obra || 0} hs`, fmt(ot.precio_hora_usd || 45), fmt(ot.total_mano_obra_usd || 0)])
+
+  doc.autoTable({
+    startY: y,
+    margin: { left: M, right: M },
+    theme: 'grid',
+    headStyles: { fillColor: C.DARK, textColor: C.ORANGE, fontSize: 8 },
+    bodyStyles: { fontSize: 9 },
+    alternateRowStyles: { fillColor: C.LIGHT },
+    head: [['SKU', 'CONCEPTO', 'CANT.', 'P. UNIT.', 'SUBTOTAL']],
+    body: repRows
+  })
+
+  const fY = doc.lastAutoTable.finalY + 6
+  doc.setFillColor(...C.DARK)
+  doc.roundedRect(M, fY, W - M * 2, 10, 1, 1, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.setTextColor(...C.WHITE)
+  doc.text('TOTAL FINAL:', M + 4, fY + 6.5)
+  doc.setTextColor(...C.ORANGE)
+  doc.text(fmt(ot.total_usd), W - M - 4, fY + 6.5, { align: 'right' })
+
+  // Footer
+  const pH = doc.internal.pageSize.height
+  doc.setFillColor(...C.DARK)
+  doc.rect(0, pH - 10, W, 10, 'F')
+  doc.setFontSize(7)
+  doc.setTextColor(...C.MUTED)
+  doc.text('HeavyMetric — Knock S.A. | Comprobante interno de operaciones.', M, pH - 4)
+  doc.text(`Fecha: ${new Date().toLocaleDateString('es-AR')}`, W - M, pH - 4, { align: 'right' })
+
+  doc.save(`OT_${ot.numero_ot}_${ot.cliente?.razon_social?.replace(/\s+/g, '_') || 'cliente'}.pdf`)
+}
+
+// ─── PDF de Presupuesto ───────────────────────────────────────────────────────
+export const generatePresupuestoPDF = (presupuesto) => {
+  // Same logic as Cotizacion, but titled "PRESUPUESTO"
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.width
+  const M = 14
+
+  header(doc, 'PRESUPUESTO', `#${presupuesto.numero_cotizacion || presupuesto.id}`)
+
+  const hoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+  doc.setFontSize(8); doc.setTextColor(...C.MUTED); doc.setFont('helvetica', 'normal')
+  doc.text(`Emitido: ${hoy}`, W - M, 48, { align: 'right' })
+
+  let y = 54
+
+  // Datos del cliente/lead
+  y = sectionTitle(doc, 'Datos del Destinatario', y)
+  const nombre = presupuesto.cliente?.razon_social || presupuesto.lead?.empresa || presupuesto.lead?.nombre || '—'
+  labelValue(doc, 'Cliente / Prospecto', nombre, M, y)
+  if (presupuesto.cliente?.cuit) labelValue(doc, 'CUIT', presupuesto.cliente.cuit, M + 100, y)
+  y += 14
+
+  // Items
+  y = sectionTitle(doc, 'Detalle de Servicios / Productos', y)
+  const rows = (presupuesto.items || []).map(i => [
+    i.tipo_item || '—',
+    i.descripcion,
+    Number(i.cantidad),
+    fmt(i.precio_usd),
+    fmt(Number(i.cantidad) * Number(i.precio_usd))
+  ])
+
+  doc.autoTable({
+    startY: y, margin: { left: M, right: M }, theme: 'grid',
+    headStyles: { fillColor: C.DARK, textColor: C.ORANGE, fontSize: 8, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 9, textColor: C.BLACK }, alternateRowStyles: { fillColor: C.LIGHT },
+    columnStyles: { 0: { cellWidth: 24 }, 1: { cellWidth: 80 }, 2: { cellWidth: 16, halign: 'center' }, 3: { cellWidth: 32, halign: 'right' }, 4: { cellWidth: 32, halign: 'right' } },
+    head: [['TIPO', 'DESCRIPCIÓN', 'CANT.', 'PRECIO UNIT.', 'SUBTOTAL']],
+    body: rows
+  })
+
+  const fY = doc.lastAutoTable.finalY + 6
+  const xT = W - M - 82
+
+  doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.GRAY)
+  doc.text('SUBTOTAL:', xT, fY)
+  doc.setTextColor(...C.BLACK); doc.text(fmt(presupuesto.subtotal_usd), W - M, fY, { align: 'right' })
+
+  doc.setTextColor(...C.GRAY)
+  doc.text('IVA:', xT, fY + 5)
+  doc.setTextColor(...C.BLACK); doc.text(fmt(presupuesto.iva_usd), W - M, fY + 5, { align: 'right' })
+
+  doc.setFillColor(...C.DARK)
+  doc.roundedRect(xT - 4, fY + 8, 86, 10, 1, 1, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...C.WHITE)
+  doc.text('TOTAL:', xT, fY + 14.5)
+  doc.setTextColor(...C.ORANGE)
+  doc.text(fmt(presupuesto.total_usd), W - M - 2, fY + 14.5, { align: 'right' })
+
+  doc.save(`Presupuesto_${presupuesto.numero_cotizacion || presupuesto.id}_${nombre.replace(/\s+/g, '_')}.pdf`)
+}
+
+// ─── PDF de Remito (Entrega/Retiro/Devolución/Rental) ─────────────────────────
+export const generateRemitoPDF = (remito) => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.width
+  const M = 14
+
+  const tipo = (remito.tipo || 'ENTREGA').toUpperCase()
+  header(doc, `REMITO DE ${tipo}`, `#${remito.numero_comprobante || remito.id}`)
+
+  let y = 54
+  y = sectionTitle(doc, 'Datos Generales', y)
+  labelValue(doc, 'Cliente', remito.cliente?.razon_social || '—', M, y)
+  labelValue(doc, 'CUIT', remito.cliente?.cuit || '—', M + 80, y)
+  labelValue(doc, 'Fecha', fmtDate(remito.fecha), M + 140, y)
+  y += 14
+
+  y = sectionTitle(doc, 'Detalle de Ítems', y)
+  const rows = (remito.items || [{ descripcion: 'Artículo genérico', cantidad: 1 }]).map(i => [
+    i.codigo || '—',
+    i.descripcion,
+    Number(i.cantidad)
+  ])
+
+  doc.autoTable({
+    startY: y, margin: { left: M, right: M }, theme: 'grid',
+    headStyles: { fillColor: C.DARK, textColor: C.ORANGE, fontSize: 8 },
+    bodyStyles: { fontSize: 9 }, alternateRowStyles: { fillColor: C.LIGHT },
+    columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 120 }, 2: { cellWidth: 30, halign: 'center' } },
+    head: [['CÓDIGO', 'DESCRIPCIÓN', 'CANTIDAD']],
+    body: rows
+  })
+
+  const fY = doc.lastAutoTable.finalY + 10
+  if (remito.observaciones) {
+    doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.GRAY)
+    const lineas = doc.splitTextToSize(`Observaciones: ${remito.observaciones}`, W - M * 2)
+    doc.text(lineas, M, fY)
+  }
+
+  // Firmas
+  let yFirmas = Math.max(fY + 30, 240)
+  const colW = (W - M * 2 - 10) / 2
+  doc.setDrawColor(...C.BORDER); doc.setLineWidth(0.3)
+  doc.line(M, yFirmas, M + colW, yFirmas)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...C.DARK)
+  doc.text('Emisor', M, yFirmas + 5)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.MUTED)
+  doc.text('Firma y Aclaración', M, yFirmas + 9)
+
+  const x2 = M + colW + 10
+  doc.line(x2, yFirmas, x2 + colW, yFirmas)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...C.DARK)
+  doc.text('Receptor', x2, yFirmas + 5)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...C.MUTED)
+  doc.text('Firma y Aclaración', x2, yFirmas + 9)
+
+  doc.save(`Remito_${tipo}_${remito.numero_comprobante || remito.id}.pdf`)
+}
+
+// ─── PDF de Factura Base ──────────────────────────────────────────────────────
+export const generateFacturaPDF = (factura) => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.width
+  const M = 14
+
+  const tipoDoc = factura.tipo_documento || 'Factura'
+  header(doc, tipoDoc.toUpperCase(), `#${factura.numero_comprobante || factura.id}`)
+
+  let y = 54
+  y = sectionTitle(doc, 'Emisor', y)
+  labelValue(doc, 'Razón Social', 'Knock S.A.', M, y)
+  labelValue(doc, 'CUIT', '30-71234567-8', M + 80, y)
+  labelValue(doc, 'Condición IVA', 'Responsable Inscripto', M + 140, y)
+  y += 14
+
+  y = sectionTitle(doc, 'Receptor', y)
+  labelValue(doc, 'Razón Social', factura.cliente?.razon_social || '—', M, y)
+  labelValue(doc, 'CUIT', factura.cliente?.cuit || '—', M + 80, y)
+  labelValue(doc, 'Condición IVA', factura.cliente?.condicion_iva || 'Consumidor Final', M + 140, y)
+  y += 14
+
+  y = sectionTitle(doc, 'Detalle', y)
+  const rows = (factura.items || [{ descripcion: 'Servicios varios', cantidad: 1, precio_unitario: factura.monto_total_usd, subtotal: factura.monto_total_usd }]).map(i => [
+    i.descripcion,
+    Number(i.cantidad),
+    fmt(i.precio_unitario),
+    fmt(i.subtotal || (Number(i.cantidad) * Number(i.precio_unitario)))
+  ])
+
+  doc.autoTable({
+    startY: y, margin: { left: M, right: M }, theme: 'grid',
+    headStyles: { fillColor: C.DARK, textColor: C.ORANGE, fontSize: 8 },
+    bodyStyles: { fontSize: 9 }, alternateRowStyles: { fillColor: C.LIGHT },
+    columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 20, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+    head: [['DESCRIPCIÓN', 'CANT.', 'PRECIO UNIT.', 'SUBTOTAL']],
+    body: rows
+  })
+
+  const fY = doc.lastAutoTable.finalY + 6
+  doc.setFillColor(...C.DARK)
+  doc.roundedRect(W - M - 80, fY, 80, 10, 1, 1, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...C.WHITE)
+  doc.text('TOTAL FACTURA:', W - M - 76, fY + 6.5)
+  doc.setTextColor(...C.ORANGE)
+  doc.text(fmt(factura.monto_total_usd), W - M - 4, fY + 6.5, { align: 'right' })
+
+  // Equivalente ARS si existe
+  if (factura.monto_total_ars) {
+    doc.setFontSize(8); doc.setTextColor(...C.GRAY)
+    doc.text(`Equivalente ARS: $${Number(factura.monto_total_ars).toLocaleString('es-AR')}`, W - M, fY + 14, { align: 'right' })
+  }
+
+  doc.save(`${tipoDoc.replace(/\s+/g, '_')}_${factura.numero_comprobante || factura.id}.pdf`)
+}
+
+// ─── PDF de Recibo ────────────────────────────────────────────────────────────
+export const generateReciboPDF = (recibo) => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.width
+  const M = 14
+
+  header(doc, 'RECIBO X', `#${recibo.numero_comprobante || recibo.id}`)
+
+  let y = 54
+  doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.BLACK)
+  
+  const fecha = fmtDate(recibo.fecha || new Date().toISOString())
+  doc.text(`Lugar y Fecha: Buenos Aires, ${fecha}`, M, y); y += 10
+  
+  doc.text(`Recibimos de: ${recibo.cliente?.razon_social || '—'}`, M, y); y += 10
+  doc.text(`La cantidad de: ${fmt(recibo.monto_total_usd)}`, M, y); y += 10
+  doc.text(`En concepto de: Pago por ${recibo.notas || 'facturas pendientes'}`, M, y); y += 10
+
+  if (recibo.monto_total_ars) {
+    doc.text(`(Equivalente en ARS: $${Number(recibo.monto_total_ars).toLocaleString('es-AR')})`, M, y); y += 10
+  }
+
+  // Cuadro Firma
+  let yFirmas = Math.max(y + 30, 200)
+  const colW = 60
+  doc.setDrawColor(...C.BORDER); doc.setLineWidth(0.3)
+  doc.line(W - M - colW, yFirmas, W - M, yFirmas)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...C.DARK)
+  doc.text('Por Knock S.A.', W - M - colW, yFirmas + 5)
+
+  doc.save(`Recibo_${recibo.numero_comprobante || recibo.id}.pdf`)
+}
+
+// ─── PDF de Orden de Compra ───────────────────────────────────────────────────
+export const generateOCPDF = (compra) => {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = doc.internal.pageSize.width
+  const M = 14
+
+  header(doc, 'ORDEN DE COMPRA', `#${compra.id.slice(0, 8).toUpperCase()}`)
+
+  let y = 54
+  y = sectionTitle(doc, 'Proveedor', y)
+  labelValue(doc, 'Razón Social', compra.proveedor?.empresa || '—', M, y)
+  labelValue(doc, 'CUIT', compra.proveedor?.cuit || '—', M + 80, y)
+  labelValue(doc, 'Fecha OC', fmtDate(compra.fecha), M + 140, y)
+  y += 14
+
+  y = sectionTitle(doc, 'Condiciones', y)
+  labelValue(doc, 'Condición de Pago', compra.proveedor?.condicion_pago || '—', M, y)
+  labelValue(doc, 'Tiempo de Entrega', `${compra.proveedor?.tiempo_entrega_dias || '?'} días`, M + 80, y)
+  y += 14
+
+  y = sectionTitle(doc, 'Detalle de Pedido', y)
+  const rows = (compra.items || []).map(i => [
+    i.descripcion,
+    Number(i.cantidad),
+    fmt(i.precio_unitario_usd),
+    fmt(Number(i.cantidad) * Number(i.precio_unitario_usd))
+  ])
+
+  doc.autoTable({
+    startY: y, margin: { left: M, right: M }, theme: 'grid',
+    headStyles: { fillColor: C.DARK, textColor: C.ORANGE, fontSize: 8 },
+    bodyStyles: { fontSize: 9 }, alternateRowStyles: { fillColor: C.LIGHT },
+    columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 20, halign: 'center' }, 2: { cellWidth: 35, halign: 'right' }, 3: { cellWidth: 35, halign: 'right' } },
+    head: [['DESCRIPCIÓN', 'CANT.', 'PRECIO UNIT.', 'SUBTOTAL']],
+    body: rows
+  })
+
+  const fY = doc.lastAutoTable.finalY + 6
+  doc.setFillColor(...C.DARK)
+  doc.roundedRect(W - M - 80, fY, 80, 10, 1, 1, 'F')
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...C.WHITE)
+  doc.text('TOTAL OC:', W - M - 76, fY + 6.5)
+  doc.setTextColor(...C.ORANGE)
+  doc.text(fmt(compra.total_usd), W - M - 4, fY + 6.5, { align: 'right' })
+
+  if (compra.notas) {
+    doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.GRAY)
+    const lineas = doc.splitTextToSize(`Notas: ${compra.notas}`, W - M * 2)
+    doc.text(lineas, M, fY + 16)
+  }
+
+  doc.save(`OC_${compra.id.slice(0, 8)}.pdf`)
 }

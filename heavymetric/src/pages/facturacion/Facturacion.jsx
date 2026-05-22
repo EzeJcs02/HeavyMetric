@@ -4,6 +4,9 @@ import * as XLSX from 'xlsx'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
 import { supabase } from '../../lib/supabase'
+import { generateFacturaPDF, generateReciboPDF, generateRemitoPDF } from '../../lib/pdfGenerator'
+import { sendWhatsAppMessage } from '../../lib/integrations/whatsapp'
+import { sendEmail } from '../../lib/integrations/email'
 import ModalCobro from '../../components/modulos/facturacion/ModalCobro'
 import ModalConfirm from '../../components/ui/ModalConfirm'
 import Pagination from '../../components/ui/Pagination'
@@ -108,6 +111,29 @@ export default function Facturacion() {
     } finally {
       setAnulando(false)
     }
+  }
+
+  const handleSendEmail = async (tx) => {
+    toast.info('Enviando email...')
+    const res = await sendEmail(
+      tx.cliente?.email || 'test@example.com',
+      `Factura ${tx.numero_comprobante || tx.id.split('-')[0]}`,
+      'Adjuntamos su factura.',
+      ['factura.pdf']
+    )
+    if (res.success) toast.success('Email enviado')
+    else toast.error('Error al enviar: ' + res.error)
+  }
+
+  const handleSendWA = async (tx) => {
+    toast.info('Enviando WhatsApp...')
+    const res = await sendWhatsAppMessage(
+      tx.cliente?.telefono || '1234567890',
+      'cobranza',
+      { factura: tx.numero_comprobante || tx.id.split('-')[0], monto: tx.monto_total_usd }
+    )
+    if (res.success) toast.success('WhatsApp enviado')
+    else toast.error('Error al enviar: ' + res.error)
   }
 
   const handleConfirmCobro = async (payload) => {
@@ -318,7 +344,10 @@ export default function Facturacion() {
                       </Badge>
                     </td>
                     <td className="p-4 text-right">
-                      <div className="flex gap-2 justify-end">
+                      <div className="flex gap-2 justify-end items-center flex-wrap">
+                        <Button variant="outline" className="px-2 py-1 text-[10px] font-mono border-hm-border hover:border-blue-400 hover:text-blue-400" onClick={() => generateFacturaPDF(tx)}>FACT PDF</Button>
+                        <Button variant="outline" className="px-2 py-1 text-[10px] font-mono border-hm-border hover:border-purple-400 hover:text-purple-400" onClick={() => generateReciboPDF(tx)}>REC PDF</Button>
+                        <Button variant="outline" className="px-2 py-1 text-[10px] font-mono border-hm-border hover:border-orange-400 hover:text-orange-400" onClick={() => generateRemitoPDF(tx)}>REM PDF</Button>
                         {tx.estado_pago === 'pendiente' && (
                           <>
                             <Button

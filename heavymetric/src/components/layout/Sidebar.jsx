@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useRubro } from '../../context/RubroContext'
 
 const Icon = ({ path, path2 }) => (
   <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -45,7 +46,8 @@ const ICONS = {
 }
 
 export default function Sidebar({ onNavigate }) {
-  const { isOwner, canEdit, perfil } = useAuth()
+  const { isOwner, canEdit, perfil, hasModule } = useAuth()
+  const { taxonomia } = useRubro()
   const logoUrl = perfil?.organizaciones?.logo_url
   const orgNombre = perfil?.organizaciones?.nombre_comercial || 'HeavyMetric'
 
@@ -60,42 +62,42 @@ export default function Sidebar({ onNavigate }) {
       label: 'Operaciones',
       items: [
         { to: '/app/mi-jornada', label: 'Mi Jornada' },
-        { to: '/app/taller', label: 'Taller / OTs' },
-        ...(canEdit ? [{ to: '/app/aprobaciones', label: 'Workflow / Aprobaciones' }] : []),
+        hasModule('taller') ? { to: '/app/taller', label: `${taxonomia.taller} / OTs` } : null,
+        (canEdit && hasModule('taller')) ? { to: '/app/aprobaciones', label: 'Workflow / Aprobaciones' } : null,
         { to: '/app/postventa', label: 'Postventa', isPlaceholder: true },
-      ]
+      ].filter(Boolean)
     },
     {
       label: 'Activos',
       items: [
-        { to: '/app/activo360', label: 'Activo 360' }, // Era ventas/flota, ahora Activo 360
-        { to: '/app/repuestos', label: 'Repuestos' },
-        { to: '/app/stock', label: 'Stock', isPlaceholder: true },
+        { to: '/app/activo360', label: `${taxonomia.activoSingular} 360` },
+        hasModule('inventario') ? { to: '/app/repuestos', label: 'Repuestos' } : null,
+        hasModule('inventario') ? { to: '/app/stock', label: 'Stock', isPlaceholder: true } : null,
         { to: '/app/documentacion', label: 'Documentación', isPlaceholder: true },
         { to: '/app/mantenimiento', label: 'Mantenimiento', isPlaceholder: true },
-      ]
+      ].filter(Boolean)
     },
     {
       label: 'Comercial',
       hide: !canEdit,
       items: [
-        { to: '/app/leads', label: 'Leads CRM' },
+        hasModule('crm') ? { to: '/app/leads', label: 'Leads CRM' } : null,
         { to: '/app/clientes', label: 'Clientes' },
-        { to: '/app/cotizaciones', label: 'Cotizaciones' },
-        { to: '/app/ventas', label: 'Ventas / Inventario' }, // Ventas original
-        { to: '/app/alquileres', label: 'Rental' }, // Reubicado
-      ]
+        hasModule('crm') ? { to: '/app/cotizaciones', label: 'Cotizaciones' } : null,
+        hasModule('ventas') ? { to: '/app/ventas', label: 'Ventas / Inventario' } : null,
+        hasModule('alquileres') ? { to: '/app/alquileres', label: 'Rental' } : null,
+      ].filter(Boolean)
     },
     {
       label: 'Finanzas',
       hide: !canEdit,
       items: [
-        { to: '/app/tesoreria', label: 'Tesorería' },
+        hasModule('tesoreria') ? { to: '/app/tesoreria', label: 'Tesorería' } : null,
         { to: '/app/facturacion', label: 'Facturación' },
         { to: '/app/cobranzas', label: 'Cobranzas', isPlaceholder: true },
-        { to: '/app/proveedores', label: 'Proveedores / Compras' },
+        hasModule('tesoreria') ? { to: '/app/proveedores', label: 'Proveedores / Compras' } : null,
         { to: '/app/estado-resultados', label: 'Estado de Resultados', isPlaceholder: true },
-      ]
+      ].filter(Boolean)
     },
     {
       label: 'Inteligencia',
@@ -106,7 +108,7 @@ export default function Sidebar({ onNavigate }) {
         { to: '/app/riesgos', label: 'Riesgos', isPlaceholder: true },
         { to: '/app/alertas', label: 'Alertas', isPlaceholder: true },
         { to: '/app/ia-silenciosa', label: 'IA Silenciosa', isPlaceholder: true },
-      ]
+      ].filter(Boolean)
     },
     {
       label: 'Administración',
@@ -115,7 +117,7 @@ export default function Sidebar({ onNavigate }) {
         { to: '/app/usuarios', label: 'Usuarios' },
         { to: '/app/configuracion', label: 'Configuración' },
         { to: '/app/roles', label: 'Roles', isPlaceholder: true },
-      ]
+      ].filter(Boolean)
     }
   ]
 
