@@ -616,31 +616,168 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
               )
             })()}
 
-            {/* 9. RENTABILIDAD */}
-            {tab === 'rentabilidad' && (
-              <div className="flex flex-col gap-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-hm-surface2/20 border border-green-500/20 rounded-xl p-5">
-                    <div className="text-xs font-mono text-green-400 mb-2 tracking-widest">INGRESOS HISTÓRICOS</div>
-                    <div className="text-2xl font-bold text-hm-text mb-1">{formatUSD(kpis.facturadoTotal)}</div>
-                    <div className="text-[10px] text-hm-muted">Total facturado procesado</div>
+            {/* 9. RENTABILIDAD CLIENTE */}
+            {tab === 'rentabilidad' && (() => {
+              // Cálculos reales desde OTs y transacciones
+              const ingresosServicios = ots.filter(o => o.estado === 'completada' || o.estado === 'facturada')
+                .reduce((s, o) => s + Number(o.total_usd || 0), 0)
+              const ingresosTotal = kpis.facturadoTotal || ingresosServicios
+              const costoTotal = totalCostoServicios
+              const margenBruto = ingresosTotal - costoTotal
+              const margenPct = ingresosTotal > 0 ? ((margenBruto / ingresosTotal) * 100).toFixed(1) : 0
+              const deuda = kpis.deudaPendiente || 0
+
+              // Badge negocio
+              const riesgoNegocio = margenPct < 10 ? 'bajo_retorno'
+                : deuda > ingresosTotal * 0.3 ? 'riesgoso'
+                : ingresosTotal > 10000 ? 'alto_valor'
+                : 'estable'
+              const RIESGO_BADGE = {
+                alto_valor:  { label: 'ALTO VALOR', cls: 'bg-hm-accent/20 text-hm-accent border-hm-accent/40' },
+                estable:     { label: 'ESTABLE', cls: 'bg-green-500/20 text-green-300 border-green-500/40' },
+                riesgoso:    { label: 'RIESGOSO', cls: 'bg-red-500/20 text-red-300 border-red-500/40' },
+                bajo_retorno:{ label: 'BAJO RETORNO', cls: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40' },
+              }
+              const badge = RIESGO_BADGE[riesgoNegocio]
+
+              // Timeline económico mock — TODO: conectar con transacciones reales por fecha
+              const TIMELINE_ECO = [
+                { tipo: 'venta', label: 'OT Completada — CAT 320D', fecha: '22/04/26', valor: 4500, color: 'text-green-400', dot: 'bg-green-500' },
+                { tipo: 'cobro', label: 'Cobro recibido — Transferencia', fecha: '28/04/26', valor: 4500, color: 'text-blue-400', dot: 'bg-blue-500' },
+                { tipo: 'mora', label: 'OT #0087 sin cobrar 30d', fecha: '01/05/26', valor: -2200, color: 'text-red-400', dot: 'bg-red-500' },
+                { tipo: 'venta', label: 'Cotización aceptada', fecha: '12/05/26', valor: 8000, color: 'text-green-400', dot: 'bg-green-500' },
+              ]
+
+              return (
+                <div className="flex flex-col gap-5">
+                  {/* Badge negocio */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold ${badge.cls}`}>
+                      <span className="w-2 h-2 rounded-full bg-current" />{badge.label}
+                    </span>
+                    <span className="text-xs text-hm-muted font-mono">{ots.length} OTs históricas · {flota.length} activos</span>
                   </div>
-                  <div className="bg-hm-surface2/20 border border-orange-500/20 rounded-xl p-5">
-                    <div className="text-xs font-mono text-orange-400 mb-2 tracking-widest">GASTOS OPERATIVOS (OT)</div>
-                    <div className="text-2xl font-bold text-hm-text mb-1">{formatUSD(totalCostoServicios)}</div>
-                    <div className="text-[10px] text-hm-muted">Repuestos: {formatUSD(totalRepuestos)} | MO: {formatUSD(totalManoObra)}</div>
+
+                  {/* A) Ingresos históricos */}
+                  <div>
+                    <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">A — Ingresos Históricos</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {[
+                        { label: 'Ventas / Servicios', value: ingresosTotal, real: true, color: 'text-green-400' },
+                        { label: 'Alquileres', value: 0, real: false, color: 'text-blue-400' },
+                        { label: 'Repuestos vendidos', value: totalRepuestos, real: true, color: 'text-orange-400' },
+                        { label: 'Otros ingresos', value: 0, real: false, color: 'text-hm-accent' },
+                      ].map(({ label, value, real, color }) => (
+                        <div key={label} className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">{label}</div>
+                          <div className={`text-lg font-bold ${real && value > 0 ? color : 'text-hm-muted/50'}`}>
+                            {real && value > 0 ? formatUSD(value) : 'Base preparada'}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="bg-hm-surface2/20 border border-blue-500/20 rounded-xl p-5">
-                    <div className="text-xs font-mono text-blue-400 mb-2 tracking-widest">MARGEN BÁSICO BRUTO</div>
-                    <div className="text-2xl font-bold text-hm-text mb-1">{formatUSD(kpis.facturadoTotal - totalCostoServicios)}</div>
-                    <div className="text-[10px] text-hm-muted">Ingresos - Gastos OTs</div>
+
+                  {/* B) Cobros */}
+                  <div>
+                    <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">B — Cobros e Historial</div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Deuda pendiente</div>
+                        <div className={`text-lg font-bold ${deuda > 0 ? 'text-red-400' : 'text-green-400'}`}>{deuda > 0 ? formatUSD(deuda) : 'Sin deuda'}</div>
+                      </div>
+                      <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Mora histórica</div>
+                        <div className="text-lg font-bold text-hm-muted/50">Base preparada</div>
+                      </div>
+                      <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Cumplimiento pago</div>
+                        <div className="text-lg font-bold text-hm-muted/50">Base preparada</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* C) Margen cliente */}
+                  <div>
+                    <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">C — Margen del Cliente</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-green-400 uppercase mb-0.5">Ingreso total</div>
+                        <div className="text-xl font-bold text-green-400">{formatUSD(ingresosTotal)}</div>
+                      </div>
+                      <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-red-400 uppercase mb-0.5">Costo total</div>
+                        <div className="text-xl font-bold text-red-400">{formatUSD(costoTotal)}</div>
+                        <div className="text-[10px] text-hm-muted mt-0.5">Rep: {formatUSD(totalRepuestos)} · MO: {formatUSD(totalManoObra)}</div>
+                      </div>
+                      <div className={`rounded-lg p-3 border ${margenBruto >= 0 ? 'bg-hm-accent/5 border-hm-accent/20' : 'bg-red-500/5 border-red-500/20'}`}>
+                        <div className={`text-[9px] font-mono uppercase mb-0.5 ${margenBruto >= 0 ? 'text-hm-accent' : 'text-red-400'}`}>Margen bruto</div>
+                        <div className={`text-xl font-bold ${margenBruto >= 0 ? 'text-hm-accent' : 'text-red-400'}`}>{formatUSD(margenBruto)}</div>
+                      </div>
+                      <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-hm-muted uppercase mb-0.5">Margen %</div>
+                        <div className={`text-xl font-bold ${Number(margenPct) >= 20 ? 'text-green-400' : Number(margenPct) >= 10 ? 'text-yellow-400' : 'text-red-400'}`}>{margenPct}%</div>
+                        <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden mt-2">
+                          <div className={`h-full rounded-full ${Number(margenPct) >= 20 ? 'bg-green-500' : Number(margenPct) >= 10 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                            style={{ width: `${Math.min(Math.abs(Number(margenPct)), 100)}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* D) Riesgo negocio */}
+                  <div>
+                    <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">D — Riesgo del Negocio</div>
+                    <div className="bg-hm-surface2/20 border border-hm-border/50 rounded-xl p-4 flex flex-wrap gap-4 items-center">
+                      <div className="flex-1 min-w-[200px]">
+                        <div className="text-sm font-bold mb-1">Evaluación comercial</div>
+                        <div className="text-xs text-hm-muted">
+                          {riesgoNegocio === 'alto_valor' && 'Cliente estratégico con alta facturación y buen margen. Mantener relación y priorizar servicio.'}
+                          {riesgoNegocio === 'estable' && 'Cliente estable con pagos regulares y margen aceptable. Sin señales de alerta.'}
+                          {riesgoNegocio === 'riesgoso' && 'Alta deuda respecto a facturación. Evaluar condiciones de crédito antes de nuevos trabajos.'}
+                          {riesgoNegocio === 'bajo_retorno' && 'Margen muy bajo o nulo. Revisar precios o costos operativos asociados a este cliente.'}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 text-xs">
+                        {[
+                          { label: 'OTs completadas', value: ots.filter(o => ['completada','facturada'].includes(o.estado)).length },
+                          { label: 'OTs pendientes', value: ots.filter(o => !['completada','facturada','cancelada'].includes(o.estado)).length },
+                          { label: 'Activos en flota', value: flota.length },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="flex justify-between gap-4">
+                            <span className="text-hm-muted">{label}</span>
+                            <span className="font-bold">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* E) Timeline económico */}
+                  <div>
+                    <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">E — Timeline Económico</div>
+                    <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-2">
+                      {TIMELINE_ECO.map((ev, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 bg-hm-surface2/20 border border-hm-border/40 rounded-lg">
+                          <div className={`w-2 h-2 rounded-full shrink-0 ${ev.dot}`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate">{ev.label}</div>
+                            <div className="text-[10px] text-hm-muted font-mono">{ev.fecha}</div>
+                          </div>
+                          <div className={`font-mono text-sm font-bold shrink-0 ${ev.color}`}>
+                            {ev.valor > 0 ? '+' : ''}{formatUSD(ev.valor)}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="text-xs text-hm-muted italic text-center py-2">
+                        Timeline económico — TODO: conectar con tabla transacciones reales
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="text-center text-xs text-hm-muted italic p-4 bg-hm-surface2/10 rounded-lg">
-                  La rentabilidad es un cálculo teórico estimado basado en facturación pagada vs costos imputados en órdenes de trabajo completadas.
-                </div>
-              </div>
-            )}
+              )
+            })()}
+
 
             {/* 10. TIMELINE */}
             {tab === 'timeline' && (

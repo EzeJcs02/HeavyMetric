@@ -65,6 +65,7 @@ export default function Tesoreria() {
     ['cobranzas', 'COBRANZAS'],
     ['pagos', 'PAGOS PRÓXIMOS'],
     ['flujo', 'FLUJO PROYECTADO'],
+    ['proyeccion', '📈 PROYECCIÓN'],
   ]
 
   return (
@@ -369,6 +370,108 @@ export default function Tesoreria() {
           </Card>
         </div>
       )}
+
+      {/* ── PROYECCIÓN DE NEGOCIO ── */}
+      {tab === 'proyeccion' && (() => {
+        const saldo7  = FLUJO_PROYECTADO[0].saldo
+        const saldo30 = FLUJO_PROYECTADO[2].saldo
+        const presion = saldo7 < 0 ? 'alta' : saldo30 < 0 ? 'media' : 'baja'
+        const PRESION_CONFIG = {
+          alta:  { label: 'PRESIÓN ALTA', cls: 'bg-red-500/20 text-red-300 border-red-500/40', dot: 'bg-red-500 animate-pulse', desc: 'Los pagos próximos superan las cobranzas esperadas. Revisar liquidez inmediata.' },
+          media: { label: 'PRESIÓN MEDIA', cls: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40', dot: 'bg-yellow-500', desc: 'Equilibrio frágil. Monitorear cobranzas y postergar pagos no urgentes si es posible.' },
+          baja:  { label: 'FLUJO POSITIVO', cls: 'bg-green-500/20 text-green-300 border-green-500/40', dot: 'bg-green-500', desc: 'Posición financiera saludable. Cobranzas superan pagos próximos.' },
+        }
+        const pc = PRESION_CONFIG[presion]
+
+        return (
+          <div className="flex flex-col gap-6">
+            {/* Semáforo de presión financiera */}
+            <div className={`border rounded-xl p-5 ${pc.cls}`}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`w-3 h-3 rounded-full ${pc.dot}`} />
+                <div className="font-bold text-sm">{pc.label}</div>
+              </div>
+              <div className="text-xs opacity-80">{pc.desc}</div>
+            </div>
+
+            {/* KPIs de caja estimada */}
+            <div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-3">Caja estimada disponible</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: '7 días', value: saldo7, dias: 7 },
+                  { label: '15 días', value: FLUJO_PROYECTADO[1].saldo, dias: 15 },
+                  { label: '30 días', value: saldo30, dias: 30 },
+                  { label: '90 días', value: FLUJO_PROYECTADO[4].saldo, dias: 90 },
+                ].map(({ label, value }) => (
+                  <div key={label} className={`rounded-xl p-4 border ${value >= 0 ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/10 border-red-500/30'}`}>
+                    <div className="text-[9px] font-mono text-hm-muted uppercase mb-1">{label}</div>
+                    <div className={`text-xl font-bold font-mono ${value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {value >= 0 ? '+' : ''}{fmtArs(value)}
+                    </div>
+                    <div className="text-[10px] text-hm-muted mt-0.5">{value >= 0 ? 'Flujo positivo' : 'Flujo negativo'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Cobranzas vs Pagos próximos */}
+            <div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-3">Cobranzas vs Pagos (próximos 30 días)</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
+                  <div className="text-[9px] font-mono text-green-400 uppercase mb-1">A cobrar</div>
+                  <div className="text-2xl font-bold text-green-400">{fmtArs(totalACobrar)}</div>
+                  <div className="text-xs text-hm-muted mt-1">{MOCK_COBRANZAS.length} facturas pendientes</div>
+                </div>
+                <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+                  <div className="text-[9px] font-mono text-red-400 uppercase mb-1">A pagar</div>
+                  <div className="text-2xl font-bold text-red-400">{fmtArs(totalAPagar)}</div>
+                  <div className="text-xs text-hm-muted mt-1">{MOCK_PAGOS_PROXIMOS.length} pagos programados</div>
+                </div>
+                <div className={`border rounded-xl p-4 ${totalACobrar - totalAPagar >= 0 ? 'bg-hm-accent/5 border-hm-accent/20' : 'bg-red-500/10 border-red-500/30'}`}>
+                  <div className={`text-[9px] font-mono uppercase mb-1 ${totalACobrar - totalAPagar >= 0 ? 'text-hm-accent' : 'text-red-400'}`}>Resultado neto</div>
+                  <div className={`text-2xl font-bold ${totalACobrar - totalAPagar >= 0 ? 'text-hm-accent' : 'text-red-400'}`}>
+                    {totalACobrar - totalAPagar >= 0 ? '+' : ''}{fmtArs(totalACobrar - totalAPagar)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Mini tabla flujo */}
+            <div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-3">Detalle de flujo proyectado</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-hm-border">
+                      <th className="pb-2 font-mono text-hm-muted uppercase">Horizonte</th>
+                      <th className="pb-2 font-mono text-green-400 uppercase">Cobrar</th>
+                      <th className="pb-2 font-mono text-red-400 uppercase">Pagar</th>
+                      <th className="pb-2 font-mono text-hm-accent uppercase">Flujo neto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {FLUJO_PROYECTADO.map(r => (
+                      <tr key={r.label} className="border-b border-hm-border/30">
+                        <td className="py-2 font-mono text-hm-muted">{r.label}</td>
+                        <td className="py-2 font-bold text-green-400">{fmtArs(r.cobrar)}</td>
+                        <td className="py-2 font-bold text-red-400">{fmtArs(r.pagar)}</td>
+                        <td className={`py-2 font-bold font-mono ${r.saldo >= 0 ? 'text-hm-accent' : 'text-red-400'}`}>
+                          {r.saldo >= 0 ? '+' : ''}{fmtArs(r.saldo)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="text-xs text-hm-muted italic text-center mt-3">
+                Proyección basada en mock data — TODO: conectar con facturas, OTs y compras reales
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

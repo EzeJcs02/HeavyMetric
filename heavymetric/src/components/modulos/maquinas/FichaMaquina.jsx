@@ -342,65 +342,184 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
               )}
 
               {/* 7. COSTOS */}
-              {tab === 'costos' && (
-                <div className="flex flex-col gap-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-5">
-                      <div className="text-xs font-mono text-red-400 mb-2 tracking-widest">TOTAL REPUESTOS (HISTÓRICO)</div>
-                      <div className="text-3xl font-bold text-hm-text">{formatUSD(totalRepuestos)}</div>
+              {tab === 'costos' && (() => {
+                // Datos reales desde OTs
+                const costoTotalMaq = stats.totalGastos || 0
+                const repuestosMaq = totalRepuestos || 0
+                const manoObraMaq = totalManoObra || 0
+                const ingresosMaq = stats.totalIngresos || 0
+
+                // Distribución porcentual
+                const pctRep = costoTotalMaq > 0 ? Math.round((repuestosMaq / costoTotalMaq) * 100) : 0
+                const pctMO  = costoTotalMaq > 0 ? Math.round((manoObraMaq / costoTotalMaq) * 100) : 0
+
+                return (
+                  <div className="flex flex-col gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-5">
+                        <div className="text-xs font-mono text-red-400 mb-2 tracking-widest">TOTAL REPUESTOS (HISTÓRICO)</div>
+                        <div className="text-3xl font-bold text-hm-text mb-1">{formatUSD(repuestosMaq)}</div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="flex-1 h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
+                            <div className="h-full bg-red-500 rounded-full" style={{width:`${pctRep}%`}} />
+                          </div>
+                          <span className="text-xs font-mono text-red-400">{pctRep}%</span>
+                        </div>
+                      </div>
+                      <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-5">
+                        <div className="text-xs font-mono text-orange-400 mb-2 tracking-widest">TOTAL MANO DE OBRA (HISTÓRICO)</div>
+                        <div className="text-3xl font-bold text-hm-text mb-1">{formatUSD(manoObraMaq)}</div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="flex-1 h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
+                            <div className="h-full bg-orange-500 rounded-full" style={{width:`${pctMO}%`}} />
+                          </div>
+                          <span className="text-xs font-mono text-orange-400">{pctMO}%</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-5">
-                      <div className="text-xs font-mono text-orange-400 mb-2 tracking-widest">TOTAL MANO DE OBRA (HISTÓRICO)</div>
-                      <div className="text-3xl font-bold text-hm-text">{formatUSD(totalManoObra)}</div>
-                    </div>
-                  </div>
-                  <div className="bg-hm-surface2/30 border border-hm-border rounded-xl p-5 flex justify-between items-center">
+
+                    {/* A) Costos operativos desglosados */}
                     <div>
-                      <div className="text-xs font-mono text-hm-muted mb-1 tracking-widest">COSTO ACUMULADO TOTAL (C.A.T)</div>
-                      <div className="text-sm text-hm-muted">Suma de repuestos, servicios y otros gastos imputados.</div>
+                      <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">A — Desglose de Costos</div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {[
+                          { label: 'Mantenimiento', value: repuestosMaq, color: 'text-red-400' },
+                          { label: 'Mano de Obra', value: manoObraMaq, color: 'text-orange-400' },
+                          { label: 'Combustible', value: null, color: 'text-yellow-400', placeholder: true },
+                          { label: 'Otros', value: null, color: 'text-hm-muted', placeholder: true },
+                        ].map(({ label, value, color, placeholder }) => (
+                          <div key={label} className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                            <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">{label}</div>
+                            <div className={`text-base font-bold ${placeholder ? 'text-hm-muted/40' : color}`}>
+                              {placeholder ? 'Base preparada' : formatUSD(value)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="text-2xl font-bold font-mono">{formatUSD(stats.totalGastos)}</div>
+
+                    {/* B) Horas productivas */}
+                    <div>
+                      <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">B — Horas</div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                          <div className="text-[9px] font-mono text-hm-muted uppercase mb-0.5">Horómetro actual</div>
+                          <div className="text-lg font-bold">{maquina.horometro_actual ? `${maquina.horometro_actual}h` : 'Sin datos'}</div>
+                        </div>
+                        <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                          <div className="text-[9px] font-mono text-hm-muted uppercase mb-0.5">Horas detenidas</div>
+                          <div className="text-lg font-bold text-red-400">{maquina.tiempo_detenido_horas ? `${maquina.tiempo_detenido_horas}h` : '0h'}</div>
+                        </div>
+                        <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                          <div className="text-[9px] font-mono text-hm-muted uppercase mb-0.5">OTs de taller</div>
+                          <div className="text-lg font-bold text-orange-400">{ots.length}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* C.A.T */}
+                    <div className="bg-hm-surface2/30 border border-hm-border rounded-xl p-5 flex justify-between items-center">
+                      <div>
+                        <div className="text-xs font-mono text-hm-muted mb-1 tracking-widest">COSTO ACUMULADO TOTAL (C.A.T)</div>
+                        <div className="text-sm text-hm-muted">Suma de repuestos, servicios y otros gastos imputados.</div>
+                      </div>
+                      <div className="text-2xl font-bold font-mono">{formatUSD(costoTotalMaq)}</div>
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* 8. RENTABILIDAD */}
-              {tab === 'rentabilidad' && (
-                <div className="flex flex-col gap-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-blue-500/5 border-l-4 border-l-blue-500 p-5 rounded-r-xl">
-                      <div className="text-xs font-mono text-blue-400 mb-1 uppercase">Ingresos por Alquiler</div>
-                      <div className="text-2xl font-bold text-hm-text">{formatUSD(stats.totalIngresos)}</div>
-                    </div>
-                    <div className="bg-red-500/5 border-l-4 border-l-red-500 p-5 rounded-r-xl">
-                      <div className="text-xs font-mono text-red-400 mb-1 uppercase">Costos Operativos</div>
-                      <div className="text-2xl font-bold text-hm-text">{formatUSD(stats.totalGastos)}</div>
-                    </div>
-                    <div className={`bg-green-500/5 border-l-4 p-5 rounded-r-xl ${stats.rentabilidad >= 0 ? 'border-l-green-500' : 'border-l-orange-500'}`}>
-                      <div className={`text-xs font-mono mb-1 uppercase ${stats.rentabilidad >= 0 ? 'text-green-400' : 'text-orange-400'}`}>Rentabilidad Neta</div>
-                      <div className="text-2xl font-bold text-hm-text">{formatUSD(stats.rentabilidad)}</div>
-                    </div>
-                  </div>
+              {tab === 'rentabilidad' && (() => {
+                const ingresosMaq = stats.totalIngresos || 0
+                const gastosMaq = stats.totalGastos || 0
+                const rentabilidad = ingresosMaq - gastosMaq
+                const roi = gastosMaq > 0 ? ((rentabilidad / gastosMaq) * 100).toFixed(1) : 0
+                const disponibilidad = maquina.score_disponibilidad || 100
+                const horasDetenidas = maquina.tiempo_detenido_horas || 0
+                const horometro = maquina.horometro_actual || 0
 
-                  <h3 className="font-mono text-sm text-hm-muted mt-2 tracking-widest uppercase">Historial de Rentas (Contratos)</h3>
-                  <div className="max-h-[200px] overflow-y-auto pr-2 flex flex-col gap-2">
-                    {contratos.length === 0 ? <p className="text-xs text-hm-muted italic">Sin contratos registrados.</p> : (
-                      contratos.map(c => (
-                        <div key={c.id} className="bg-hm-surface2/20 p-3 rounded-lg border border-hm-border/50 flex justify-between items-center text-sm">
-                          <div>
-                            <div className="font-bold text-blue-400">Contrato #{c.numero_contrato}</div>
-                            <div className="text-xs text-hm-muted">{c.cliente?.razon_social} | {c.fecha_inicio} a {c.fecha_fin}</div>
-                          </div>
+                const riesgoActivo = rentabilidad < 0 ? 'critica'
+                  : disponibilidad < 70 ? 'observar'
+                  : 'rentable'
+                const RIESGO_ACTIVO = {
+                  rentable: { label: 'RENTABLE', cls: 'bg-green-500/20 text-green-300 border-green-500/40' },
+                  observar: { label: 'OBSERVAR', cls: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40' },
+                  critica:  { label: 'CRÍTICA', cls: 'bg-red-500/20 text-red-300 border-red-500/40 animate-pulse' },
+                }
+                const badgeActivo = RIESGO_ACTIVO[riesgoActivo]
+
+                return (
+                  <div className="flex flex-col gap-5">
+                    {/* Badge */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold ${badgeActivo.cls}`}>
+                        <span className="w-2 h-2 rounded-full bg-current" />{badgeActivo.label}
+                      </span>
+                      <span className="text-xs text-hm-muted font-mono">{ots.length} OTs · Disponibilidad: {disponibilidad}%</span>
+                    </div>
+
+                    {/* C) Rentabilidad */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-blue-500/5 border-l-4 border-l-blue-500 p-5 rounded-r-xl">
+                        <div className="text-xs font-mono text-blue-400 mb-1 uppercase">Ingresos generados</div>
+                        <div className="text-2xl font-bold text-hm-text">{formatUSD(ingresosMaq)}</div>
+                        <div className="text-[10px] text-hm-muted mt-1">Alquileres, contratos, OTs</div>
+                      </div>
+                      <div className="bg-red-500/5 border-l-4 border-l-red-500 p-5 rounded-r-xl">
+                        <div className="text-xs font-mono text-red-400 mb-1 uppercase">Costo acumulado</div>
+                        <div className="text-2xl font-bold text-hm-text">{formatUSD(gastosMaq)}</div>
+                        <div className="text-[10px] text-hm-muted mt-1">Repuestos + Mano de Obra</div>
+                      </div>
+                      <div className={`border-l-4 p-5 rounded-r-xl ${rentabilidad >= 0 ? 'bg-green-500/5 border-l-green-500' : 'bg-orange-500/5 border-l-orange-500'}`}>
+                        <div className={`text-xs font-mono mb-1 uppercase ${rentabilidad >= 0 ? 'text-green-400' : 'text-orange-400'}`}>Rentabilidad neta</div>
+                        <div className="text-2xl font-bold text-hm-text">{formatUSD(rentabilidad)}</div>
+                        <div className={`text-[10px] mt-1 font-mono font-bold ${Number(roi) >= 0 ? 'text-green-400' : 'text-red-400'}`}>ROI: {roi}%</div>
+                      </div>
+                    </div>
+
+                    {/* Disponibilidad */}
+                    <div>
+                      <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">Disponibilidad Operativa</div>
+                      <div className="bg-hm-surface2/20 border border-hm-border rounded-xl p-5">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="text-4xl font-black text-hm-text">{disponibilidad}%</div>
                           <div className="text-right">
-                            <div className="text-xs text-hm-muted">{formatUSD(c.tarifa_diaria_usd)}/día</div>
-                            <div className="font-bold">{formatUSD(c.total_contrato_usd)}</div>
+                            <div className="text-xs text-hm-muted">Horas detenidas</div>
+                            <div className="text-sm font-bold text-red-400">{horasDetenidas}h</div>
                           </div>
                         </div>
-                      ))
-                    )}
+                        <div className="h-3 bg-hm-surface2 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${disponibilidad >= 85 ? 'bg-green-500' : disponibilidad >= 70 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                            style={{width:`${disponibilidad}%`}} />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-hm-muted mt-1">
+                          <span>0%</span><span>50%</span><span>100%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Historial Contratos */}
+                    <h3 className="font-mono text-sm text-hm-muted mt-2 tracking-widest uppercase">Historial de Rentas (Contratos)</h3>
+                    <div className="max-h-[200px] overflow-y-auto pr-2 flex flex-col gap-2">
+                      {contratos.length === 0 ? <p className="text-xs text-hm-muted italic">Sin contratos registrados.</p> : (
+                        contratos.map(c => (
+                          <div key={c.id} className="bg-hm-surface2/20 p-3 rounded-lg border border-hm-border/50 flex justify-between items-center text-sm">
+                            <div>
+                              <div className="font-bold text-blue-400">Contrato #{c.numero_contrato}</div>
+                              <div className="text-xs text-hm-muted">{c.cliente?.razon_social} | {c.fecha_inicio} a {c.fecha_fin}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-hm-muted">{formatUSD(c.tarifa_diaria_usd)}/día</div>
+                              <div className="font-bold">{formatUSD(c.total_contrato_usd)}</div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* 9. DISPONIBILIDAD */}
               {tab === 'disponibilidad' && (

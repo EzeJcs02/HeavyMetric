@@ -419,6 +419,112 @@ export default function CEODashboard() {
           </Card>
         )}
       </Section>
+
+      {/* ── NEGOCIO 360 ── */}
+      <Section title="Negocio 360">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+          {/* Top clientes rentables */}
+          <Card className="p-4">
+            <div className="text-[10px] font-mono text-green-400 uppercase tracking-widest mb-3">🏆 Top Clientes Rentables</div>
+            {loading ? <div className="h-32 bg-hm-surface2/30 animate-pulse rounded" /> : (
+              <div className="flex flex-col gap-2">
+                {(data?.topClientes || []).slice(0,4).map((c, i) => (
+                  <div key={i} className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono text-hm-muted">{i+1}</span>
+                      <span className="text-sm truncate max-w-[140px]">{c.label}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-green-400">{formatUSD(c.value)}</div>
+                    </div>
+                  </div>
+                ))}
+                {(!data?.topClientes?.length) && <div className="text-xs text-hm-muted italic">Sin datos de clientes</div>}
+              </div>
+            )}
+          </Card>
+
+          {/* Máquinas rentables vs críticas */}
+          <Card className="p-4">
+            <div className="text-[10px] font-mono text-hm-accent uppercase tracking-widest mb-3">⚙️ Estado de Activos</div>
+            {loading ? <div className="h-32 bg-hm-surface2/30 animate-pulse rounded" /> : (
+              <div className="flex flex-col gap-3">
+                {[
+                  { label: 'Activos operativos', value: k?.flotaOperativa || 0, color: 'text-green-400', bar: 'bg-green-500' },
+                  { label: 'En mantenimiento / taller', value: (k?.flotaTotal || 0) - (k?.flotaOperativa || 0) - (k?.flotaDetenida || 0), color: 'text-yellow-400', bar: 'bg-yellow-500' },
+                  { label: 'Fuera de servicio', value: k?.flotaDetenida || 0, color: 'text-red-400', bar: 'bg-red-500' },
+                ].map(({ label, value, color, bar }) => (
+                  <div key={label}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-hm-muted">{label}</span>
+                      <span className={`font-bold ${color}`}>{value}</span>
+                    </div>
+                    <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${bar}`}
+                        style={{width: k?.flotaTotal > 0 ? `${Math.round((value/(k.flotaTotal))*100)}%` : '0%'}} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Áreas con mayor costo */}
+          <Card className="p-4">
+            <div className="text-[10px] font-mono text-orange-400 uppercase tracking-widest mb-3">📊 Áreas de Mayor Costo</div>
+            <div className="flex flex-col gap-2">
+              {[
+                { area: 'Taller / OTs', costo: k?.costoMantenimiento || 0, color: 'bg-orange-500' },
+                { area: 'Stock / Repuestos', costo: 0, color: 'bg-red-500', placeholder: true },
+                { area: 'Combustible', costo: 0, color: 'bg-yellow-500', placeholder: true },
+                { area: 'Mano de Obra', costo: 0, color: 'bg-blue-500', placeholder: true },
+              ].map(({ area, costo, color, placeholder }) => (
+                <div key={area} className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${color}`} />
+                    <span className="text-xs text-hm-muted">{area}</span>
+                  </div>
+                  <span className={`text-sm font-bold font-mono ${placeholder ? 'text-hm-muted/40' : 'text-hm-text'}`}>
+                    {placeholder ? 'Base prep.' : formatUSD(costo)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* OTs con pérdida */}
+          <Card className="p-4">
+            <div className="text-[10px] font-mono text-red-400 uppercase tracking-widest mb-3">⚠️ OTs Sin Rentabilidad</div>
+            <div className="text-xs text-hm-muted italic">Base preparada — conectar con OTs donde costo &gt; facturado</div>
+            <div className="mt-3 flex flex-col gap-1.5">
+              {[{ot:'#0145 — CAT 320D', desvio:'+USD 6.500'},{ot:'#0098 — Topadora', desvio:'+ARS 85.000'}].map(({ot, desvio}) => (
+                <div key={ot} className="flex justify-between items-center p-2 bg-red-500/5 border border-red-500/20 rounded">
+                  <span className="text-xs text-hm-muted">OT {ot}</span>
+                  <span className="text-xs font-bold text-red-400">{desvio} desvío</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Servicios más rentables */}
+          <Card className="p-4">
+            <div className="text-[10px] font-mono text-hm-accent uppercase tracking-widest mb-3">💡 Servicios Más Rentables</div>
+            <div className="text-xs text-hm-muted italic mb-3">Base preparada — conectar con tipos de servicio por margen</div>
+            {[
+              { servicio: 'Revisión hidráulica', margen: '62%' },
+              { servicio: 'Cambio de filtros', margen: '55%' },
+              { servicio: 'Service preventivo', margen: '48%' },
+            ].map(({ servicio, margen }) => (
+              <div key={servicio} className="flex justify-between items-center py-1.5 border-b border-hm-border/30 last:border-0">
+                <span className="text-xs text-hm-muted">{servicio}</span>
+                <span className="text-xs font-bold text-green-400">{margen}</span>
+              </div>
+            ))}
+          </Card>
+        </div>
+      </Section>
     </div>
   )
 }
