@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { evaluateRules, buildMetrics } from '../../lib/workflowRules'
+import { countAprobacionesPendientes } from '../../hooks/useAprobaciones'
 import PriorityBadge from '../../components/workflow/PriorityBadge'
 import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
@@ -108,26 +109,40 @@ export default function MiJornada() {
   useEffect(() => {
     if (!orgId) return
     async function loadMetrics() {
+      const hace7dias = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
       const [
         { count: otsAbiertas },
+        { count: otsDemoradas },
         { count: servicesProximos },
         { count: stockCritico },
         { count: flotaDetenida },
         { count: provRiesgosos },
+        { data: txVencidas },
+        aprobacionesPendientes,
       ] = await Promise.all([
         supabase.from('ordenes_trabajo').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado', ['en_progreso', 'borrador']),
+        supabase.from('ordenes_trabajo').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado', ['en_progreso', 'borrador']).lt('fecha_ingreso', hace7dias),
         supabase.from('maquinas_service').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado_service', ['urgente', 'vencido']),
-        supabase.from('inventario').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).lt('stock_actual', 5),
+        supabase.from('inventario').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).lte('stock_actual', supabase.raw ? undefined : 0).lt('stock_actual', 5),
         supabase.from('maquinas').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado_operativo', ['Fuera de servicio', 'Esperando repuesto']),
         supabase.from('proveedores').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('estado', 'riesgoso'),
+        supabase.from('transacciones').select('monto_total_usd, estado_pago, fecha_vencimiento_pago').eq('organization_id', orgId).eq('estado_pago', 'vencido'),
+        countAprobacionesPendientes(orgId),
       ])
+
+      const deudaClientes   = (txVencidas || []).reduce((s, t) => s + Number(t.monto_total_usd), 0)
+      const clientesMorosos = (txVencidas || []).length
+
       setMetrics({
-        otsAbiertas:          otsAbiertas || 0,
-        servicesProximos:     servicesProximos || 0,
-        stockCritico:         stockCritico || 0,
-        flotaDetenida:        flotaDetenida || 0,
-        aprobacionesPendientes: 3, // Mock — TODO: conectar con workflow_aprobaciones
-        provRiesgosos:        provRiesgosos || 0,
+        otsAbiertas:             otsAbiertas   || 0,
+        otsDemoradas:            otsDemoradas  || 0,
+        servicesProximos:        servicesProximos || 0,
+        stockCritico:            stockCritico  || 0,
+        flotaDetenida:           flotaDetenida || 0,
+        aprobacionesPendientes:  aprobacionesPendientes,
+        deudaClientes,
+        clientesMorosos,
+        provRiesgosos:           provRiesgosos || 0,
       })
       setLoading(false)
     }
@@ -138,11 +153,9 @@ export default function MiJornada() {
   const urgentes  = items.filter(i => i.seccion === SECCION_URGENTE)
   const hoy       = items.filter(i => i.seccion === SECCION_HOY)
   const proximos  = items.filter(i => i.seccion === SECCION_7DIAS)
-  // Pendientes = aprobaciones mock
-  const aprobaciones = [
-    { id: 'ap_1', titulo: 'Cotización con descuento alto', descripcion: 'COT-0087 — Constructora Sur S.A.', prioridad: 'alta', modulo: 'aprobaciones', link: '/app/aprobaciones', seccion: SECCION_PENDING },
-    { id: 'ap_2', titulo: 'OT #0145 superó costo estimado', descripcion: 'USD 6.500 por encima del presupuesto original.', prioridad: 'critica', modulo: 'aprobaciones', link: '/app/aprobaciones', seccion: SECCION_PENDING },
-  ]
+  const aprobaciones = metrics.aprobacionesPendientes > 0
+    ? [{ id: 'apr_real', titulo: `${metrics.aprobacionesPendientes} solicitud(es) pendiente(s) de aprobación`, descripcion: 'Accedé al Centro de Aprobaciones para gestionar cada solicitud.', prioridad: metrics.aprobacionesPendientes > 2 ? 'alta' : 'media', modulo: 'aprobaciones', link: '/app/aprobaciones', seccion: SECCION_PENDING }]
+    : []
 
   const SECCIONES = [
     { id: SECCION_HOY,     label: 'HOY',           count: hoy.length + urgentes.length },

@@ -4,8 +4,10 @@ import { isValidCuit, formatCuit } from '../../lib/cuitValidator'
 import * as XLSX from 'xlsx'
 import { useClientes } from '../../hooks/useClientes'
 import { useAuth } from '../../context/AuthContext'
+import { useAIInsights } from '../../hooks/useAIInsights'
 import { lookupCuit } from '../../lib/integrations/arca'
 import { isIntegrationEnabled } from '../../config/integrations'
+import { SilentBadge } from '../../components/ai/SilentBadge'
 import Modal from '../../components/ui/Modal'
 import ModalConfirm from '../../components/ui/ModalConfirm'
 import Pagination from '../../components/ui/Pagination'
@@ -166,6 +168,7 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
 export default function Clientes() {
   const { clientes, loading, error, createCliente, updateCliente, archiveCliente } = useClientes()
   const { isOwner } = useAuth()
+  const { clienteRisk } = useAIInsights()
   const [searchQuery, setSearchQuery] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCliente, setEditingCliente] = useState(null)
@@ -313,7 +316,10 @@ export default function Clientes() {
               clientesPaginados.map(c => (
                 <tr key={c.id} onClick={() => setDetalleCliente(c)} className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors group cursor-pointer">
                   <td className="p-4">
-                    <div className="font-medium text-sm">{c.razon_social}</div>
+                    <div className="font-medium text-sm flex items-center gap-1.5">
+                      {c.razon_social}
+                      {(() => { const r = clienteRisk(c.id); return r ? <SilentBadge type={r.type} message={r.message} iconOnly /> : null })()}
+                    </div>
                     {c.nombre_comercial && c.nombre_comercial !== c.razon_social && (
                       <div className="text-xs text-hm-muted">{c.nombre_comercial}</div>
                     )}

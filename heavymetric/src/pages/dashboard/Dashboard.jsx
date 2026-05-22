@@ -3,6 +3,7 @@ import { useDolar } from '../../context/DolarContext'
 import { useDashboardData } from '../../hooks/useDashboardData'
 import { useAuth } from '../../context/AuthContext'
 import { useRubro } from '../../context/RubroContext'
+import { useAIInsights } from '../../hooks/useAIInsights'
 import { supabase } from '../../lib/supabase'
 import KpiCard from '../../components/ui/KpiCard'
 import Card from '../../components/ui/Card'
@@ -18,6 +19,7 @@ export default function Dashboard() {
   const { data, loading, error, refresh } = useDashboardData()
   const { perfil, hasModule } = useAuth()
   const { taxonomia } = useRubro()
+  const { counts, insights, loading: aiLoading } = useAIInsights()
 
   useEffect(() => {
     if (!perfil?.organization_id) return
@@ -101,6 +103,32 @@ export default function Dashboard() {
           </>
         )}
       </div>
+
+      {/* IA SILENCIOSA — Panel de insights operativos */}
+      {!aiLoading && (counts.stock > 0 || counts.clientes > 0 || counts.otsDemoradas > 0 || counts.activos > 0 || counts.noRentables > 0 || counts.tesoreria > 0) && (
+        <Card className="p-0 overflow-hidden border-indigo-500/20">
+          <div className="px-5 py-3 border-b border-hm-border flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+            <span className="text-xs font-mono font-bold tracking-widest uppercase text-indigo-400">IA Silenciosa — Insights Operativos</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-x divide-hm-border">
+            {[
+              { label: 'Stock crítico',    count: counts.stock,       color: 'text-indigo-400', link: '/app/repuestos', show: counts.stock > 0 },
+              { label: 'Clientes riesgo',  count: counts.clientes,    color: 'text-red-400',    link: '/app/clientes',  show: counts.clientes > 0 },
+              { label: 'OTs demoradas',    count: counts.otsDemoradas,color: 'text-yellow-400', link: '/app/taller',    show: counts.otsDemoradas > 0 },
+              { label: 'OTs baja margen',  count: counts.noRentables, color: 'text-purple-400', link: '/app/taller',    show: counts.noRentables > 0 },
+              { label: 'Activos críticos', count: counts.activos,     color: 'text-rose-400',   link: '/app/taller',    show: counts.activos > 0 },
+              { label: 'Anomalías',        count: counts.tesoreria,   color: 'text-orange-400', link: '/app/tesoreria', show: counts.tesoreria > 0 },
+            ].filter(i => i.show).map(item => (
+              <a key={item.label} href={item.link}
+                className="flex flex-col items-center justify-center gap-1 py-4 px-3 hover:bg-hm-surface2/40 transition-colors text-center group">
+                <span className={`text-2xl font-black tabular-nums group-hover:scale-110 transition-transform ${item.color}`}>{item.count}</span>
+                <span className="text-[9px] font-mono text-hm-muted uppercase tracking-wider">{item.label}</span>
+              </a>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* GRÁFICOS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

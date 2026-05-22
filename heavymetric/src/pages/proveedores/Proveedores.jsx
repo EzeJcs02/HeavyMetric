@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import { isValidCuit, formatCuit } from '../../lib/cuitValidator'
 import { generateOCPDF } from '../../lib/pdfGenerator'
+import { evaluateProviderRisk } from '../../lib/aiEngines'
+import { SilentBadge } from '../../components/ai/SilentBadge'
 import { useProveedores, fetchComprasProveedor, fetchRepuestosProveedor, crearCompra, recibirCompra, fetchActivosProveedor, vincularActivo, desvincularActivo, calcRiskScore, riskLabel, fetchCentrosCosto } from '../../hooks/useProveedores'
 import { readDocumentWithOCR } from '../../lib/integrations/ocr'
 import { isIntegrationEnabled } from '../../config/integrations'
@@ -878,7 +880,10 @@ export default function Proveedores() {
               <tr key={p.id} onClick={() => setDetalle(p)}
                 className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors group cursor-pointer">
                 <td className="p-4">
-                  <div className="font-medium text-sm">{p.empresa}</div>
+                  <div className="font-medium text-sm flex items-center gap-1.5">
+                    {p.empresa}
+                    {(() => { const r = evaluateProviderRisk(p); return r ? <SilentBadge type={r.type} message={r.message} iconOnly /> : null })()}
+                  </div>
                 </td>
                 <td className="p-4 text-sm text-hm-muted">{p.rubro || '—'}</td>
                 <td className="p-4 text-sm text-hm-muted">{p.contacto_nombre || '—'}</td>

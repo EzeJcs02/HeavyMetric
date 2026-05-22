@@ -8,6 +8,8 @@ import { useTaller } from '../../hooks/useTaller'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
 import { useRubro } from '../../context/RubroContext'
+import { detectFallasRepetidas, detectOTNoRentable } from '../../lib/aiEngines'
+import { SilentBadge } from '../../components/ai/SilentBadge'
 import { generateOTPDF, generateServicioPDF } from '../../lib/pdfGenerator'
 import MaquinaRow from '../../components/modulos/MaquinaRow'
 import ModalFinalizarOT from '../../components/modulos/taller/ModalFinalizarOT'
@@ -65,6 +67,20 @@ export default function Taller() {
   const { clientes } = useClientes()
   const { ots, loading: loadingOT, error: errorOT, finalizarOT, createOT, cancelarOT } = useTaller()
   const { crearFacturaDesdeOT } = useFinanzas()
+
+  // AI Engine 1 + 6 — fallas repetidas por activo y OTs no rentables (inline, datos ya cargados)
+  const activoFallasMap = useMemo(() => {
+    const map = {}
+    const ids = [...new Set(ots.map(o => o.activo_id).filter(Boolean))]
+    ids.forEach(id => { const r = detectFallasRepetidas(ots, id); if (r) map[id] = r })
+    return map
+  }, [ots])
+
+  const otNoRentableMap = useMemo(() => {
+    const map = {}
+    ots.forEach(ot => { const r = detectOTNoRentable(ot); if (r) map[ot.id] = r })
+    return map
+  }, [ots])
 
   // Lógica de Filtrado de Maquinas
   const maquinasFiltradas = useMemo(() => {
@@ -406,16 +422,34 @@ export default function Taller() {
                   >
                     <td className="p-4 font-mono text-sm">#{ot.numero_ot}</td>
                     <td className="p-4">
-                      <div className="font-medium text-sm">{ot.maquina?.nombre_unidad}</div>
+                      <div className="font-medium text-sm flex items-center gap-1.5">
+                        {ot.maquina?.nombre_unidad}
+                        {activoFallasMap[ot.activo_id] && (
+                          <SilentBadge
+                            type={activoFallasMap[ot.activo_id].type}
+                            message={activoFallasMap[ot.activo_id].message}
+                            iconOnly
+                          />
+                        )}
+                      </div>
                     </td>
                     <td className="p-4">
                       <div className="text-sm text-hm-muted">{ot.cliente?.razon_social}</div>
                     </td>
                     <td className="p-4 font-mono text-sm text-hm-muted">{ot.fecha_ingreso}</td>
                     <td className="p-4">
-                      <Badge variant={ot.estado === 'en_progreso' ? 'ventas' : ot.estado === 'completada' ? 'info' : 'default'}>
-                        {ot.estado.toUpperCase().replace('_', ' ')}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant={ot.estado === 'en_progreso' ? 'ventas' : ot.estado === 'completada' ? 'info' : 'default'}>
+                          {ot.estado.toUpperCase().replace('_', ' ')}
+                        </Badge>
+                        {otNoRentableMap[ot.id] && (
+                          <SilentBadge
+                            type={otNoRentableMap[ot.id].type}
+                            message={otNoRentableMap[ot.id].message}
+                            iconOnly
+                          />
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 font-mono text-sm text-green-400">
                       {formatUSD(Number(ot.total_repuestos_usd || 0) + Number(ot.total_mano_obra_usd || 0))}

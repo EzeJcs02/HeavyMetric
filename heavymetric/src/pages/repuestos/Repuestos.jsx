@@ -4,6 +4,8 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useDolar } from '../../context/DolarContext'
+import { suggestStock } from '../../lib/aiEngines'
+import { SilentBadge } from '../../components/ai/SilentBadge'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -218,11 +220,7 @@ export default function Repuestos() {
                 <td className="p-4">
                   <div className="font-medium text-sm flex items-center gap-2">
                     {rep.nombre}
-                    {Number(rep.stock_actual) <= Number(rep.stock_minimo) && (
-                      <span className="text-[9px] font-mono font-bold bg-purple-500/10 text-purple-400 border border-purple-500/30 px-1.5 py-0.5 rounded" title="IA Silenciosa: Sugerimos reponer stock urgente. Lead time prom: 3 días.">
-                        💡 SUGERENCIA COMPRA
-                      </span>
-                    )}
+                    {(() => { const s = suggestStock(rep); return s ? <SilentBadge type={s.type} message={s.message} iconOnly /> : null })()}
                   </div>
                   {rep.descripcion && <div className="text-xs text-hm-muted truncate max-w-[200px]">{rep.descripcion}</div>}
                 </td>

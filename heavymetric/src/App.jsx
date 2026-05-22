@@ -31,11 +31,13 @@ import Portal from './pages/portal/Portal'
 import NotFound from './pages/NotFound'
 import Landing from './pages/public/Landing'
 import Aprobaciones from './pages/aprobaciones/Aprobaciones'
+import Remitos from './pages/remitos/Remitos'
 import Placeholder from './components/layout/Placeholder'
 import Activo360 from './pages/activos/Activo360'
 import AppCampo from './pages/campo/AppCampo'
 import OTMobileList from './pages/campo/OTMobileList'
 import OTMobileDetail from './pages/campo/OTMobileDetail'
+import Integraciones from './pages/integraciones/Integraciones'
 
 const PAGE_TITLES = {
   '/':              'Bienvenido',
@@ -73,7 +75,9 @@ const PAGE_TITLES = {
   '/app/riesgos':       'Riesgos',
   '/app/alertas':       'Alertas',
   '/app/ia-silenciosa': 'IA Silenciosa',
-  '/app/roles':         'Roles',
+  '/app/roles':           'Roles',
+  '/app/remitos':         'Remitos',
+  '/app/integraciones':   'Integraciones',
 }
 
 function TitleUpdater() {
@@ -142,6 +146,7 @@ export default function App() {
               <Route path="configuracion" element={<Guard soloOwner><Configuracion /></Guard>} />
               <Route path="perfil" element={<Guard><Perfil /></Guard>} />
               <Route path="aprobaciones" element={<Guard soloSupervisor><Aprobaciones /></Guard>} />
+              <Route path="remitos" element={<Guard soloSupervisor><Remitos /></Guard>} />
               
               {/* Activo 360 */}
               <Route path="activo360" element={<Guard soloSupervisor><Activo360 /></Guard>} />
@@ -159,6 +164,7 @@ export default function App() {
               <Route path="alertas" element={<Guard soloOwner><Placeholder title="Centro de Alertas" description="Configuración de notificaciones críticas del sistema." isOwnerOnly /></Guard>} />
               <Route path="ia-silenciosa" element={<Guard soloOwner><Placeholder title="Motor de IA Silenciosa" description="Reglas heurísticas y analítica predictiva sobre operaciones." isOwnerOnly /></Guard>} />
               <Route path="roles" element={<Guard soloOwner><Placeholder title="Roles y Permisos" description="Configuración de control de acceso avanzado." isOwnerOnly /></Guard>} />
+              <Route path="integraciones" element={<Guard soloOwner><Integraciones /></Guard>} />
             </Route>
             
             {/* FASE I: APP CAMPO / TÉCNICOS */}

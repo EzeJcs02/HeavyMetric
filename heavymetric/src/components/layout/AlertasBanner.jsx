@@ -3,16 +3,20 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 
 const TIPO_COLOR = {
-  service_urgente:              'red',
-  service_proximo:              'red',
-  stock_minimo:                 'yellow',
-  alquiler_vencimiento:         'orange',
-  lead_sin_contacto:            'orange',
-  cotizacion_sin_seguimiento:   'yellow',
-  cotizacion_critica:           'red',
-  seguimiento_vencido:          'orange',
-  oportunidad_sin_movimiento:   'yellow',
-  activo_detenido:              'orange',
+  service_urgente:            'red',
+  service_proximo:            'red',
+  stock_minimo:               'yellow',
+  alquiler_vencimiento:       'orange',
+  lead_sin_contacto:          'orange',
+  cotizacion_sin_seguimiento: 'yellow',
+  cotizacion_critica:         'red',
+  seguimiento_vencido:        'orange',
+  oportunidad_sin_movimiento: 'yellow',
+  activo_detenido:            'orange',
+  ot_demorada:                'yellow',
+  flujo_negativo:             'red',
+  mora_cliente:               'red',
+  proveedor_riesgoso:         'orange',
 }
 
 const COLOR_STYLES = {
@@ -22,46 +26,122 @@ const COLOR_STYLES = {
 }
 
 export default function AlertasBanner() {
-  const [alertas, setAlertas] = useState([])
-  const [idx, setIdx]         = useState(0)
+  const [alertas, setAlertas]     = useState([])
+  const [idx, setIdx]             = useState(0)
   const [dismissed, setDismissed] = useState(false)
-  const { perfil } = useAuth()
+  const { perfil }                = useAuth()
 
   useEffect(() => {
     if (!perfil?.organization_id) return
+
     const fetch = async () => {
-      // 1. Alertas guardadas en BD
-      const { data: dbAlertas } = await supabase
-        .from('alertas')
-        .select('id, tipo, titulo, prioridad')
-        .eq('resuelta', false)
-        .order('prioridad', { ascending: true })
-        .limit(10)
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
-      // 2. IA Silenciosa / Workflow Engine (Al Vuelo)
-      const alertasDinamicas = []
+      const [
+        { data: dbAlertas },
+        { data: repBajos },
+        { data: maqCriticas },
+        { data: otsDemoradas },
+        { data: clientesMorosos },
+        { data: provRiesgosos },
+      ] = await Promise.all([
+        // 1. Alertas persistidas en BD
+        supabase
+          .from('alertas')
+          .select('id, tipo, titulo, prioridad')
+          .eq('resuelta', false)
+          .order('prioridad', { ascending: true })
+          .limit(10),
 
-      // Stock Mínimo
-      const { data: repBajos } = await supabase.from('repuestos').select('id, nombre').lte('stock_actual', 'stock_minimo').eq('activo', true)
-      if (repBajos?.length) {
-        repBajos.forEach(r => alertasDinamicas.push({
-          id: `dyn_rep_${r.id}`, tipo: 'stock_minimo', titulo: `Sugerencia de compra: Reponer "${r.nombre}"`, prioridad: 'media'
-        }))
+        // 2. Stock bajo mínimo
+        supabase
+          .from('repuestos')
+          .select('id, nombre')
+          .lte('stock_actual', 'stock_minimo')
+          .eq('activo', true),
+
+        // 3. Máquinas fuera de servicio
+        supabase
+          .from('maquinas')
+          .select('id, nombre_unidad, estado_operativo')
+          .in('estado_operativo', ['Fuera de servicio', 'Esperando repuesto'])
+          .eq('activa', true),
+
+        // 4. OTs demoradas (>7 días abiertas)
+        supabase
+          .from('ordenes_trabajo')
+          .select('id')
+          .in('estado', ['borrador', 'en_progreso'])
+          .lt('fecha_ingreso', sevenDaysAgo.toISOString().split('T')[0]),
+
+        // 5. Clientes morosos
+        supabase
+          .from('clientes')
+          .select('id')
+          .eq('estado_financiero', 'moroso')
+          .eq('activo', true),
+
+        // 6. Proveedores riesgosos
+        supabase
+          .from('proveedores')
+          .select('id')
+          .eq('estado', 'riesgoso')
+          .eq('activo', true),
+      ])
+
+      const dinamicas = []
+
+      repBajos?.forEach(r => dinamicas.push({
+        id: `dyn_rep_${r.id}`,
+        tipo: 'stock_minimo',
+        titulo: `Reponer urgente: "${r.nombre}"`,
+        prioridad: 'media',
+      }))
+
+      maqCriticas?.forEach(m => dinamicas.push({
+        id: `dyn_maq_${m.id}`,
+        tipo: 'activo_detenido',
+        titulo: `"${m.nombre_unidad}" — ${m.estado_operativo.toLowerCase()}`,
+        prioridad: 'alta',
+      }))
+
+      if (otsDemoradas?.length > 0) {
+        dinamicas.push({
+          id: 'dyn_ots_demoradas',
+          tipo: 'ot_demorada',
+          titulo: `${otsDemoradas.length} OT(s) sin movimiento hace más de 7 días`,
+          prioridad: 'media',
+        })
       }
 
-      // Máquinas Críticas (Fuera de servicio)
-      const { data: maqCriticas } = await supabase.from('maquinas').select('id, nombre_unidad, estado_operativo').in('estado_operativo', ['Fuera de servicio', 'Esperando repuesto']).eq('activo', true)
-      if (maqCriticas?.length) {
-        maqCriticas.forEach(m => alertasDinamicas.push({
-          id: `dyn_maq_${m.id}`, tipo: 'activo_detenido', titulo: `Atención: "${m.nombre_unidad}" se encuentra ${m.estado_operativo.toLowerCase()}`, prioridad: 'alta'
-        }))
+      if (clientesMorosos?.length > 0) {
+        dinamicas.push({
+          id: 'dyn_mora_clientes',
+          tipo: 'mora_cliente',
+          titulo: `${clientesMorosos.length} cliente(s) con mora — gestionar cobranza`,
+          prioridad: 'alta',
+        })
       }
 
-      const combo = [...(dbAlertas || []), ...alertasDinamicas]
-      setAlertas(combo.sort((a,b) => a.prioridad === 'alta' ? -1 : 1))
+      if (provRiesgosos?.length > 0) {
+        dinamicas.push({
+          id: 'dyn_prov_riesgosos',
+          tipo: 'proveedor_riesgoso',
+          titulo: `${provRiesgosos.length} proveedor(es) con riesgo alto`,
+          prioridad: 'media',
+        })
+      }
+
+      const combo = [...(dbAlertas || []), ...dinamicas]
+      const ORDER = { critica: 0, alta: 1, media: 2, baja: 3 }
+      combo.sort((a, b) => (ORDER[a.prioridad] ?? 9) - (ORDER[b.prioridad] ?? 9))
+
+      setAlertas(combo)
       setIdx(0)
       setDismissed(false)
     }
+
     fetch()
     const interval = setInterval(fetch, 5 * 60 * 1000)
     return () => clearInterval(interval)
@@ -69,10 +149,10 @@ export default function AlertasBanner() {
 
   if (!alertas.length || dismissed) return null
 
-  const alerta  = alertas[idx]
-  const color   = TIPO_COLOR[alerta.tipo] || 'yellow'
-  const styles  = COLOR_STYLES[color]
-  const total   = alertas.length
+  const alerta = alertas[idx]
+  const color  = TIPO_COLOR[alerta.tipo] || 'yellow'
+  const styles = COLOR_STYLES[color]
+  const total  = alertas.length
 
   return (
     <div className={`border-b px-4 md:px-6 py-2 flex items-center justify-between gap-4 shrink-0 ${styles.bg}`}>

@@ -1,25 +1,55 @@
 import { isIntegrationEnabled } from '../../config/integrations'
 
+// Textos de preview para modo mock — espejo de los templates de Meta
+const MOCK_TEXTOS = {
+  alerta:     (d) => `⚠️ ALERTA — ${d.maquina || '?'}\n${d.descripcion || 'Situación que requiere atención.'}`,
+  service:    (d) => `🔧 Service próximo — ${d.maquina || '?'}\nFaltan ${d.horasRestantes || '?'}hs (cada 250hs). Coordinemos.`,
+  cobranza:   (d) => `💰 Aviso de cobro — ${d.cliente || '?'}\nMonto: $${d.monto?.toLocaleString('es-AR') || '?'}\nVencimiento: ${d.vencimiento || '?'}`,
+  vencimiento:(d) => `📋 Vencimiento contrato — ${d.contrato || '?'}\nFecha: ${d.fechaVencimiento || '?'}. Contactanos para renovar.`,
+}
+
 /**
- * Simula el envío de un mensaje de WhatsApp
- * @param {string} phone - Número de teléfono
- * @param {string} type - Tipo de mensaje (alerta, cobranza, service, vencimiento)
- * @param {object} data - Datos del mensaje
+ * Envía un mensaje de WhatsApp.
+ *
+ * Modo mock (VITE_ENABLE_WHATSAPP=false): loguea en consola con el texto del template.
+ * Modo real: llama a /api/whatsapp-send → Meta Cloud API con template pre-aprobado.
+ *
+ * @param {string} phone  - Número con código de país, sin + (ej: 5491112345678)
+ * @param {string} type   - 'alerta' | 'service' | 'cobranza' | 'vencimiento'
+ * @param {object} data   - Campos del template
  */
 export const sendWhatsAppMessage = async (phone, type, data) => {
   if (!isIntegrationEnabled('whatsapp')) {
-    console.log(`[MOCK WHATSAPP] Enviando mensaje a ${phone}...`)
-    console.log(`[MOCK WHATSAPP] Tipo: ${type}`)
-    console.log(`[MOCK WHATSAPP] Datos:`, data)
-    
-    return new Promise(resolve => {
-      setTimeout(() => {
-        resolve({ success: true, messageId: `WA-${Date.now()}` })
-      }, 500)
-    })
+    const texto = MOCK_TEXTOS[type]?.(data) ?? `Notificación HeavyMetric: ${type}`
+    console.log(`[MOCK WA → ${phone}]\n${texto}`)
+    return new Promise(resolve =>
+      setTimeout(() => resolve({ success: true, messageId: `WA-MOCK-${Date.now()}` }), 500)
+    )
   }
 
-  // TODO: Implementar llamada real (ej. Meta Cloud API, Twilio, etc.)
-  console.warn('La integración real con WhatsApp aún no está implementada.')
-  return { success: false, error: 'Integración no implementada' }
+  try {
+    const res = await fetch('/api/whatsapp-send', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ phone, type, data }),
+    })
+    const result = await res.json()
+    if (!res.ok) return { success: false, error: result.error || 'Error enviando WhatsApp' }
+    return result
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
 }
+
+// Wrappers con firma explícita para los casos de uso más comunes
+export const alertarService = (phone, maquina, horasRestantes, cliente) =>
+  sendWhatsAppMessage(phone, 'service', { maquina, horasRestantes, cliente })
+
+export const notificarCobranza = (phone, cliente, monto, vencimiento) =>
+  sendWhatsAppMessage(phone, 'cobranza', { cliente, monto, vencimiento })
+
+export const notificarVencimientoContrato = (phone, contrato, fechaVencimiento) =>
+  sendWhatsAppMessage(phone, 'vencimiento', { contrato, fechaVencimiento })
+
+export const enviarAlertaOperativa = (phone, maquina, descripcion) =>
+  sendWhatsAppMessage(phone, 'alerta', { maquina, descripcion })

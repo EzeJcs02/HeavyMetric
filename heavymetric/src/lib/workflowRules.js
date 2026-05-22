@@ -184,19 +184,32 @@ export function evaluateRules(metrics = {}) {
 /**
  * Convierte métricas de Supabase al formato esperado por evaluateRules
  */
-export function buildMetrics({ otsAbiertas = 0, servicesProximos = 0, stockCritico = 0, flotaDetenida = 0, aprobacionesPendientes = 0, provRiesgosos = 0 } = {}) {
+export function buildMetrics({
+  otsAbiertas          = 0,
+  otsDemoradas         = 0,
+  servicesProximos     = 0,
+  stockCritico         = 0,
+  flotaDetenida        = 0,
+  aprobacionesPendientes = 0,
+  deudaClientes        = 0,
+  clientesMorosos      = 0,
+  chequesProximos      = 0,
+  pagosVencidos        = 0,
+  provRiesgosos        = 0,
+  flujoNegativo        = false,
+} = {}) {
   return {
     otsAbiertas,
-    otsDemoradas: 0, // TODO: calcular con fecha_ingreso > 7 días
+    otsDemoradas,
     servicesVencidos: servicesProximos,
     stockCritico,
     flotaDetenida,
     aprobacionesPendientes,
-    deudaClientes: 0, // TODO: conectar con transacciones pendientes
-    clientesMorosos: 0, // TODO: conectar con score mora
-    chequesProximos: 0, // TODO: conectar con tabla cheques
-    pagosVencidos: 0, // TODO: conectar con compras pendientes
+    deudaClientes,
+    clientesMorosos,
+    chequesProximos,
+    pagosVencidos,
     provRiesgosos,
-    flujoNegativo: false, // TODO: calcular desde tesorería real
+    flujoNegativo,
   }
 }
