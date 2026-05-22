@@ -4,6 +4,7 @@ import { useCliente360, calcServiceState } from '../../../hooks/useCliente360'
 import { useDolar } from '../../../context/DolarContext'
 import { useState } from 'react'
 import Timeline360 from '../timeline/Timeline360'
+import FichaMaquina from '../maquinas/FichaMaquina'
 
 const PROP_STYLE = {
   A: 'bg-red-500/20 text-red-300 border-red-500/40',
@@ -84,6 +85,7 @@ function EmptyState({ icon, title, desc }) {
 
 export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
   const [tab, setTab] = useState('resumen')
+  const [selectedActivo, setSelectedActivo] = useState(null)
   const { formatUSD } = useDolar()
   const { flota, leads, cotizaciones, ots, transacciones, kpis, loading } = useCliente360(cliente?.id, isOpen)
 
@@ -107,7 +109,8 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
   const handleTabChange = (t) => setTab(t)
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="" maxWidth="max-w-6xl">
+    <>
+      <Modal isOpen={isOpen} onClose={onClose} title="" maxWidth="max-w-6xl">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5 -mt-2">
         <div className="flex-1 min-w-0">
@@ -152,7 +155,7 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
         <TabBtn active={tab==='facturacion'}   onClick={() => handleTabChange('facturacion')}>FACTURACIÓN</TabBtn>
         <TabBtn active={tab==='cobranzas'}     onClick={() => handleTabChange('cobranzas')}>COBRANZAS</TabBtn>
         <TabBtn active={tab==='financiero'}    onClick={() => handleTabChange('financiero')}>💰 FINANCIERO</TabBtn>
-        <TabBtn active={tab==='flota'}         onClick={() => handleTabChange('flota')}>FLOTA ({flota.length})</TabBtn>
+        <TabBtn active={tab==='flota'}         onClick={() => handleTabChange('flota')}>ACTIVOS / FLOTA ({flota.length})</TabBtn>
         <TabBtn active={tab==='ots'}           onClick={() => handleTabChange('ots')}>SERVICIOS ({ots.length})</TabBtn>
         <TabBtn active={tab==='garantias'}     onClick={() => handleTabChange('garantias')}>RECLAMOS</TabBtn>
         <TabBtn active={tab==='rentabilidad'}  onClick={() => handleTabChange('rentabilidad')}>RENTABILIDAD</TabBtn>
@@ -354,21 +357,26 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
               </div>
             )}
 
-            {/* 6. FLOTA */}
+            {/* 6. ACTIVOS / FLOTA */}
             {tab === 'flota' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2">
+              <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto pr-2">
                 {flota.length === 0 ? (
                   <div className="col-span-full">
                     <EmptyState icon="🚜" title="Sin equipos" desc="No hay activos o máquinas registradas para este cliente." />
                   </div>
                 ) : flota.map(m => {
                   const svc = calcServiceState(m)
+                  const scoreDisp = m.score_disponibilidad || 100
                   return (
-                    <div key={m.id} className="bg-hm-surface2/20 border border-hm-border/50 rounded-lg p-4 flex flex-col justify-between">
-                      <div className="flex items-start justify-between gap-3 mb-4">
-                        <div className="flex-1 min-w-0">
+                    <div 
+                      key={m.id} 
+                      onClick={() => setSelectedActivo(m)}
+                      className="bg-hm-surface2/20 border border-hm-border/50 rounded-lg p-4 flex flex-col md:flex-row gap-4 justify-between hover:border-hm-accent/50 cursor-pointer transition-colors group"
+                    >
+                      <div className="flex-1 min-w-0 flex flex-col justify-between">
+                        <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-sm truncate">{m.nombre_unidad}</span>
+                            <span className="font-semibold text-base truncate group-hover:text-hm-accent transition-colors">{m.nombre_unidad}</span>
                             {m.tipo && (
                               <span className="text-[9px] font-mono bg-hm-surface2 text-hm-muted border border-hm-border rounded px-1.5 py-0.5 shrink-0">
                                 {m.tipo}
@@ -380,30 +388,45 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
                             {m.patente && ` — ${m.patente}`}
                           </div>
                         </div>
-                        <div className="text-right shrink-0">
-                          <div className={`text-xs font-mono font-bold ${ESTADO_OT_BADGE[m.estado_operativo] ? '' : ESTADO_OP_COLOR[m.estado_operativo] || 'text-hm-muted'}`}>
-                            {m.estado_operativo || 'Operativo'}
+
+                        {svc && (
+                          <div className="mt-4 max-w-xs">
+                            <div className="flex justify-between text-[9px] font-mono text-hm-muted mb-1">
+                              <span>Próximo Service</span>
+                              <span className={svc.color === 'red' ? 'text-red-400 font-bold' : svc.color === 'yellow' ? 'text-yellow-400 font-bold' : 'text-green-400'}>
+                                {svc.estado === 'vencido' ? `VENCIDO ${Math.abs(svc.restantes).toFixed(0)}hs` : `${svc.restantes.toFixed(0)}hs restantes`}
+                              </span>
+                            </div>
+                            <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${SERVICE_BAR[svc.estado]}`}
+                                style={{ width: `${Math.min(svc.pct, 100)}%` }}
+                              />
+                            </div>
                           </div>
-                          <div className="text-[10px] text-hm-muted">{m.horometro_actual || 0} hs</div>
-                        </div>
+                        )}
                       </div>
 
-                      {svc && (
-                        <div className="mt-auto">
-                          <div className="flex justify-between text-[9px] font-mono text-hm-muted mb-1">
-                            <span>Mantenimiento</span>
-                            <span className={svc.color === 'red' ? 'text-red-400' : svc.color === 'yellow' ? 'text-yellow-400' : 'text-green-400'}>
-                              {svc.estado === 'vencido' ? `VENCIDO ${Math.abs(svc.restantes).toFixed(0)}hs` : `${svc.restantes.toFixed(0)}hs restantes`}
-                            </span>
-                          </div>
-                          <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${SERVICE_BAR[svc.estado]}`}
-                              style={{ width: `${Math.min(svc.pct, 100)}%` }}
-                            />
+                      <div className="grid grid-cols-2 gap-3 md:gap-6 text-right shrink-0">
+                        <div className="flex flex-col items-end justify-center">
+                          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Riesgo / Estado</div>
+                          <div className={`text-sm font-bold ${ESTADO_OT_BADGE[m.estado_operativo] ? '' : ESTADO_OP_COLOR[m.estado_operativo] || 'text-hm-muted'}`}>
+                            {m.estado_operativo || 'Operativo'}
                           </div>
                         </div>
-                      )}
+                        <div className="flex flex-col items-end justify-center">
+                          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Disponibilidad</div>
+                          <div className={`text-sm font-bold ${scoreDisp < 80 ? 'text-red-400' : 'text-green-400'}`}>{scoreDisp}%</div>
+                        </div>
+                        <div className="flex flex-col items-end justify-center">
+                          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Downtime Acumulado</div>
+                          <div className="text-sm font-bold text-orange-400">{m.tiempo_detenido_horas || 0} hs</div>
+                        </div>
+                        <div className="flex flex-col items-end justify-center">
+                          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Garantía <span className="bg-hm-surface2/50 px-1 rounded border border-hm-border">MOCK</span></div>
+                          <div className="text-sm font-bold text-green-400">Vigente (3m)</div>
+                        </div>
+                      </div>
                     </div>
                   )
                 })}
@@ -849,5 +872,15 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
         )}
       </div>
     </Modal>
+
+    {/* Modal FichaMáquina */}
+    {selectedActivo && (
+      <FichaMaquina 
+        maquina={selectedActivo} 
+        isOpen={!!selectedActivo} 
+        onClose={() => setSelectedActivo(null)} 
+      />
+    )}
+    </>
   )
 }

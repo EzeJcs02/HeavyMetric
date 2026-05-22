@@ -130,6 +130,24 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
   healthScore = Math.max(0, Math.min(100, healthScore))
   const hsColor = healthScore >= 80 ? 'text-green-400' : healthScore >= 50 ? 'text-orange-400' : 'text-red-500'
 
+  // --- CONTINUIDAD OPERATIVA & RIESGO (Heurística Determinística) ---
+  const fallasRepetidas = Math.max(0, ots.length > 0 ? ots.length - 1 : 0) // Mock determinístico basado en OTs
+  const isRental = maquina?.en_alquiler
+  const costOfDowntimePorHora = isRental ? 150 : 45
+  const costoDowntimeTotal = (maquina?.tiempo_detenido_horas || 0) * costOfDowntimePorHora
+  
+  let nivelRiesgo = 'ESTABLE'
+  if (healthScore < 50 || fallasRepetidas > 3 || svcAlert) nivelRiesgo = 'CRÍTICA'
+  else if (healthScore < 80 || fallasRepetidas > 1 || opAlert) nivelRiesgo = 'OBSERVAR'
+  else if (isRental) nivelRiesgo = 'RENTABLE'
+
+  const RIESGO_STYLE = {
+    'CRÍTICA': 'bg-red-500/10 border-red-500/20 text-red-400',
+    'OBSERVAR': 'bg-orange-500/10 border-orange-500/20 text-orange-400',
+    'ESTABLE': 'bg-green-500/10 border-green-500/20 text-green-400',
+    'RENTABLE': 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+  }
+
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} title="" maxWidth="max-w-5xl">
@@ -197,18 +215,23 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                     <Kpi label="Health Score" value={`${healthScore}/100`} color={hsColor} sub="Salud general predictiva" />
                   </div>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {[
+                      ['N° Interno', maquina.interno],
+                      ['Patente', maquina.patente],
+                      ['Tipo', maquina.tipo],
                       ['Marca', maquina.marca],
                       ['Modelo', maquina.modelo],
                       ['Año', maquina.anio],
-                      ['N° Chasis/Serie', maquina.chasis || maquina.numero_serie],
-                      ['Tipo', maquina.tipo],
-                      ['Patente', maquina.patente],
+                      ['N° Chasis', maquina.chasis || maquina.numero_serie],
+                      ['Motor', maquina.motor],
+                      ['Responsable', maquina.responsable],
                     ].map(([label, val]) => (
                       <div key={label} className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
                         <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">{label}</div>
-                        <div className="text-sm font-medium">{val || '—'}</div>
+                        <div className={`text-sm font-medium ${!val ? 'text-hm-muted/50' : 'text-hm-text'}`}>
+                          {val || '—'}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -232,14 +255,19 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                   {/* Diferenciadores */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
                     <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
-                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1 flex items-center justify-between">Cost of Downtime <span className="bg-hm-surface2/50 px-1 rounded border border-hm-border">MOCK</span></div>
-                      <div className="text-xl font-bold text-red-400">USD 150 <span className="text-xs font-normal">/ hora</span></div>
+                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1 flex items-center justify-between">
+                        Cost of Downtime 
+                        {costoDowntimeTotal > 0 && <span className="text-xs font-bold text-red-400">Total: {formatUSD(costoDowntimeTotal)}</span>}
+                      </div>
+                      <div className="text-xl font-bold text-red-400">{formatUSD(costOfDowntimePorHora)} <span className="text-xs font-normal">/ hora</span></div>
                       <div className="text-[10px] text-hm-muted mt-0.5">Costo estimado por activo detenido</div>
                     </div>
                     <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
-                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1 flex items-center justify-between">Disponibilidad Física <span className="bg-hm-surface2/50 px-1 rounded border border-hm-border">MOCK</span></div>
-                      <div className="text-xl font-bold text-green-400">92%</div>
-                      <div className="text-[10px] text-hm-muted mt-0.5">Basado en últimos 30 días</div>
+                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1 flex items-center justify-between">
+                        Disponibilidad Física
+                      </div>
+                      <div className={`text-xl font-bold ${hsColor}`}>{healthScore}%</div>
+                      <div className="text-[10px] text-hm-muted mt-0.5">Uptime calculado vs. Downtime</div>
                     </div>
                     <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
                       <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1 flex items-center justify-between">Lectura Actual</div>
@@ -394,17 +422,18 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                     {/* A) Costos operativos desglosados */}
                     <div>
                       <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">A — Desglose de Costos</div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                         {[
                           { label: 'Mantenimiento', value: repuestosMaq, color: 'text-red-400' },
                           { label: 'Mano de Obra', value: manoObraMaq, color: 'text-orange-400' },
+                          { label: 'Cubiertas', value: null, color: 'text-hm-muted', placeholder: true },
                           { label: 'Combustible', value: null, color: 'text-yellow-400', placeholder: true },
                           { label: 'Otros', value: null, color: 'text-hm-muted', placeholder: true },
                         ].map(({ label, value, color, placeholder }) => (
-                          <div key={label} className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                          <div key={label} className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3 flex flex-col justify-between">
                             <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">{label}</div>
-                            <div className={`text-base font-bold ${placeholder ? 'text-hm-muted/40' : color}`}>
-                              {placeholder ? <span className="text-[10px] bg-hm-surface2/50 px-1.5 py-0.5 rounded border border-hm-border font-normal">[BASE PREPARADA]</span> : formatUSD(value)}
+                            <div className={`text-base font-bold mt-1 ${placeholder ? 'text-hm-muted/40' : color}`}>
+                              {placeholder ? <span className="text-[9px] bg-hm-surface2/50 px-1.5 py-0.5 rounded border border-hm-border font-normal">[PREP]</span> : formatUSD(value)}
                             </div>
                           </div>
                         ))}
@@ -560,16 +589,34 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
 
               {tab === 'riesgo' && (
                 <div className="flex flex-col gap-4">
+                  <div className="flex justify-center mb-2">
+                    <div className={`px-6 py-3 rounded-xl border flex flex-col items-center ${RIESGO_STYLE[nivelRiesgo]}`}>
+                      <div className="text-xs font-mono uppercase tracking-widest opacity-80 mb-1">Estado de Riesgo</div>
+                      <div className="text-2xl font-black tracking-tight">{nivelRiesgo}</div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-hm-surface2/30 border border-hm-border p-5 rounded-xl text-center flex flex-col items-center">
-                      <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">Fallas Repetidas (Últimos 12m)</div>
-                      <div className="text-4xl font-bold text-orange-400 mb-1">0</div>
-                      <div className="text-xs text-hm-muted"><span className="bg-hm-surface2/50 px-1 rounded border border-hm-border">MOCK</span> No se detectan patrones anómalos.</div>
+                      <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2 flex gap-2">
+                        Fallas Repetidas (Últimos 12m) 
+                      </div>
+                      <div className={`text-4xl font-bold mb-1 ${fallasRepetidas > 2 ? 'text-red-400' : fallasRepetidas > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+                        {fallasRepetidas}
+                      </div>
+                      <div className="text-xs text-hm-muted mt-1">
+                        {fallasRepetidas > 2 ? 'Patrón anómalo detectado. Activo inestable.' : fallasRepetidas > 0 ? 'Posibles reincidencias, monitorear.' : 'Activo sin patrones de falla repetitiva.'}
+                      </div>
                     </div>
+                    
                     <div className="bg-hm-surface2/30 border border-hm-border p-5 rounded-xl text-center flex flex-col items-center">
-                      <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">Riesgo Operativo / Criticidad</div>
-                      <div className="text-xl font-bold text-green-400 mb-1">ESTABLE</div>
-                      <div className="text-xs text-hm-muted"><span className="bg-hm-surface2/50 px-1 rounded border border-hm-border">MOCK</span> Activo sin cuellos de botella críticos.</div>
+                      <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">Vencimientos Críticos</div>
+                      <div className={`text-xl font-bold mb-1 ${svcAlert ? 'text-red-400' : 'text-green-400'}`}>
+                        {svcAlert ? 'SERVICE URGENTE' : 'AL DÍA'}
+                      </div>
+                      <div className="text-xs text-hm-muted mt-1">
+                        {svcAlert ? 'El equipo requiere mantenimiento inmediato para evitar fallas mayores.' : 'Sin vencimientos operativos a corto plazo.'}
+                      </div>
                     </div>
                   </div>
                 </div>

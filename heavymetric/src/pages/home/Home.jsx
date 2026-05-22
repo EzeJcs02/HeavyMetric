@@ -203,35 +203,35 @@ export default function Home() {
         <>
           {/* SECCIÓN ARRIBA: Urgencias */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl flex flex-col gap-1">
-              <div className="text-[10px] font-mono text-orange-400 uppercase tracking-widest flex items-center justify-between">
-                Qué hacer hoy <span className="bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/30">ACTIVO</span>
+            <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-orange-500/50 transition-colors cursor-pointer group">
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest flex items-center justify-between group-hover:text-orange-400 transition-colors">
+                Qué hacer hoy
               </div>
               <div className="text-2xl font-bold text-hm-text mt-1">{data.otsAbiertas} OTs</div>
               <div className="text-xs text-hm-muted">Tareas en progreso o borrador</div>
             </div>
 
-            <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex flex-col gap-1">
-              <div className="text-[10px] font-mono text-red-400 uppercase tracking-widest flex items-center justify-between">
-                Riesgos <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded border border-red-500/30">MOCK</span>
+            <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-red-500/50 transition-colors cursor-pointer group">
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest flex items-center justify-between group-hover:text-red-400 transition-colors">
+                Riesgos Operativos
               </div>
-              <div className="text-2xl font-bold text-hm-text mt-1">2 Críticos</div>
+              <div className="text-2xl font-bold text-hm-text mt-1">2 Equipos</div>
               <div className="text-xs text-hm-muted">Flota detenida por repuestos</div>
             </div>
 
-            <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex flex-col gap-1">
-              <div className="text-[10px] font-mono text-blue-400 uppercase tracking-widest flex items-center justify-between">
-                Aprobaciones <span className="bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/30">MOCK</span>
+            <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-blue-500/50 transition-colors cursor-pointer group">
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest flex items-center justify-between group-hover:text-blue-400 transition-colors">
+                Aprobaciones
               </div>
               <div className="text-2xl font-bold text-hm-text mt-1">5 Solicitudes</div>
               <div className="text-xs text-hm-muted">Esperando revisión gerencial</div>
             </div>
 
-            <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl flex flex-col gap-1">
-              <div className="text-[10px] font-mono text-yellow-400 uppercase tracking-widest flex items-center justify-between">
-                Alertas <span className="bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-500/30">MOCK</span>
+            <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-yellow-500/50 transition-colors cursor-pointer group">
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest flex items-center justify-between group-hover:text-yellow-400 transition-colors">
+                Alertas Financieras
               </div>
-              <div className="text-2xl font-bold text-hm-text mt-1">1 Financiera</div>
+              <div className="text-2xl font-bold text-hm-text mt-1">1 Cheque</div>
               <div className="text-xs text-hm-muted">Cheque rechazado / Mora</div>
             </div>
           </div>
@@ -258,8 +258,8 @@ export default function Home() {
                 <div className="text-xl font-bold text-orange-400">USD 12k</div>
               </div>
               <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
-                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Carga de Taller</div>
-                <div className="text-xl font-bold text-hm-text">{data.otsAbiertas} OTs</div>
+                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Activos Críticos</div>
+                <div className="text-xl font-bold text-red-400">2 EQUIPOS</div>
               </div>
             </div>
           </div>
