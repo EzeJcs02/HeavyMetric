@@ -189,30 +189,103 @@ export default function Home() {
   const visibleModules = MODULES.filter(m => m.show)
 
   return (
-    <div className="min-h-full flex flex-col px-4 md:px-8 py-3 md:py-4 w-full max-w-7xl mx-auto overflow-hidden">
-      <div className="mb-4">
+    <div className="min-h-full flex flex-col px-4 md:px-8 py-3 md:py-4 w-full max-w-7xl mx-auto overflow-hidden gap-6">
+      <div className="mb-2">
         <h1 className="text-2xl font-bold text-hm-text tracking-tight">Centro de Operaciones</h1>
-        <p className="text-hm-muted mt-0.5 text-xs">Accedé rápidamente a las áreas clave de la empresa.</p>
+        <p className="text-hm-muted mt-0.5 text-xs">Vista general del estado de la PyME y accesos rápidos.</p>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1,2,3,4,5,6].map(i => <div key={i} className="h-64 bg-hm-surface2 rounded-xl animate-pulse" />)}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="h-32 bg-hm-surface2 rounded-xl animate-pulse" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {visibleModules.map(mod => (
-            <ModuleCard
-              key={mod.id}
-              title={mod.title}
-              description={mod.description}
-              colorClass={mod.colorClass}
-              icon={mod.icon}
-              to={mod.to}
-              metrics={mod.metrics}
-            />
-          ))}
-        </div>
+        <>
+          {/* SECCIÓN ARRIBA: Urgencias */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl flex flex-col gap-1">
+              <div className="text-[10px] font-mono text-orange-400 uppercase tracking-widest flex items-center justify-between">
+                Qué hacer hoy <span className="bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/30">ACTIVO</span>
+              </div>
+              <div className="text-2xl font-bold text-hm-text mt-1">{data.otsAbiertas} OTs</div>
+              <div className="text-xs text-hm-muted">Tareas en progreso o borrador</div>
+            </div>
+
+            <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex flex-col gap-1">
+              <div className="text-[10px] font-mono text-red-400 uppercase tracking-widest flex items-center justify-between">
+                Riesgos <span className="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded border border-red-500/30">MOCK</span>
+              </div>
+              <div className="text-2xl font-bold text-hm-text mt-1">2 Críticos</div>
+              <div className="text-xs text-hm-muted">Flota detenida por repuestos</div>
+            </div>
+
+            <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex flex-col gap-1">
+              <div className="text-[10px] font-mono text-blue-400 uppercase tracking-widest flex items-center justify-between">
+                Aprobaciones <span className="bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/30">MOCK</span>
+              </div>
+              <div className="text-2xl font-bold text-hm-text mt-1">5 Solicitudes</div>
+              <div className="text-xs text-hm-muted">Esperando revisión gerencial</div>
+            </div>
+
+            <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl flex flex-col gap-1">
+              <div className="text-[10px] font-mono text-yellow-400 uppercase tracking-widest flex items-center justify-between">
+                Alertas <span className="bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded border border-yellow-500/30">MOCK</span>
+              </div>
+              <div className="text-2xl font-bold text-hm-text mt-1">1 Financiera</div>
+              <div className="text-xs text-hm-muted">Cheque rechazado / Mora</div>
+            </div>
+          </div>
+
+          {/* SECCIÓN CENTRO: KPIs */}
+          <div>
+            <div className="text-[11px] font-mono text-hm-muted uppercase tracking-widest mb-3 flex items-center gap-2">
+              <div className="h-px bg-hm-border/50 flex-1" />
+              Indicadores Clave
+              <div className="h-px bg-hm-border/50 flex-1" />
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
+                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Flujo 7 días</div>
+                <div className="text-xl font-bold text-green-400">ESTABLE</div>
+              </div>
+              <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
+                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Estado General</div>
+                <div className="text-xl font-bold text-hm-text">OPERATIVO</div>
+              </div>
+              <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
+                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Stock Inmovilizado</div>
+                <div className="text-xl font-bold text-orange-400">USD 12k</div>
+              </div>
+              <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
+                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Carga de Taller</div>
+                <div className="text-xl font-bold text-hm-text">{data.otsAbiertas} OTs</div>
+              </div>
+            </div>
+          </div>
+
+          {/* SECCIÓN ABAJO: Accesos Rápidos */}
+          <div>
+            <div className="text-[11px] font-mono text-hm-muted uppercase tracking-widest mb-3 flex items-center gap-2">
+              <div className="h-px bg-hm-border/50 flex-1" />
+              Accesos Directos
+              <div className="h-px bg-hm-border/50 flex-1" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {visibleModules.map(mod => (
+                <ModuleCard
+                  key={mod.id}
+                  title={mod.title}
+                  description={mod.description}
+                  colorClass={mod.colorClass}
+                  icon={mod.icon}
+                  to={mod.to}
+                  metrics={mod.metrics}
+                />
+              ))}
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

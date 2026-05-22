@@ -30,6 +30,8 @@ import Portal from './pages/portal/Portal'
 import NotFound from './pages/NotFound'
 import Landing from './pages/public/Landing'
 import Aprobaciones from './pages/aprobaciones/Aprobaciones'
+import Placeholder from './components/layout/Placeholder'
+// import Activo360 from './pages/activos/Activo360' // Próximo paso: refactor de FichaMaquina a esta página
 
 const PAGE_TITLES = {
   '/':              'Bienvenido',
@@ -37,8 +39,8 @@ const PAGE_TITLES = {
   '/app/mi-jornada':    'Mi Jornada',
   '/app/dashboard':     'Dashboard',
   '/app/taller':        'Taller',
-  '/app/alquileres':    'Alquileres',
-  '/app/ventas':        'Inventario',
+  '/app/alquileres':    'Rental',
+  '/app/ventas':        'Ventas / Inventario',
   '/app/clientes':      'Clientes',
   '/app/precios':       'Precios',
   '/app/facturacion':   'Facturación',
@@ -54,6 +56,20 @@ const PAGE_TITLES = {
   '/app/ceo':           'CEO Dashboard',
   '/app/configuracion': 'Configuración',
   '/app/perfil':        'Mi Perfil',
+  
+  // Nuevas rutas refactor
+  '/app/activo360':     'Activo 360',
+  '/app/postventa':     'Postventa',
+  '/app/stock':         'Stock',
+  '/app/documentacion': 'Documentación',
+  '/app/mantenimiento': 'Mantenimiento',
+  '/app/cobranzas':     'Cobranzas',
+  '/app/estado-resultados': 'Estado de Resultados',
+  '/app/rentabilidad':  'Rentabilidad',
+  '/app/riesgos':       'Riesgos',
+  '/app/alertas':       'Alertas',
+  '/app/ia-silenciosa': 'IA Silenciosa',
+  '/app/roles':         'Roles',
 }
 
 function TitleUpdater() {
@@ -119,6 +135,21 @@ export default function App() {
               <Route path="configuracion" element={<Guard soloOwner><Configuracion /></Guard>} />
               <Route path="perfil" element={<Guard><Perfil /></Guard>} />
               <Route path="aprobaciones" element={<Guard soloSupervisor><Aprobaciones /></Guard>} />
+              
+              {/* Placeholders Discretos */}
+              <Route path="activo360" element={<Guard soloSupervisor><Placeholder title="Activo 360" description="Gestión unificada de Flota, Máquinas y Movilidad. (En migración)" /></Guard>} />
+              <Route path="postventa" element={<Guard soloSupervisor><Placeholder title="Postventa y Reclamos" description="Gestión de tickets de postventa, garantías y atención al cliente." /></Guard>} />
+              <Route path="stock" element={<Guard soloSupervisor><Placeholder title="Control de Stock" description="Administración avanzada de inventario inmovilizado y rotación." /></Guard>} />
+              <Route path="documentacion" element={<Guard soloSupervisor><Placeholder title="Documentación Técnica" description="Repositorio de manuales, seguros y habilitaciones de activos." /></Guard>} />
+              <Route path="mantenimiento" element={<Guard soloSupervisor><Placeholder title="Planes de Mantenimiento" description="Configuración de preventivos periódicos por horas/kms." /></Guard>} />
+              <Route path="cobranzas" element={<Guard soloSupervisor><Placeholder title="Gestión de Cobranzas" description="Seguimiento de mora, promesas de pago y reclamos financieros." /></Guard>} />
+              <Route path="estado-resultados" element={<Guard soloSupervisor><Placeholder title="Estado de Resultados" description="Análisis financiero detallado de ingresos vs egresos operativos." /></Guard>} />
+              
+              <Route path="rentabilidad" element={<Guard soloOwner><Placeholder title="Análisis de Rentabilidad" description="Métricas de retorno de inversión por activo, cliente o proyecto." isOwnerOnly /></Guard>} />
+              <Route path="riesgos" element={<Guard soloOwner><Placeholder title="Matriz de Riesgos" description="Visibilidad de riesgos operativos, comerciales y financieros." isOwnerOnly /></Guard>} />
+              <Route path="alertas" element={<Guard soloOwner><Placeholder title="Centro de Alertas" description="Configuración de notificaciones críticas del sistema." isOwnerOnly /></Guard>} />
+              <Route path="ia-silenciosa" element={<Guard soloOwner><Placeholder title="Motor de IA Silenciosa" description="Reglas heurísticas y analítica predictiva sobre operaciones." isOwnerOnly /></Guard>} />
+              <Route path="roles" element={<Guard soloOwner><Placeholder title="Roles y Permisos" description="Configuración de control de acceso avanzado." isOwnerOnly /></Guard>} />
             </Route>
             <Route path="portal" element={<Guard soloCliente><Portal /></Guard>} />
             <Route path="*" element={<NotFound />} />

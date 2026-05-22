@@ -139,7 +139,7 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
           <div className="p-10 text-center text-red-400">Error: {error}</div>
         ) : (
           <div className="flex flex-col">
-            {/* Header */}
+            {/* Header - ACTIVO 360 */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5 -mt-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -170,25 +170,25 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
               </div>
             </div>
 
-            {/* Tabs */}
+            {/* Tabs ACTIVO 360 */}
             <div className="flex gap-2 border-b border-hm-border mb-4 overflow-x-auto no-scrollbar scroll-smooth">
-              <TabBtn active={tab==='resumen'}       onClick={() => setTab('resumen')}>RESUMEN</TabBtn>
-              <TabBtn active={tab==='horometros'}    onClick={() => setTab('horometros')}>HORÓMETRO</TabBtn>
-              <TabBtn active={tab==='services'}      onClick={() => setTab('services')}>MANTENIMIENTO</TabBtn>
-              <TabBtn active={tab==='ots'}           onClick={() => setTab('ots')}>OTs ({ots.length})</TabBtn>
-              <TabBtn active={tab==='repuestos'}     onClick={() => setTab('repuestos')}>REPUESTOS</TabBtn>
-              <TabBtn active={tab==='garantias'}     onClick={() => setTab('garantias')}>GARANTÍAS</TabBtn>
+              <TabBtn active={tab==='datos'}         onClick={() => setTab('datos')}>DATOS</TabBtn>
+              <TabBtn active={tab==='operacion'}     onClick={() => setTab('operacion')}>OPERACIÓN</TabBtn>
+              <TabBtn active={tab==='taller'}        onClick={() => setTab('taller')}>TALLER</TabBtn>
               <TabBtn active={tab==='costos'}        onClick={() => setTab('costos')}>COSTOS</TabBtn>
               <TabBtn active={tab==='rentabilidad'}  onClick={() => setTab('rentabilidad')}>RENTABILIDAD</TabBtn>
-              <TabBtn active={tab==='disponibilidad'}onClick={() => setTab('disponibilidad')}>DISPONIBILIDAD</TabBtn>
+              <TabBtn active={tab==='documentacion'} onClick={() => setTab('documentacion')}>DOCUMENTACIÓN</TabBtn>
+              <TabBtn active={tab==='garantias'}     onClick={() => setTab('garantias')}>GARANTÍAS</TabBtn>
+              <TabBtn active={tab==='rental'}        onClick={() => setTab('rental')}>RENTAL</TabBtn>
+              <TabBtn active={tab==='riesgo'}        onClick={() => setTab('riesgo')}>RIESGO</TabBtn>
               <TabBtn active={tab==='timeline'}      onClick={() => setTab('timeline')}>TIMELINE</TabBtn>
             </div>
 
             {/* Content Container */}
             <div className="min-h-[400px]">
               
-              {/* 1. RESUMEN */}
-              {tab === 'resumen' && (
+              {/* 1. DATOS (Resumen) */}
+              {tab === 'datos' && (
                 <div className="flex flex-col gap-6">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <Kpi label="Cliente Asociado" value={maquina.cliente?.razon_social || 'Propia'} />
@@ -226,9 +226,28 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                 </div>
               )}
 
-              {/* 2. HORÓMETRO */}
-              {tab === 'horometros' && (
-                <div className="flex flex-col gap-5">
+              {/* 2. OPERACIÓN */}
+              {tab === 'operacion' && (
+                <div className="flex flex-col gap-6">
+                  {/* Diferenciadores */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
+                    <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1 flex items-center justify-between">Cost of Downtime <span className="bg-hm-surface2/50 px-1 rounded border border-hm-border">MOCK</span></div>
+                      <div className="text-xl font-bold text-red-400">USD 150 <span className="text-xs font-normal">/ hora</span></div>
+                      <div className="text-[10px] text-hm-muted mt-0.5">Costo estimado por activo detenido</div>
+                    </div>
+                    <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1 flex items-center justify-between">Disponibilidad Física <span className="bg-hm-surface2/50 px-1 rounded border border-hm-border">MOCK</span></div>
+                      <div className="text-xl font-bold text-green-400">92%</div>
+                      <div className="text-[10px] text-hm-muted mt-0.5">Basado en últimos 30 días</div>
+                    </div>
+                    <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1 flex items-center justify-between">Lectura Actual</div>
+                      <div className="text-xl font-bold text-hm-text">{maquina.horometro_actual || 0} <span className="text-xs font-normal">hs</span></div>
+                      <div className="text-[10px] text-hm-muted mt-0.5">Última actualización: hoy</div>
+                    </div>
+                  </div>
+
                   <form onSubmit={handleAddHorometro} className="bg-hm-surface2/30 border border-hm-border rounded-xl p-4 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                     <Input label="Lectura (Hrs/Km)" type="number" value={horoForm.horometro_valor} onChange={e => setHoroForm(p => ({ ...p, horometro_valor: e.target.value }))} required />
                     <Input label="Fecha" type="date" value={horoForm.fecha_lectura} onChange={e => setHoroForm(p => ({ ...p, fecha_lectura: e.target.value }))} />
@@ -257,11 +276,11 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                 </div>
               )}
 
-              {/* 3. SERVICES */}
-              {tab === 'services' && (
+              {/* 3. TALLER (Services + OTs) */}
+              {tab === 'taller' && (
                 <div className="flex flex-col gap-5">
                   {svc ? (
-                    <div className="bg-hm-surface2/30 border border-hm-border p-6 rounded-xl">
+                    <div className="bg-hm-surface2/30 border border-hm-border p-6 rounded-xl mb-2">
                       <h3 className="font-bold text-lg mb-4">Estado del Mantenimiento</h3>
                       <div className="flex justify-between text-sm font-mono text-hm-muted mb-2">
                         <span>PRÓXIMO SERVICE</span>
@@ -290,50 +309,44 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                   ) : (
                     <EmptyState icon="⚙️" title="Sin métricas de mantenimiento" desc="No se ha configurado la frecuencia de service para este activo." />
                   )}
-                  
-                  <div className="text-xs text-hm-muted px-4">
-                    Historial completo de services y reparaciones se encuentra en la pestaña <strong>OTs</strong>.
+
+                  <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1 mt-2">Historial de OTs</div>
+                  <div className="max-h-[300px] overflow-y-auto pr-2 flex flex-col gap-3">
+                    {ots.length === 0 ? (
+                      <EmptyState icon="🔧" title="Sin OTs" desc="No registra órdenes de trabajo históricas." />
+                    ) : (
+                      ots.map(ot => (
+                        <div key={ot.id} className="bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50 hover:border-hm-accent/30 transition-colors group/ot">
+                          <div className="flex justify-between mb-2">
+                            <span className="text-sm font-bold text-hm-accent">OT #{ot.numero_ot}</span>
+                            <Badge variant={ot.estado === 'completada' || ot.estado === 'facturada' ? 'success' : ot.estado === 'cancelada' ? 'danger' : 'warning'}>
+                              {ot.estado.replace('_',' ').toUpperCase()}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-hm-text mb-3">{ot.descripcion_trabajo || 'Sin descripción'}</p>
+                          <div className="flex justify-between items-center text-xs font-mono text-hm-muted">
+                            <span>Fecha: {ot.fecha_ingreso}</span>
+                            <div className="flex items-center gap-3">
+                              <span>Mano Obra: {ot.horas_mano_obra || 0}h</span>
+                              <span className="text-hm-text font-bold">TOTAL: {formatUSD(ot.total_usd)}</span>
+                              <button
+                                onClick={() => exportarOTPdf(ot, maquina)}
+                                className="text-hm-muted hover:text-hm-accent border border-hm-border rounded px-2 py-1 hover:border-hm-accent transition-colors"
+                              >
+                                PDF ↓
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* 4. OTs */}
-              {tab === 'ots' && (
-                <div className="max-h-[400px] overflow-y-auto pr-2 flex flex-col gap-3">
-                  {ots.length === 0 ? (
-                    <EmptyState icon="🔧" title="Sin OTs" desc="No registra órdenes de trabajo históricas." />
-                  ) : (
-                    ots.map(ot => (
-                      <div key={ot.id} className="bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50 hover:border-hm-accent/30 transition-colors group/ot">
-                        <div className="flex justify-between mb-2">
-                          <span className="text-sm font-bold text-hm-accent">OT #{ot.numero_ot}</span>
-                          <Badge variant={ot.estado === 'completada' || ot.estado === 'facturada' ? 'success' : ot.estado === 'cancelada' ? 'danger' : 'warning'}>
-                            {ot.estado.replace('_',' ').toUpperCase()}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-hm-text mb-3">{ot.descripcion_trabajo || 'Sin descripción'}</p>
-                        <div className="flex justify-between items-center text-xs font-mono text-hm-muted">
-                          <span>Fecha: {ot.fecha_ingreso}</span>
-                          <div className="flex items-center gap-3">
-                            <span>Mano Obra: {ot.horas_mano_obra || 0}h</span>
-                            <span className="text-hm-text font-bold">TOTAL: {formatUSD(ot.total_usd)}</span>
-                            <button
-                              onClick={() => exportarOTPdf(ot, maquina)}
-                              className="text-hm-muted hover:text-hm-accent border border-hm-border rounded px-2 py-1 hover:border-hm-accent transition-colors"
-                            >
-                              PDF ↓
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {/* 5. REPUESTOS USADOS */}
-              {tab === 'repuestos' && (
-                <EmptyState icon="📦" title="Registro de piezas" desc="El sistema está preparado para recibir el desglose de repuestos consumidos por este activo." />
+              {/* 5. DOCUMENTACION */}
+              {tab === 'documentacion' && (
+                <EmptyState icon="📄" title="Documentación Técnica" desc="Base preparada para subir manuales, seguros y habilitaciones del activo." />
               )}
 
               {/* 6. GARANTÍAS */}
@@ -540,13 +553,31 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                 </div>
               )}
 
-              {/* 10. TIMELINE */}
-              {tab === 'timeline' && (
-                <div className="max-h-[400px] overflow-y-auto">
-                  <Timeline360 maquinaId={maquina.id} orgId={maquina.organization_id} />
+              {/* 9. RENTAL Y RIESGO */}
+              {tab === 'rental' && (
+                <EmptyState icon="🚜" title="Gestión de Alquileres" desc="Este módulo centraliza los contratos de alquiler, remitos de entrega y devoluciones del activo. (Base Preparada)" />
+              )}
+
+              {tab === 'riesgo' && (
+                <div className="flex flex-col gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-hm-surface2/30 border border-hm-border p-5 rounded-xl text-center flex flex-col items-center">
+                      <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">Fallas Repetidas (Últimos 12m)</div>
+                      <div className="text-4xl font-bold text-orange-400 mb-1">0</div>
+                      <div className="text-xs text-hm-muted"><span className="bg-hm-surface2/50 px-1 rounded border border-hm-border">MOCK</span> No se detectan patrones anómalos.</div>
+                    </div>
+                    <div className="bg-hm-surface2/30 border border-hm-border p-5 rounded-xl text-center flex flex-col items-center">
+                      <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">Riesgo Operativo / Criticidad</div>
+                      <div className="text-xl font-bold text-green-400 mb-1">ESTABLE</div>
+                      <div className="text-xs text-hm-muted"><span className="bg-hm-surface2/50 px-1 rounded border border-hm-border">MOCK</span> Activo sin cuellos de botella críticos.</div>
+                    </div>
+                  </div>
                 </div>
               )}
 
+              {/* 10. TIMELINE */}
+              {tab === 'timeline' && <Timeline360 maquinaId={maquina.id} />}
+              
             </div>
           </div>
         )}
