@@ -3,6 +3,7 @@ import Badge from '../../ui/Badge'
 import { useCliente360, calcServiceState } from '../../../hooks/useCliente360'
 import { useDolar } from '../../../context/DolarContext'
 import { useState } from 'react'
+import Timeline360 from '../timeline/Timeline360'
 
 const PROP_STYLE = {
   A: 'bg-red-500/20 text-red-300 border-red-500/40',
@@ -134,6 +135,7 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
       {/* Tabs */}
       <div className="flex gap-0 border-b border-hm-border mb-4 overflow-x-auto">
         <TabBtn active={tab==='resumen'}       onClick={() => handleTabChange('resumen')}>RESUMEN</TabBtn>
+        <TabBtn active={tab==='timeline'}      onClick={() => handleTabChange('timeline')}>TIMELINE</TabBtn>
         <TabBtn active={tab==='flota'}         onClick={() => handleTabChange('flota')}>FLOTA ({flota.length})</TabBtn>
         <TabBtn active={tab==='crm'}           onClick={() => handleTabChange('crm')}>CRM ({leads.length})</TabBtn>
         <TabBtn active={tab==='cotizaciones'}  onClick={() => handleTabChange('cotizaciones')}>COTIZ. ({cotizaciones.length})</TabBtn>
@@ -157,6 +159,13 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
               <div className="text-sm font-medium truncate">{val || '—'}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Tab: TIMELINE ── */}
+      {tab === 'timeline' && (
+        <div className="max-h-[500px] overflow-y-auto pr-2">
+          <Timeline360 clienteId={cliente.id} orgId={cliente.organization_id} />
         </div>
       )}
 

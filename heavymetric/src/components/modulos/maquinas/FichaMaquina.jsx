@@ -13,6 +13,7 @@ import Card from '../../ui/Card'
 import Badge from '../../ui/Badge'
 import Button from '../../ui/Button'
 import Input from '../../ui/Input'
+import Timeline360 from '../timeline/Timeline360'
 
 export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
   const { maquina, ots, contratos, stats, loading, error } = useMaquinaDetalle(maquinaId)
@@ -222,6 +223,16 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                     <Button type="submit" variant="primary" disabled={savingHoro}>{savingHoro ? 'GUARDANDO...' : '+ REGISTRAR LECTURA'}</Button>
                   </div>
                 </form>
+              </div>
+            </section>
+
+            {/* TIMELINE 360 */}
+            <section className="border border-hm-border rounded-xl p-4">
+              <h3 className="font-mono text-sm text-hm-muted mb-4 tracking-widest flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-500"></span> TIMELINE 360°
+              </h3>
+              <div className="max-h-[400px] overflow-y-auto">
+                <Timeline360 maquinaId={maquina.id} orgId={maquina.organization_id} />
               </div>
             </section>
 

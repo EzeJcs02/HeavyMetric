@@ -5,6 +5,8 @@ import { useDolar } from '../../context/DolarContext'
 import { useTheme } from '../../context/ThemeContext'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
+import { formatDistanceToNow } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 function Initials({ name }) {
   const parts = (name || '').trim().split(' ').filter(Boolean)
@@ -25,7 +27,10 @@ export default function Topbar() {
   const [uploading, setUploading] = useState(false)
   const [editingNombre, setEditingNombre] = useState(false)
   const [nombreInput, setNombreInput] = useState('')
+  const [openNotif, setOpenNotif] = useState(false)
+  const [notificaciones, setNotificaciones] = useState([])
   const dropdownRef = useRef(null)
+  const notifRef = useRef(null)
   const fileInputRef = useRef(null)
   const nombreInputRef = useRef(null)
 
@@ -38,10 +43,57 @@ export default function Topbar() {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setOpen(false)
       }
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setOpenNotif(false)
+      }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  useEffect(() => {
+    if (!orgId) return
+    async function loadNotificaciones() {
+      const { data } = await supabase
+        .from('notificaciones')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false })
+        .limit(10)
+      if (data) setNotificaciones(data)
+    }
+    loadNotificaciones()
+
+    // Subscripción en tiempo real a notificaciones
+    const sub = supabase.channel('notif_channel')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificaciones', filter: `organization_id=eq.${orgId}` }, payload => {
+        setNotificaciones(prev => [payload.new, ...prev].slice(0, 10))
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notificaciones', filter: `organization_id=eq.${orgId}` }, payload => {
+        setNotificaciones(prev => prev.map(n => n.id === payload.new.id ? payload.new : n))
+      })
+      .subscribe()
+    
+    return () => { supabase.removeChannel(sub) }
+  }, [orgId])
+
+  async function marcarLeida(id) {
+    const { error } = await supabase.from('notificaciones').update({ leido: true }).eq('id', id)
+    if (!error) {
+      setNotificaciones(prev => prev.map(n => n.id === id ? { ...n, leido: true } : n))
+    }
+  }
+
+  async function marcarTodasLeidas() {
+    const ids = notificaciones.filter(n => !n.leido).map(n => n.id)
+    if (!ids.length) return
+    const { error } = await supabase.from('notificaciones').update({ leido: true }).in('id', ids)
+    if (!error) {
+      setNotificaciones(prev => prev.map(n => ({ ...n, leido: true })))
+    }
+  }
+
+  const noLeidas = notificaciones.filter(n => !n.leido).length
 
   function startEditNombre() {
     setNombreInput(orgNombre)
@@ -132,10 +184,73 @@ export default function Topbar() {
         </div>
       )}
 
+      {/* Centro de Notificaciones */}
+      <div className="relative border-l border-hm-border pl-4" ref={notifRef}>
+        <button
+          onClick={() => {
+            setOpenNotif(o => !o)
+            if (open) setOpen(false)
+          }}
+          className="relative p-2 text-hm-muted hover:text-hm-text hover:bg-hm-surface2 rounded-lg transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          {noLeidas > 0 && (
+            <span className="absolute top-1 right-1 flex items-center justify-center w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-hm-surface">
+              {noLeidas}
+            </span>
+          )}
+        </button>
+
+        {openNotif && (
+          <div className="absolute right-0 top-full mt-2 w-80 bg-hm-surface border border-hm-border rounded-xl shadow-card z-50 overflow-hidden animate-fade-in flex flex-col max-h-[400px]">
+            <div className="px-4 py-3 border-b border-hm-border flex items-center justify-between bg-hm-surface2/50 shrink-0">
+              <span className="text-sm font-semibold text-hm-text">Notificaciones</span>
+              {noLeidas > 0 && (
+                <button onClick={marcarTodasLeidas} className="text-xs text-hm-accent hover:underline">
+                  Marcar leídas
+                </button>
+              )}
+            </div>
+            
+            <div className="overflow-y-auto flex-1 overscroll-contain">
+              {notificaciones.length === 0 ? (
+                <div className="p-6 text-center text-sm text-hm-muted">
+                  No tienes notificaciones
+                </div>
+              ) : (
+                notificaciones.map(n => (
+                  <div
+                    key={n.id}
+                    onClick={() => { if (!n.leido) marcarLeida(n.id) }}
+                    className={`px-4 py-3 border-b border-hm-border last:border-0 cursor-pointer transition-colors ${n.leido ? 'opacity-70 hover:bg-hm-surface2/50' : 'bg-hm-accent/5 hover:bg-hm-accent/10'}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-2 h-2 mt-1.5 rounded-full shrink-0 ${n.prioridad === 'alta' ? 'bg-red-500' : n.prioridad === 'baja' ? 'bg-blue-500' : 'bg-amber-500'}`} />
+                      <div>
+                        <div className="text-sm font-semibold text-hm-text leading-snug">{n.titulo}</div>
+                        <div className="text-xs text-hm-muted mt-0.5 line-clamp-2">{n.mensaje}</div>
+                        <div className="text-[10px] font-mono text-hm-muted/70 mt-1 uppercase">
+                          {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: es })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Avatar + dropdown */}
       <div className="relative border-l border-hm-border pl-4" ref={dropdownRef}>
         <button
-          onClick={() => setOpen(o => !o)}
+          onClick={() => {
+            setOpen(o => !o)
+            if (openNotif) setOpenNotif(false)
+          }}
           className="flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-hm-surface2 transition-colors"
         >
           <div className="text-right hidden sm:block">

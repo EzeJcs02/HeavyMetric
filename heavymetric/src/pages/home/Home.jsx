@@ -161,6 +161,8 @@ const MODULES = [
   },
 ]
 
+import BandejaHoy from './BandejaHoy'
+
 export default function Home() {
   const { perfil } = useAuth()
   const navigate = useNavigate()
@@ -169,35 +171,39 @@ export default function Home() {
   const visibles = MODULES.filter(m => m.roles.includes(rol))
 
   return (
-    <div className="min-h-full flex flex-col items-center justify-start px-8 py-12">
-      <div className="w-full max-w-4xl">
-        <div className="mb-10">
-          <h1 className="text-2xl font-bold text-hm-text">
-            Bienvenido, {perfil?.nombre || 'usuario'}
-          </h1>
-          <p className="text-sm text-hm-muted mt-1">Seleccioná un módulo para comenzar</p>
+    <div className="min-h-full flex flex-col items-center justify-start px-4 md:px-8 py-6 md:py-8 w-full max-w-7xl mx-auto">
+      <div className="w-full flex flex-col gap-8">
+        
+        {/* Cabecera y accesos rápidos */}
+        <div className="flex flex-col gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-hm-text">
+              Bandeja HOY
+            </h1>
+            <p className="text-sm text-hm-muted mt-1">Resumen operativo para {perfil?.nombre || 'usuario'}</p>
+          </div>
+
+          <div className="flex overflow-x-auto pb-2 gap-3 no-scrollbar scroll-smooth">
+            {visibles.map(m => (
+              <button
+                key={m.to}
+                onClick={() => navigate(m.to)}
+                className={`
+                  flex items-center gap-2 px-4 py-2 rounded-lg border shrink-0
+                  bg-gradient-to-r ${m.color} bg-hm-surface
+                  hover:scale-[1.02] active:scale-[0.98] transition-all
+                `}
+              >
+                <span className={`w-5 h-5 ${m.iconColor}`}>{m.icon}</span>
+                <span className="text-hm-text font-semibold text-sm whitespace-nowrap">{m.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {visibles.map(m => (
-            <button
-              key={m.to}
-              onClick={() => navigate(m.to)}
-              className={`
-                flex flex-col items-center gap-3 p-6 rounded-2xl border
-                bg-gradient-to-br ${m.color}
-                hover:scale-[1.03] hover:shadow-lg hover:shadow-black/30
-                active:scale-[0.98] transition-all duration-150 text-center
-              `}
-            >
-              <span className={m.iconColor}>{m.icon}</span>
-              <div>
-                <div className="text-hm-text font-semibold text-sm">{m.label}</div>
-                <div className="text-hm-muted text-xs mt-0.5">{m.description}</div>
-              </div>
-            </button>
-          ))}
-        </div>
+        {/* Componente principal de Bandeja */}
+        <BandejaHoy />
+
       </div>
     </div>
   )
