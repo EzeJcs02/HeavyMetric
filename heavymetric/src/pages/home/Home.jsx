@@ -66,14 +66,13 @@ export default function Home() {
   const isSupervisor = rol === 'supervisor' || isOwner
   const isOperativo = rol === 'operativo'
 
-  const MODULES = [
     {
       id: 'ventas',
       title: 'Ventas / CRM',
       description: 'Gestión comercial y prospectos',
       colorClass: 'from-yellow-500/20 to-yellow-600/10 border-yellow-500/30 text-yellow-400',
       icon: <SVG d="M13 10V3L4 14h7v7l9-11h-7z" />,
-      to: '/leads',
+      to: '/app/leads',
       show: isSupervisor,
       metrics: [
         { label: 'Leads activos', value: data.leadsActivos },
@@ -86,7 +85,7 @@ export default function Home() {
       description: 'Atención al cliente y reclamos',
       colorClass: 'from-teal-500/20 to-teal-600/10 border-teal-500/30 text-teal-400',
       icon: <SVG2 d1="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" d2="" />,
-      to: '/taller',
+      to: '/app/taller',
       show: isSupervisor,
       metrics: [
         { label: 'Services Próximos', value: data.servicesProximos, color: data.servicesProximos > 0 ? 'text-red-400' : 'text-green-400' },
@@ -99,7 +98,7 @@ export default function Home() {
       description: 'Mantenimiento y estado de flota',
       colorClass: 'from-blue-500/20 to-blue-600/10 border-blue-500/30 text-blue-400',
       icon: <SVG d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />,
-      to: '/taller',
+      to: '/app/taller',
       show: true, // todos ven taller
       metrics: [
         { label: 'OTs Abiertas', value: data.otsAbiertas, color: data.otsAbiertas > 0 ? 'text-amber-400' : 'text-green-400' },
@@ -112,7 +111,7 @@ export default function Home() {
       description: 'Inventario y almacén',
       colorClass: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/30 text-emerald-400',
       icon: <SVG d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />,
-      to: '/repuestos',
+      to: '/app/repuestos',
       show: true,
       metrics: [
         { label: 'Stock crítico', value: data.stockCritico, color: data.stockCritico > 0 ? 'text-red-400' : 'text-green-400' },
@@ -125,7 +124,7 @@ export default function Home() {
       description: 'Abastecimiento y riesgos',
       colorClass: 'from-rose-500/20 to-rose-600/10 border-rose-500/30 text-rose-400',
       icon: <SVG d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />,
-      to: '/proveedores',
+      to: '/app/proveedores',
       show: isSupervisor,
       metrics: [
         { label: 'Riesgo proveedores', value: 'Próximamente', isPlaceholder: true },
@@ -138,7 +137,7 @@ export default function Home() {
       description: 'Gestión de renta de equipos',
       colorClass: 'from-violet-500/20 to-violet-600/10 border-violet-500/30 text-violet-400',
       icon: <SVG d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
-      to: '/alquileres',
+      to: '/app/alquileres',
       show: isSupervisor,
       metrics: [
         { label: 'Activos alquilados', value: data.alquilados },
@@ -151,7 +150,7 @@ export default function Home() {
       description: 'Finanzas, cobros y fiscal',
       colorClass: 'from-green-500/20 to-green-600/10 border-green-500/30 text-green-400',
       icon: <SVG d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />,
-      to: '/facturacion',
+      to: '/app/facturacion',
       show: isSupervisor,
       metrics: [
         { label: 'Cobranzas pendientes', value: 'Próximamente', isPlaceholder: true },
@@ -164,7 +163,7 @@ export default function Home() {
       description: 'Inteligencia de negocio',
       colorClass: 'from-orange-500/20 to-orange-600/10 border-orange-500/30 text-orange-400',
       icon: <SVG d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />,
-      to: '/ceo',
+      to: '/app/ceo',
       show: isOwner,
       metrics: [
         { label: 'Estado de Resultados', value: 'Próximamente', isPlaceholder: true },
@@ -177,7 +176,7 @@ export default function Home() {
       description: 'Tareas y seguimiento diario',
       colorClass: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/30 text-cyan-400',
       icon: <SVG d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />,
-      to: '/mi-jornada',
+      to: '/app/mi-jornada',
       show: true,
       metrics: [
         { label: 'Mis OTs asignadas', value: isOperativo ? data.otsAbiertas : 'Ver detalle' },
