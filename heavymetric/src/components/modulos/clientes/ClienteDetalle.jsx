@@ -151,6 +151,7 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
         <TabBtn active={tab==='comercial'}     onClick={() => handleTabChange('comercial')}>COMERCIAL ({leads.length + cotizaciones.length})</TabBtn>
         <TabBtn active={tab==='facturacion'}   onClick={() => handleTabChange('facturacion')}>FACTURACIÓN</TabBtn>
         <TabBtn active={tab==='cobranzas'}     onClick={() => handleTabChange('cobranzas')}>COBRANZAS</TabBtn>
+        <TabBtn active={tab==='financiero'}    onClick={() => handleTabChange('financiero')}>💰 FINANCIERO</TabBtn>
         <TabBtn active={tab==='flota'}         onClick={() => handleTabChange('flota')}>FLOTA ({flota.length})</TabBtn>
         <TabBtn active={tab==='ots'}           onClick={() => handleTabChange('ots')}>SERVICIOS ({ots.length})</TabBtn>
         <TabBtn active={tab==='garantias'}     onClick={() => handleTabChange('garantias')}>RECLAMOS</TabBtn>
@@ -447,6 +448,173 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
             {tab === 'garantias' && (
               <EmptyState icon="🛡️" title="Sin incidencias activas" desc="El sistema no registra reclamos abiertos ni garantías ejecutadas recientemente." />
             )}
+
+            {/* FINANCIERO */}
+            {tab === 'financiero' && (() => {
+              // Mock Data — TODO: conectar con tabla cobranzas, transacciones, cheques_recibidos
+              const estadoCliente = kpis.deudaPendiente > 5000 ? 'moroso'
+                : kpis.deudaPendiente > 1000 ? 'riesgoso'
+                : kpis.facturadoTotal > 10000 ? 'estratégico'
+                : 'normal'
+              const ESTADO_BADGE = {
+                normal:      'bg-green-500/20 text-green-300 border-green-500/40',
+                estratégico: 'bg-hm-accent/20 text-hm-accent border-hm-accent/40',
+                riesgoso:    'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+                moroso:      'bg-red-500/20 text-red-300 border-red-500/40',
+              }
+              const MOCK_CHEQUES = [
+                { id: 1, banco: 'Santander', numero: '00234501', importe: 150000, vencimiento: '2026-06-20', estado: 'en_cartera', moneda: 'ARS' },
+                { id: 2, banco: 'Galicia',   numero: '00198712', importe: 2500,   vencimiento: '2026-05-28', estado: 'por_vencer', moneda: 'USD' },
+              ]
+              const MOCK_PROMESAS = [
+                { id: 1, fecha: '2026-05-30', monto: 180000, estado: 'pendiente', notas: 'Prometió transferir antes de fin de mes' },
+              ]
+              const scoreLabel = { normal: 'SIN MORA', estratégico: 'CLIENTE VIP', riesgoso: 'RIESGO MODERADO', moroso: 'MOROSO' }
+              const factPend = kpis.deudaPendiente
+              const creditoUsado = kpis.facturadoTotal > 0 ? Math.min(Math.round((factPend / (factPend + 20000)) * 100), 100) : 0
+              return (
+                <div className="flex flex-col gap-5">
+                  {/* Badge estado cliente */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold ${ESTADO_BADGE[estadoCliente]}`}>
+                      <span className="w-2 h-2 rounded-full bg-current" />
+                      {estadoCliente.toUpperCase()}
+                    </span>
+                    <span className="text-xs text-hm-muted font-mono">{scoreLabel[estadoCliente]}</span>
+                  </div>
+
+                  {/* A) Condiciones de pago */}
+                  <div>
+                    <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">A — Condiciones de Pago</div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {[['Forma habitual', 'Transferencia / Cheque'],['Plazo promedio', '30 días'],['Moneda', 'ARS / USD mixto'],['Límite de crédito', formatUSD(50000)],['Cond. IVA', cliente.condicion_iva || '—'],['Observaciones', 'Base preparada']].map(([k,v]) => (
+                        <div key={k} className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">{k}</div>
+                          <div className="text-sm font-medium">{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* B) KPIs financieros */}
+                  <div>
+                    <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">B — KPIs Financieros</div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Deuda actual</div>
+                        <div className={`text-xl font-bold ${factPend > 0 ? 'text-red-400' : 'text-green-400'}`}>{factPend > 0 ? formatUSD(factPend) : 'Sin deuda'}</div>
+                      </div>
+                      <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Score mora</div>
+                        <div className={`text-xl font-bold ${estadoCliente === 'moroso' ? 'text-red-400' : estadoCliente === 'riesgoso' ? 'text-yellow-400' : 'text-green-400'}`}>{estadoCliente === 'moroso' ? 'ALTO' : estadoCliente === 'riesgoso' ? 'MEDIO' : 'BAJO'}</div>
+                      </div>
+                      <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Días prom. pago</div>
+                        <div className="text-xl font-bold">Base preparada</div>
+                      </div>
+                      <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Facturas pendientes</div>
+                        <div className={`text-xl font-bold ${kpis.otsAbiertas > 0 ? 'text-yellow-400' : 'text-green-400'}`}>{kpis.otsAbiertas}</div>
+                      </div>
+                      <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Facturas vencidas</div>
+                        <div className={`text-xl font-bold ${factPend > 0 ? 'text-red-400' : 'text-green-400'}`}>{factPend > 0 ? 1 : 0}</div>
+                      </div>
+                      <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                        <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Crédito usado</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-1 h-2 bg-hm-surface2 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${creditoUsado > 80 ? 'bg-red-500' : creditoUsado > 50 ? 'bg-yellow-500' : 'bg-green-500'}`} style={{width:`${creditoUsado}%`}} />
+                          </div>
+                          <span className="text-xs font-mono font-bold">{creditoUsado}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* C) Cobranza / Promesas */}
+                  <div>
+                    <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">C — Promesas de Pago</div>
+                    {MOCK_PROMESAS.length === 0 ? (
+                      <div className="text-sm text-hm-muted">Sin promesas registradas.</div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {MOCK_PROMESAS.map(p => (
+                          <div key={p.id} className="flex items-center justify-between bg-hm-surface2/20 border border-hm-border/50 rounded-lg px-4 py-3">
+                            <div>
+                              <div className="text-xs font-mono text-hm-muted">{fmtFecha(p.fecha)}</div>
+                              <div className="text-sm font-medium mt-0.5">{p.notas}</div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-sm font-bold">{new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(p.monto)}</span>
+                              <span className={`text-[10px] font-mono border rounded px-2 py-0.5 uppercase ${p.estado === 'pendiente' ? 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10' : 'border-green-500/50 text-green-400 bg-green-500/10'}`}>{p.estado}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* D) Cheques / E-Cheqs */}
+                  <div>
+                    <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">D — Cheques y E-Cheqs Recibidos</div>
+                    <div className="flex flex-col gap-2">
+                      {MOCK_CHEQUES.map(c => {
+                        const venc = new Date(c.vencimiento + 'T00:00:00')
+                        const diasRestantes = Math.ceil((venc - new Date()) / (1000*60*60*24))
+                        const alerta = diasRestantes <= 10
+                        return (
+                          <div key={c.id} className={`flex items-center justify-between rounded-lg px-4 py-3 border ${alerta ? 'bg-red-500/10 border-red-500/30' : 'bg-hm-surface2/20 border-hm-border/50'}`}>
+                            <div>
+                              <div className={`text-xs font-mono mb-0.5 ${alerta ? 'text-red-300' : 'text-hm-muted'}`}>Vence: {venc.toLocaleDateString('es-AR')} {alerta && `(¡${diasRestantes}d!)`}</div>
+                              <div className="font-bold text-sm">{c.banco} — #{c.numero}</div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-sm font-bold">{c.moneda === 'USD' ? `USD ${c.importe.toLocaleString()}` : new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(c.importe)}</span>
+                              <span className={`text-[10px] font-mono border rounded px-2 py-0.5 uppercase ${c.estado === 'por_vencer' ? 'border-red-500/50 text-red-400 bg-red-500/10' : 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10'}`}>{c.estado.replace('_',' ')}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* E) Alertas financieras */}
+                  <div>
+                    <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">E — Alertas Financieras</div>
+                    <div className="flex flex-col gap-2">
+                      {factPend > 0 && (
+                        <div className="bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3">
+                          <div className="text-red-400 font-bold text-sm">⚠️ Factura vencida</div>
+                          <div className="text-xs text-red-200 mt-0.5">Deuda total: {formatUSD(factPend)} — Requiere gestión inmediata.</div>
+                        </div>
+                      )}
+                      {MOCK_CHEQUES.some(c => { const d = Math.ceil((new Date(c.vencimiento+'T00:00:00') - new Date())/(1000*60*60*24)); return d <= 10 }) && (
+                        <div className="bg-orange-500/10 border-l-4 border-orange-500 rounded-r-lg p-3">
+                          <div className="text-orange-400 font-bold text-sm">🏦 Cheque próximo a vencer</div>
+                          <div className="text-xs text-orange-200 mt-0.5">Hay cheques con vencimiento en los próximos 10 días.</div>
+                        </div>
+                      )}
+                      {creditoUsado > 80 && (
+                        <div className="bg-yellow-500/10 border-l-4 border-yellow-500 rounded-r-lg p-3">
+                          <div className="text-yellow-400 font-bold text-sm">💳 Límite de crédito casi superado</div>
+                          <div className="text-xs text-yellow-200 mt-0.5">Crédito utilizado al {creditoUsado}% del límite asignado.</div>
+                        </div>
+                      )}
+                      {estadoCliente === 'moroso' && (
+                        <div className="bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3">
+                          <div className="text-red-400 font-bold text-sm">🚨 Cliente moroso</div>
+                          <div className="text-xs text-red-200 mt-0.5">Evaluar condiciones de venta futuras con este cliente.</div>
+                        </div>
+                      )}
+                      {factPend === 0 && !MOCK_CHEQUES.some(c => Math.ceil((new Date(c.vencimiento+'T00:00:00') - new Date())/(1000*60*60*24)) <= 10) && creditoUsado <= 80 && estadoCliente !== 'moroso' && (
+                        <div className="text-center py-6 text-hm-muted text-sm">✅ Sin alertas financieras activas</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* 9. RENTABILIDAD */}
             {tab === 'rentabilidad' && (

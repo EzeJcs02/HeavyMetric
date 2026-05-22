@@ -100,15 +100,131 @@ export default function CEODashboard() {
       </div>
 
       {/* ── FINANZAS / ESTADO DE RESULTADOS ── */}
-      <Section title="Estado de Resultados Sintético (Año actual)">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+      <Section title="Estado de Resultados (Gerencial)">
+        {/* KPIs rápidos */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           {loading ? [1,2,3,4,5].map(i => <Skeleton key={i} className="h-[80px]" />) : <>
-            <KpiBlock label="Ventas Anuales" value={formatUSD(data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0)} accent="text-green-400" />
-            <KpiBlock label="Costo Operativo (OTs)" value={formatUSD(k?.costoMantenimiento)} accent="text-orange-400" />
-            <KpiBlock label="Gastos y Compras" value={formatUSD(k?.gastoProveedores)} accent="text-red-400" />
+            <KpiBlock label="Ingresos Totales" value={formatUSD(data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0)} accent="text-green-400" />
+            <KpiBlock label="Costo Operativo" value={formatUSD(k?.costoMantenimiento)} accent="text-orange-400" />
+            <KpiBlock label="Compras / Supply" value={formatUSD(k?.gastoProveedores)} accent="text-red-400" />
             <KpiBlock label="Utilidad Bruta" value={formatUSD((data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0) - (k?.costoMantenimiento || 0) - (k?.gastoProveedores || 0))} accent="text-hm-accent" />
             <KpiBlock label="Margen Op." value={`${(((data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0) - (k?.costoMantenimiento || 0) - (k?.gastoProveedores || 0)) / (data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 1) * 100).toFixed(1)}%`} accent="text-hm-accent" />
           </>}
+        </div>
+
+        {/* Desglose Ingresos / Egresos */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+          {/* A) Ingresos */}
+          <div className="bg-hm-surface2/20 border border-hm-border/50 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <div className="text-xs font-mono font-bold text-green-400 uppercase tracking-widest">Ingresos</div>
+            </div>
+            {loading ? <Skeleton className="h-32" /> : (
+              <div className="flex flex-col gap-2">
+                {[
+                  { label: 'Ventas / Servicios', value: data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0, pct: 60 },
+                  { label: 'Alquileres', value: 0, pct: 0, placeholder: true },
+                  { label: 'Repuestos', value: 0, pct: 0, placeholder: true },
+                  { label: 'Otros', value: 0, pct: 0, placeholder: true },
+                ].map(({ label, value, pct, placeholder }) => (
+                  <div key={label}>
+                    <div className="flex justify-between text-xs mb-0.5">
+                      <span className="text-hm-muted">{label}</span>
+                      <span className={`font-mono font-bold ${placeholder ? 'text-hm-muted/50' : 'text-green-400'}`}>
+                        {placeholder ? 'Base preparada' : formatUSD(value)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
+                      <div className="h-full bg-green-500/60 rounded-full transition-all" style={{width:`${placeholder ? 0 : pct}%`}} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* B) Egresos */}
+          <div className="bg-hm-surface2/20 border border-hm-border/50 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <div className="text-xs font-mono font-bold text-red-400 uppercase tracking-widest">Egresos</div>
+            </div>
+            {loading ? <Skeleton className="h-32" /> : (
+              <div className="flex flex-col gap-2">
+                {[
+                  { label: 'Compras / Supply', value: k?.gastoProveedores || 0, pct: 45 },
+                  { label: 'Taller / Mant.', value: k?.costoMantenimiento || 0, pct: 30 },
+                  { label: 'Logística', value: 0, pct: 0, placeholder: true },
+                  { label: 'Administrativos', value: 0, pct: 0, placeholder: true },
+                ].map(({ label, value, pct, placeholder }) => (
+                  <div key={label}>
+                    <div className="flex justify-between text-xs mb-0.5">
+                      <span className="text-hm-muted">{label}</span>
+                      <span className={`font-mono font-bold ${placeholder ? 'text-hm-muted/50' : 'text-red-400'}`}>
+                        {placeholder ? 'Base preparada' : formatUSD(value)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
+                      <div className="h-full bg-red-500/60 rounded-full transition-all" style={{width:`${placeholder ? 0 : pct}%`}} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* C) Resultado + D) Riesgo operativo */}
+          <div className="flex flex-col gap-4">
+            <div className="bg-hm-surface2/20 border border-hm-border/50 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-2 rounded-full bg-hm-accent" />
+                <div className="text-xs font-mono font-bold text-hm-accent uppercase tracking-widest">Resultado</div>
+              </div>
+              {loading ? <Skeleton className="h-20" /> : (() => {
+                const ingresos = data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0
+                const egresos = (k?.costoMantenimiento || 0) + (k?.gastoProveedores || 0)
+                const utilidadBruta = ingresos - egresos
+                const margen = ingresos > 0 ? ((utilidadBruta / ingresos) * 100).toFixed(1) : 0
+                return (
+                  <div className="flex flex-col gap-2">
+                    {[['Utilidad Bruta', formatUSD(utilidadBruta), utilidadBruta >= 0 ? 'text-green-400' : 'text-red-400'],
+                      ['Utilidad Oper.', 'Base preparada', 'text-hm-muted/60'],
+                      ['Margen', `${margen}%`, Number(margen) >= 20 ? 'text-green-400' : Number(margen) >= 10 ? 'text-yellow-400' : 'text-red-400'],
+                    ].map(([l, v, c]) => (
+                      <div key={l} className="flex justify-between items-center">
+                        <span className="text-xs text-hm-muted">{l}</span>
+                        <span className={`text-sm font-bold font-mono ${c}`}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* D) Riesgo operativo HeavyMetric */}
+            <div className="bg-hm-surface2/20 border border-hm-border/50 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                <div className="text-xs font-mono font-bold text-red-400 uppercase tracking-widest">Riesgo Operativo</div>
+              </div>
+              {loading ? <Skeleton className="h-20" /> : (
+                <div className="flex flex-col gap-2">
+                  {[
+                    { label: 'Clientes críticos', value: k?.alertasCriticas || 0, color: (k?.alertasCriticas || 0) > 0 ? 'text-red-400' : 'text-green-400' },
+                    { label: 'Proveedores riesgosos', value: k?.provRiesgosos || 0, color: (k?.provRiesgosos || 0) > 0 ? 'text-red-400' : 'text-green-400' },
+                    { label: 'Máquinas detenidas', value: k?.flotaDetenida || 0, color: (k?.flotaDetenida || 0) > 0 ? 'text-orange-400' : 'text-green-400' },
+                    { label: 'Stock crítico', value: k?.stockCritico || 0, color: (k?.stockCritico || 0) > 0 ? 'text-yellow-400' : 'text-green-400' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="flex justify-between items-center">
+                      <span className="text-xs text-hm-muted">{label}</span>
+                      <span className={`text-sm font-bold font-mono ${color}`}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </Section>
 

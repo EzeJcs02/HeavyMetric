@@ -404,41 +404,187 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
         </div>
       )}
 
-      {/* Tab: PAGOS */}
-      {tab === 'pagos' && (
-        <div className="flex flex-col gap-5 max-h-[400px] overflow-y-auto pr-2">
-          {/* Cuentas a Pagar (Compras pendientes de pago, asumimos que estado pendiente también implica deuda) */}
-          <div>
-            <h3 className="text-xs font-mono font-bold text-hm-muted tracking-widest uppercase mb-3">Facturas / Cuentas a Pagar</h3>
-            <div className="flex flex-col gap-2">
-              {compras.filter(c => c.estado === 'pendiente' || c.estado === 'recibido_parcial').map(c => (
-                <div key={c.id} className="bg-red-500/5 border border-red-500/20 rounded-lg p-3 flex justify-between items-center">
-                  <div>
-                    <div className="font-mono text-xs text-red-300 mb-0.5">Vencimiento estimado: {new Date(new Date(c.fecha).getTime() + (proveedor.tiempo_entrega_dias || 30)*24*60*60*1000).toLocaleDateString()}</div>
-                    <div className="font-bold text-sm text-red-100">Orden de Compra / Remito {c.id.split('-')[0]}</div>
-                  </div>
-                  <div className="font-mono text-sm font-bold text-red-400">
-                    {formatUSD(c.total_usd)}
-                  </div>
-                </div>
-              ))}
-              {compras.filter(c => c.estado === 'pendiente' || c.estado === 'recibido_parcial').length === 0 && (
-                <div className="text-sm text-hm-muted p-4 bg-hm-surface2/20 border border-hm-border/50 rounded-lg text-center">Sin deuda pendiente registrada con este proveedor.</div>
-              )}
+      {/* Tab: PAGOS — Proveedor360 */}
+      {tab === 'pagos' && (() => {
+        // Mock Data — TODO: conectar con tabla cheques_emitidos, pagos_proveedores
+        const totalDeuda = compras.filter(c => c.estado === 'pendiente' || c.estado === 'recibido_parcial').reduce((s, c) => s + Number(c.total_usd || 0), 0)
+        const risk = calcRiskScore(proveedor)
+        const riskBadge = risk >= 70 ? { label: 'ALTO', cls: 'bg-red-500/20 text-red-300 border-red-500/40' }
+          : risk >= 40 ? { label: 'MEDIO', cls: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40' }
+          : { label: 'BAJO', cls: 'bg-green-500/20 text-green-300 border-green-500/40' }
+        const MOCK_CHEQUES_EMITIDOS = [
+          { id: 1, banco: 'Macro', numero: '00123456', importe: 250000, vencimiento: '2026-06-10', estado: 'emitido', moneda: 'ARS' },
+          { id: 2, banco: 'Nación', numero: '00999321', importe: 3200, vencimiento: '2026-05-30', estado: 'por_debitar', moneda: 'USD' },
+        ]
+        const MOCK_HISTORIAL = [
+          { id: 1, fecha: '2026-04-15', monto: 180000, moneda: 'ARS', metodo: 'Transferencia', estado: 'acreditado' },
+          { id: 2, fecha: '2026-03-01', monto: 2500, moneda: 'USD', metodo: 'E-Cheq', estado: 'acreditado' },
+        ]
+        const totalATime = proveedor.entregas_a_tiempo || 0
+        const totalTarde = proveedor.entregas_tarde || 0
+        const totalEntregas = totalATime + totalTarde
+        const cumplimientoPct = totalEntregas > 0 ? Math.round((totalATime / totalEntregas) * 100) : null
+        return (
+          <div className="flex flex-col gap-5">
+            {/* Riesgo Badge arriba */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold ${riskBadge.cls}`}>
+                <span className="w-2 h-2 rounded-full bg-current" />
+                RIESGO PROVEEDOR: {riskBadge.label}
+              </span>
+              <span className="text-xs font-mono text-hm-muted">Score: {risk}/100</span>
             </div>
-          </div>
 
-          {/* Cheques y Pagos emitidos */}
-          <div className="mt-2">
-            <h3 className="text-xs font-mono font-bold text-hm-muted tracking-widest uppercase mb-3">Historial de Pagos & Cheques Emitidos</h3>
-            <div className="bg-hm-surface2/10 border border-hm-border/50 rounded-lg p-5 text-center flex flex-col items-center">
-              <span className="text-3xl mb-3">🏦</span>
-              <h4 className="font-bold text-sm">Cartera y Emisión de Cheques</h4>
-              <p className="text-xs text-hm-muted max-w-sm mt-1">El módulo de E-Cheqs, pagos parciales y transferencias bancarias se encuentra en el nuevo panel de Tesorería PYME.</p>
+            {/* A) Condición de pago */}
+            <div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">A — Condición de Pago</div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  ['Forma habitual', proveedor.condicion_pago || 'Base preparada'],
+                  ['Plazo', `${proveedor.tiempo_entrega_dias || '?'} días`],
+                  ['Anticipo', 'Sin datos'],
+                  ['Saldo', 'Sin datos'],
+                  ['Cuotas', 'Sin datos'],
+                  ['Moneda', 'ARS / USD'],
+                ].map(([k, v]) => (
+                  <div key={k} className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                    <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">{k}</div>
+                    <div className="text-sm font-medium">{v}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tiempo entrega + cumplimiento */}
+            <div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">Desempeño Operativo</div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                  <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Tiempo prom. entrega</div>
+                  <div className="text-xl font-bold">{proveedor.tiempo_entrega_dias ? `${proveedor.tiempo_entrega_dias}d` : 'Sin datos'}</div>
+                </div>
+                <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                  <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Entregas en tiempo</div>
+                  <div className="text-xl font-bold text-green-400">{totalATime}</div>
+                </div>
+                <div className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+                  <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Cumplimiento</div>
+                  {cumplimientoPct !== null ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="flex-1 h-2 bg-hm-surface2 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${cumplimientoPct >= 80 ? 'bg-green-500' : cumplimientoPct >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{width:`${cumplimientoPct}%`}} />
+                      </div>
+                      <span className="text-xs font-mono font-bold">{cumplimientoPct}%</span>
+                    </div>
+                  ) : <div className="text-sm text-hm-muted">Sin datos</div>}
+                </div>
+              </div>
+            </div>
+
+            {/* B) Cheques emitidos */}
+            <div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">B — Cheques / E-Cheqs Emitidos</div>
+              <div className="flex flex-col gap-2">
+                {MOCK_CHEQUES_EMITIDOS.map(c => {
+                  const venc = new Date(c.vencimiento + 'T00:00:00')
+                  const dias = Math.ceil((venc - new Date()) / (1000*60*60*24))
+                  const alerta = dias <= 7
+                  return (
+                    <div key={c.id} className={`flex items-center justify-between rounded-lg px-4 py-3 border ${alerta ? 'bg-red-500/10 border-red-500/30' : 'bg-hm-surface2/20 border-hm-border/50'}`}>
+                      <div>
+                        <div className={`text-xs font-mono mb-0.5 ${alerta ? 'text-red-300' : 'text-hm-muted'}`}>Vence: {venc.toLocaleDateString('es-AR')} {alerta && `(¡${dias}d!)`}</div>
+                        <div className="font-bold text-sm">{c.banco} — #{c.numero}</div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-sm font-bold">
+                          {c.moneda === 'USD' ? `USD ${c.importe.toLocaleString()}` : new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(c.importe)}
+                        </span>
+                        <span className={`text-[10px] font-mono border rounded px-2 py-0.5 uppercase ${c.estado === 'por_debitar' ? 'border-red-500/50 text-red-400 bg-red-500/10' : 'border-blue-500/50 text-blue-400 bg-blue-500/10'}`}>{c.estado.replace('_',' ')}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* C) Pagos pendientes */}
+            <div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">C — Pagos Pendientes / Vencidos</div>
+              <div className="flex flex-col gap-2">
+                {compras.filter(c => c.estado === 'pendiente' || c.estado === 'recibido_parcial').map(c => (
+                  <div key={c.id} className="flex items-center justify-between bg-red-500/5 border border-red-500/20 rounded-lg p-3">
+                    <div>
+                      <div className="font-mono text-xs text-red-300 mb-0.5">
+                        Venc. est.: {new Date(new Date(c.fecha).getTime() + (proveedor.tiempo_entrega_dias || 30)*24*60*60*1000).toLocaleDateString('es-AR')}
+                      </div>
+                      <div className="font-bold text-sm text-red-100">OC {c.id.slice(0,8)}…</div>
+                    </div>
+                    <div className="font-mono text-sm font-bold text-red-400">{formatUSD(c.total_usd)}</div>
+                  </div>
+                ))}
+                {compras.filter(c => c.estado === 'pendiente' || c.estado === 'recibido_parcial').length === 0 && (
+                  <div className="text-center text-sm text-hm-muted p-4 bg-hm-surface2/20 border border-hm-border/50 rounded-lg">✅ Sin deuda pendiente con este proveedor</div>
+                )}
+              </div>
+            </div>
+
+            {/* D) Historial */}
+            <div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">D — Historial de Pagos</div>
+              <div className="flex flex-col gap-2">
+                {MOCK_HISTORIAL.map(h => (
+                  <div key={h.id} className="flex items-center justify-between bg-hm-surface2/20 border border-hm-border/50 rounded-lg px-4 py-3">
+                    <div>
+                      <div className="text-xs font-mono text-hm-muted">{new Date(h.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</div>
+                      <div className="text-sm font-medium mt-0.5">{h.metodo}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-sm font-bold">
+                        {h.moneda === 'USD' ? `USD ${h.monto.toLocaleString()}` : new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(h.monto)}
+                      </span>
+                      <span className="text-[10px] font-mono border border-green-500/50 text-green-400 bg-green-500/10 rounded px-2 py-0.5 uppercase">{h.estado}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* F) Alertas financieras */}
+            <div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">F — Alertas</div>
+              <div className="flex flex-col gap-2">
+                {totalDeuda > 0 && (
+                  <div className="bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3">
+                    <div className="text-red-400 font-bold text-sm">⚠️ Deuda con proveedor</div>
+                    <div className="text-xs text-red-200 mt-0.5">Total adeudado: {formatUSD(totalDeuda)}</div>
+                  </div>
+                )}
+                {MOCK_CHEQUES_EMITIDOS.some(c => Math.ceil((new Date(c.vencimiento+'T00:00:00') - new Date())/(1000*60*60*24)) <= 7) && (
+                  <div className="bg-orange-500/10 border-l-4 border-orange-500 rounded-r-lg p-3">
+                    <div className="text-orange-400 font-bold text-sm">📅 Cheque emitido por vencer (&lt;7d)</div>
+                    <div className="text-xs text-orange-200 mt-0.5">Verificar disponibilidad bancaria para el débito.</div>
+                  </div>
+                )}
+                {risk >= 70 && (
+                  <div className="bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3">
+                    <div className="text-red-400 font-bold text-sm">🚨 Proveedor de alto riesgo</div>
+                    <div className="text-xs text-red-200 mt-0.5">Score de riesgo: {risk}/100. Evaluar alternativas.</div>
+                  </div>
+                )}
+                {cumplimientoPct !== null && cumplimientoPct < 60 && (
+                  <div className="bg-yellow-500/10 border-l-4 border-yellow-500 rounded-r-lg p-3">
+                    <div className="text-yellow-400 font-bold text-sm">⏰ Bajo cumplimiento de entregas</div>
+                    <div className="text-xs text-yellow-200 mt-0.5">{cumplimientoPct}% de entregas en tiempo. Revisar relación comercial.</div>
+                  </div>
+                )}
+                {totalDeuda === 0 && risk < 70 && !MOCK_CHEQUES_EMITIDOS.some(c => Math.ceil((new Date(c.vencimiento+'T00:00:00') - new Date())/(1000*60*60*24)) <= 7) && (
+                  <div className="text-center py-6 text-hm-muted text-sm">✅ Sin alertas financieras con este proveedor</div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Tab: REPUESTOS */}
       {tab === 'repuestos' && (
