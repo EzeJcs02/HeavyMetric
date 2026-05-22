@@ -193,10 +193,10 @@ export default function Repuestos() {
             <tr>
               <th className="p-4 font-mono text-xs text-hm-muted">SKU</th>
               <th className="p-4 font-mono text-xs text-hm-muted">NOMBRE</th>
-              <th className="p-4 font-mono text-xs text-hm-muted">UNIDAD</th>
               <th className="p-4 font-mono text-xs text-hm-muted">STOCK</th>
               <th className="p-4 font-mono text-xs text-hm-muted">MÍNIMO</th>
               <th className="p-4 font-mono text-xs text-hm-muted">PRECIO USD</th>
+              <th className="p-4 font-mono text-xs text-hm-muted text-right">INMOVILIZADO</th>
               <th className="p-4 font-mono text-xs text-hm-muted">ESTADO</th>
               <th className="p-4"></th>
             </tr>
@@ -216,13 +216,20 @@ export default function Repuestos() {
               <tr key={rep.id} className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors">
                 <td className="p-4 font-mono text-xs text-hm-muted">{rep.sku || '—'}</td>
                 <td className="p-4">
-                  <div className="font-medium text-sm">{rep.nombre}</div>
+                  <div className="font-medium text-sm flex items-center gap-2">
+                    {rep.nombre}
+                    {Number(rep.stock_actual) <= Number(rep.stock_minimo) && (
+                      <span className="text-[9px] font-mono font-bold bg-purple-500/10 text-purple-400 border border-purple-500/30 px-1.5 py-0.5 rounded" title="IA Silenciosa: Sugerimos reponer stock urgente. Lead time prom: 3 días.">
+                        💡 SUGERENCIA COMPRA
+                      </span>
+                    )}
+                  </div>
                   {rep.descripcion && <div className="text-xs text-hm-muted truncate max-w-[200px]">{rep.descripcion}</div>}
                 </td>
-                <td className="p-4 font-mono text-sm text-hm-muted">{rep.unidad}</td>
-                <td className="p-4 font-bold text-sm">{rep.stock_actual}</td>
+                <td className="p-4 font-bold text-sm">{rep.stock_actual} <span className="text-xs text-hm-muted font-mono font-normal">{rep.unidad}</span></td>
                 <td className="p-4 font-mono text-sm text-hm-muted">{rep.stock_minimo}</td>
                 <td className="p-4 font-mono text-sm text-green-400">{formatUSD(rep.precio_usd)}</td>
+                <td className="p-4 font-mono text-sm text-orange-400 text-right">{formatUSD((Number(rep.costo_usd) || 0) * (Number(rep.stock_actual) || 0))}</td>
                 <td className="p-4">
                   <Badge variant={stockVariant(rep.stock_actual, rep.stock_minimo)}>
                     {stockLabel(rep.stock_actual, rep.stock_minimo)}

@@ -30,13 +30,35 @@ export default function AlertasBanner() {
   useEffect(() => {
     if (!perfil?.organization_id) return
     const fetch = async () => {
-      const { data } = await supabase
+      // 1. Alertas guardadas en BD
+      const { data: dbAlertas } = await supabase
         .from('alertas')
         .select('id, tipo, titulo, prioridad')
         .eq('resuelta', false)
-        .order('prioridad', { ascending: true }) // 'alta' < 'media' alphabetically — fine for our use
-        .limit(20)
-      setAlertas(data || [])
+        .order('prioridad', { ascending: true })
+        .limit(10)
+
+      // 2. IA Silenciosa / Workflow Engine (Al Vuelo)
+      const alertasDinamicas = []
+
+      // Stock Mínimo
+      const { data: repBajos } = await supabase.from('repuestos').select('id, nombre').lte('stock_actual', 'stock_minimo').eq('activo', true)
+      if (repBajos?.length) {
+        repBajos.forEach(r => alertasDinamicas.push({
+          id: `dyn_rep_${r.id}`, tipo: 'stock_minimo', titulo: `Sugerencia de compra: Reponer "${r.nombre}"`, prioridad: 'media'
+        }))
+      }
+
+      // Máquinas Críticas (Fuera de servicio)
+      const { data: maqCriticas } = await supabase.from('maquinas').select('id, nombre_unidad, estado_operativo').in('estado_operativo', ['Fuera de servicio', 'Esperando repuesto']).eq('activo', true)
+      if (maqCriticas?.length) {
+        maqCriticas.forEach(m => alertasDinamicas.push({
+          id: `dyn_maq_${m.id}`, tipo: 'activo_detenido', titulo: `Atención: "${m.nombre_unidad}" se encuentra ${m.estado_operativo.toLowerCase()}`, prioridad: 'alta'
+        }))
+      }
+
+      const combo = [...(dbAlertas || []), ...alertasDinamicas]
+      setAlertas(combo.sort((a,b) => a.prioridad === 'alta' ? -1 : 1))
       setIdx(0)
       setDismissed(false)
     }

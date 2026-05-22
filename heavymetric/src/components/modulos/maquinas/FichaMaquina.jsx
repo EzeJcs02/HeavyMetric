@@ -120,6 +120,16 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
   const opAlert = maquina && ['Fuera de servicio', 'Esperando repuesto', 'En taller'].includes(maquina.estado_operativo)
   const tieneAlertas = svcAlert || opAlert
 
+  // Health Score Cálculo Predictivo
+  let healthScore = maquina?.score_disponibilidad || 100
+  if (svc?.estado === 'vencido') healthScore -= 20
+  if (svc?.estado === 'urgente') healthScore -= 10
+  if (maquina?.estado_operativo === 'Fuera de servicio') healthScore -= 30
+  if (maquina?.estado_operativo === 'En taller') healthScore -= 15
+  if (maquina?.estado_operativo === 'Esperando repuesto') healthScore -= 25
+  healthScore = Math.max(0, Math.min(100, healthScore))
+  const hsColor = healthScore >= 80 ? 'text-green-400' : healthScore >= 50 ? 'text-orange-400' : 'text-red-500'
+
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} title="" maxWidth="max-w-5xl">
@@ -184,7 +194,7 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
                     <Kpi label="Cliente Asociado" value={maquina.cliente?.razon_social || 'Propia'} />
                     <Kpi label="Ubicación" value="Base / Taller" sub="Teórica" />
                     <Kpi label="Criticidad" value={maquina.en_alquiler ? 'Alta (Renta)' : 'Media'} color={maquina.en_alquiler ? 'text-amber-400' : 'text-green-400'} />
-                    <Kpi label="Risk Score" value={maquina.score_disponibilidad ? `${maquina.score_disponibilidad}%` : 'Base prep.'} />
+                    <Kpi label="Health Score" value={`${healthScore}/100`} color={hsColor} sub="Salud general predictiva" />
                   </div>
                   
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">

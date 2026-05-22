@@ -241,6 +241,26 @@ export default function Taller() {
         </div>
       </div>
 
+      {/* DASHBOARD OPERATIVO */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="p-4 border-l-4 border-l-green-500">
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Uptime Global</div>
+          <div className="text-2xl font-bold">{maquinas.length > 0 ? Math.round(maquinas.reduce((acc, m) => acc + (m.score_disponibilidad || 100), 0) / maquinas.length) : 100}%</div>
+        </Card>
+        <Card className="p-4 border-l-4 border-l-orange-500">
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Máquinas Detenidas</div>
+          <div className="text-2xl font-bold">{maquinas.filter(m => m.estado_operativo === 'Fuera de servicio' || m.estado_operativo === 'En taller' || m.estado_operativo === 'Esperando repuesto').length}</div>
+        </Card>
+        <Card className="p-4 border-l-4 border-l-blue-500">
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">OTs en Curso</div>
+          <div className="text-2xl font-bold">{ots.filter(ot => ot.estado === 'en_progreso').length}</div>
+        </Card>
+        <Card className="p-4 bg-hm-surface2/30">
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Total Reparaciones (Mes)</div>
+          <div className="text-2xl font-bold text-hm-accent">{ots.filter(ot => ot.estado === 'completada' || ot.estado === 'facturada').length}</div>
+        </Card>
+      </div>
+
       {/* BUSCADOR Y FILTROS */}
       <div className="flex flex-col md:flex-row gap-4 items-end bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50">
         <div className="flex-1 w-full">
