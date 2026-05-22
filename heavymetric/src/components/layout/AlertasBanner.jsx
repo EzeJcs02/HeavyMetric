@@ -12,6 +12,7 @@ const TIPO_COLOR = {
   cotizacion_critica:           'red',
   seguimiento_vencido:          'orange',
   oportunidad_sin_movimiento:   'yellow',
+  activo_detenido:              'orange',
 }
 
 const COLOR_STYLES = {

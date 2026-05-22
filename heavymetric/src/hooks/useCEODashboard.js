@@ -1,0 +1,169 @@
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '../lib/supabase'
+
+const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+async function fetchCEOData() {
+  const hoy    = new Date()
+  const inicioMes  = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0]
+  const inicioAnio = new Date(hoy.getFullYear(), 0, 1).toISOString().split('T')[0]
+  const hace30  = new Date(hoy - 30 * 86400000).toISOString()
+  const hace90  = new Date(hoy - 90 * 86400000).toISOString()
+
+  const [
+    { data: txMes,     error: e1  },
+    { data: txPend,    error: e2  },
+    { data: txAnual,   error: e3  },
+    { data: txTopCli,  error: e4  },
+    { data: otData,    error: e5  },
+    { data: flotaData, error: e6  },
+    { data: leadsData, error: e7  },
+    { data: cotsData,  error: e8  },
+    { data: alertData, error: e9  },
+    { data: repData,   error: e10 },
+    { data: provData,  error: e11 },
+    { data: compData,  error: e12 },
+  ] = await Promise.all([
+    // Ingresos del mes actual
+    supabase.from('transacciones').select('monto_total_usd').gte('fecha_emision', inicioMes),
+
+    // Cobranza pendiente
+    supabase.from('transacciones').select('monto_total_usd, cliente_id, clientes(razon_social)').eq('estado_pago', 'pendiente'),
+
+    // Ingresos anuales por mes
+    supabase.from('transacciones').select('fecha_emision, monto_total_usd').gte('fecha_emision', inicioAnio),
+
+    // Top clientes por facturación (últimos 90 días)
+    supabase.from('transacciones').select('cliente_id, monto_total_usd, clientes(razon_social)').gte('fecha_emision', hace90),
+
+    // OTs por estado
+    supabase.from('ordenes_trabajo').select('estado, total_usd, created_at').gte('created_at', inicioAnio),
+
+    // Flota por estado_operativo
+    supabase.from('maquinas').select('estado_operativo, activa').eq('activa', true),
+
+    // Leads activos + pipeline
+    supabase.from('leads').select('estado, lead_grade, pipeline').not('estado', 'in', '(Ganado,Perdido,Facturado)'),
+
+    // Cotizaciones pendientes + monto
+    supabase.from('cotizaciones').select('estado, total_usd').in('estado', ['Borrador','Enviada']),
+
+    // Alertas sin resolver
+    supabase.from('alertas').select('tipo, prioridad').eq('resuelta', false),
+
+    // Repuestos en stock crítico
+    supabase.from('repuestos').select('nombre, stock_actual, stock_minimo').filter('stock_actual', 'lte', 'stock_minimo').eq('activo', true),
+
+    // Proveedores por estado
+    supabase.from('proveedores').select('estado').eq('activo', true),
+
+    // Compras del año
+    supabase.from('compras').select('total_usd, estado, proveedor_id, proveedores(empresa)').gte('created_at', inicioAnio),
+  ])
+
+  // Ignorar errores no críticos (tablas que pueden no existir aún)
+  const criticalError = e1 || e2 || e3 || e7
+  if (criticalError) throw criticalError
+
+  // ── Comercial ──
+  const ingresosMes   = (txMes || []).reduce((s, t) => s + Number(t.monto_total_usd), 0)
+  const cobranzaPend  = (txPend || []).reduce((s, t) => s + Number(t.monto_total_usd), 0)
+  const pipelineVal   = (cotsData || []).reduce((s, c) => s + Number(c.total_usd || 0), 0)
+
+  // Top clientes (últimos 90 días)
+  const clienteMap = {}
+  ;(txTopCli || []).forEach(t => {
+    const id = t.cliente_id
+    if (!id) return
+    if (!clienteMap[id]) clienteMap[id] = { nombre: t.clientes?.razon_social || 'Sin nombre', total: 0 }
+    clienteMap[id].total += Number(t.monto_total_usd)
+  })
+  const topClientes = Object.values(clienteMap).sort((a,b) => b.total - a.total).slice(0, 5)
+
+  // Morosidad: top deudores
+  const deudorMap = {}
+  ;(txPend || []).forEach(t => {
+    const id = t.cliente_id
+    if (!id) return
+    if (!deudorMap[id]) deudorMap[id] = { nombre: t.clientes?.razon_social || 'Sin nombre', total: 0 }
+    deudorMap[id].total += Number(t.monto_total_usd)
+  })
+  const topDeudores = Object.values(deudorMap).sort((a,b) => b.total - a.total).slice(0, 5)
+
+  // ── Operaciones ──
+  const otsPorEstado = { borrador: 0, en_progreso: 0, completada: 0, facturada: 0, cancelada: 0 }
+  ;(otData || []).forEach(o => { if (otsPorEstado[o.estado] !== undefined) otsPorEstado[o.estado]++ })
+  const costoMantenimiento = (otData || []).filter(o => o.estado === 'completada').reduce((s, o) => s + Number(o.total_usd || 0), 0)
+
+  const flotaPorEstado = {}
+  ;(flotaData || []).forEach(m => {
+    const e = m.estado_operativo || 'Operativo'
+    flotaPorEstado[e] = (flotaPorEstado[e] || 0) + 1
+  })
+  const flotaTotal     = (flotaData || []).length
+  const flotaOperativa = flotaPorEstado['Operativo'] || 0
+  const uptime         = flotaTotal > 0 ? Math.round((flotaOperativa / flotaTotal) * 100) : 100
+  const flotaDetenida  = flotaTotal - flotaOperativa
+
+  // ── Alertas ──
+  const alertasCriticas = (alertData || []).filter(a => a.prioridad === 'alta').length
+  const alertasTotal    = (alertData || []).length
+  const stockCritico    = (repData || []).length
+
+  // ── Proveedores ──
+  const provRiesgosos  = (provData || []).filter(p => p.estado === 'riesgoso').length
+  const provPreferidos = (provData || []).filter(p => p.estado === 'preferido').length
+
+  // Top proveedores por gasto
+  const provMap = {}
+  ;(compData || []).filter(c => c.estado === 'recibido').forEach(c => {
+    const id = c.proveedor_id
+    if (!id) return
+    if (!provMap[id]) provMap[id] = { nombre: c.proveedores?.empresa || '—', total: 0 }
+    provMap[id].total += Number(c.total_usd || 0)
+  })
+  const topProveedores = Object.values(provMap).sort((a,b) => b.total - a.total).slice(0, 5)
+  const gastoProveedores = (compData || []).filter(c => c.estado === 'recibido').reduce((s, c) => s + Number(c.total_usd || 0), 0)
+
+  // ── Gráfico ingresos anuales ──
+  const ingresosPorMes = Array.from({ length: 12 }, (_, i) => ({ mes: MESES[i], total: 0 }))
+  ;(txAnual || []).forEach(tx => {
+    const m = new Date(tx.fecha_emision).getMonth()
+    ingresosPorMes[m].total += Number(tx.monto_total_usd)
+  })
+
+  return {
+    kpis: {
+      ingresosMes, cobranzaPend, pipelineVal,
+      otAbiertas:     otsPorEstado.en_progreso + otsPorEstado.borrador,
+      costoMantenimiento,
+      flotaTotal, flotaOperativa, flotaDetenida, uptime,
+      leadsActivos:   (leadsData || []).length,
+      leadsGradoA:    (leadsData || []).filter(l => l.lead_grade === 'A').length,
+      alertasCriticas, alertasTotal, stockCritico,
+      provRiesgosos, provPreferidos, gastoProveedores,
+    },
+    topClientes,
+    topDeudores,
+    topProveedores,
+    otsPorEstado,
+    flotaPorEstado,
+    ingresosPorMes,
+  }
+}
+
+export function useCEODashboard() {
+  const { data, isLoading: loading, error: queryError, refetch } = useQuery({
+    queryKey: ['ceo-dashboard'],
+    queryFn:  fetchCEOData,
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  })
+
+  return {
+    data: data ?? null,
+    loading,
+    error: queryError?.message ?? null,
+    refresh: refetch,
+  }
+}

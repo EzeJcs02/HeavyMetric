@@ -1,0 +1,545 @@
+import { useState, useMemo, useEffect } from 'react'
+import { toast } from 'sonner'
+import { useProveedores, fetchComprasProveedor, fetchRepuestosProveedor, crearCompra, recibirCompra } from '../../hooks/useProveedores'
+import { useAuth } from '../../context/AuthContext'
+import { useDolar } from '../../context/DolarContext'
+import Modal from '../../components/ui/Modal'
+import ModalConfirm from '../../components/ui/ModalConfirm'
+import Card from '../../components/ui/Card'
+import Button from '../../components/ui/Button'
+import Badge from '../../components/ui/Badge'
+import Input from '../../components/ui/Input'
+import Pagination from '../../components/ui/Pagination'
+
+const PER_PAGE = 12
+
+const RUBROS = ['Repuestos', 'Lubricantes', 'Neumáticos', 'Hidráulica', 'Eléctrico', 'Herramientas', 'Combustible', 'Servicios', 'Logística', 'Otros']
+const CONDICIONES_PAGO = ['contado', '15 días', '30 días', '45 días', '60 días', 'consignación']
+
+const ESTADO_COLOR = {
+  activo:    'text-green-400 bg-green-500/10 border-green-500/30',
+  preferido: 'text-hm-accent bg-hm-accent/10 border-hm-accent/30',
+  riesgoso:  'text-red-400 bg-red-500/10 border-red-500/30',
+  inactivo:  'text-hm-muted bg-hm-surface2 border-hm-border',
+}
+
+const ESTADO_COMPRA_COLOR = {
+  borrador:          'default',
+  pendiente:         'warning',
+  recibido_parcial:  'info',
+  recibido:          'success',
+  cancelado:         'danger',
+}
+
+const EMPTY_FORM = {
+  empresa: '', rubro: '', contacto_nombre: '', telefono: '', email: '',
+  condicion_pago: 'contado', tiempo_entrega_dias: 3, rating: 3,
+  estado: 'activo', observaciones: '',
+}
+
+function Stars({ value, onChange }) {
+  return (
+    <div className="flex gap-1">
+      {[1,2,3,4,5].map(n => (
+        <button key={n} type="button" onClick={() => onChange?.(n)}
+          className={`text-lg transition-colors ${n <= value ? 'text-yellow-400' : 'text-hm-border hover:text-yellow-300'}`}>
+          ★
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ModalProveedor({ isOpen, onClose, proveedor, onConfirm }) {
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [loading, setLoading] = useState(false)
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  useEffect(() => {
+    setForm(proveedor ? {
+      empresa:           proveedor.empresa || '',
+      rubro:             proveedor.rubro || '',
+      contacto_nombre:   proveedor.contacto_nombre || '',
+      telefono:          proveedor.telefono || '',
+      email:             proveedor.email || '',
+      condicion_pago:    proveedor.condicion_pago || 'contado',
+      tiempo_entrega_dias: proveedor.tiempo_entrega_dias ?? 3,
+      rating:            proveedor.rating ?? 3,
+      estado:            proveedor.estado || 'activo',
+      observaciones:     proveedor.observaciones || '',
+    } : EMPTY_FORM)
+  }, [proveedor, isOpen])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      await onConfirm({ ...form, tiempo_entrega_dias: Number(form.tiempo_entrega_dias), rating: Number(form.rating) })
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}
+      title={proveedor ? `Editar — ${proveedor.empresa}` : 'Nuevo Proveedor'}
+      maxWidth="max-w-xl">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Empresa *" value={form.empresa} onChange={e => set('empresa', e.target.value)} required />
+          <div className="flex flex-col gap-1">
+            <label className="label-mono">Rubro</label>
+            <select value={form.rubro} onChange={e => set('rubro', e.target.value)}
+              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors">
+              <option value="">— Sin especificar —</option>
+              {RUBROS.map(r => <option key={r}>{r}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Contacto" value={form.contacto_nombre} onChange={e => set('contacto_nombre', e.target.value)} />
+          <Input label="Teléfono" value={form.telefono} onChange={e => set('telefono', e.target.value)} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Email" type="email" value={form.email} onChange={e => set('email', e.target.value)} />
+          <div className="flex flex-col gap-1">
+            <label className="label-mono">Condición de pago</label>
+            <select value={form.condicion_pago} onChange={e => set('condicion_pago', e.target.value)}
+              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors">
+              {CONDICIONES_PAGO.map(c => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Tiempo entrega (días)" type="number" value={form.tiempo_entrega_dias} onChange={e => set('tiempo_entrega_dias', e.target.value)} />
+          <div className="flex flex-col gap-1">
+            <label className="label-mono">Estado</label>
+            <select value={form.estado} onChange={e => set('estado', e.target.value)}
+              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors">
+              <option value="activo">Activo</option>
+              <option value="preferido">Preferido</option>
+              <option value="riesgoso">Riesgoso</option>
+              <option value="inactivo">Inactivo</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="label-mono">Rating interno</label>
+          <Stars value={form.rating} onChange={v => set('rating', v)} />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="label-mono">Observaciones</label>
+          <textarea value={form.observaciones} onChange={e => set('observaciones', e.target.value)} rows={2}
+            className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text text-sm focus:outline-none focus:border-hm-accent transition-colors resize-none"
+            placeholder="Notas internas, condiciones especiales..." />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-4 border-t border-hm-border">
+          <Button variant="outline" type="button" onClick={onClose} disabled={loading}>CANCELAR</Button>
+          <Button type="submit" variant="primary" disabled={loading || !form.empresa}>
+            {loading ? 'GUARDANDO...' : proveedor ? 'GUARDAR CAMBIOS' : 'CREAR PROVEEDOR'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
+  const [tab, setTab] = useState('info')
+  const [compras, setCompras] = useState([])
+  const [repuestos, setRepuestos] = useState([])
+  const [loading, setLoading] = useState(false)
+  const { formatUSD } = useDolar()
+  const { perfil } = useAuth()
+
+  // Nueva compra
+  const [showCompra, setShowCompra] = useState(false)
+  const [compraItems, setCompraItems] = useState([{ descripcion: '', cantidad: 1, precio_unitario_usd: 0 }])
+  const [compraNota, setCompraNota] = useState('')
+  const [savingCompra, setSavingCompra] = useState(false)
+
+  useEffect(() => {
+    if (!proveedor || !isOpen) return
+    setTab('info')
+    setLoading(true)
+    Promise.all([
+      fetchComprasProveedor(proveedor.id),
+      fetchRepuestosProveedor(proveedor.id),
+    ]).then(([c, r]) => { setCompras(c); setRepuestos(r); setLoading(false) })
+  }, [proveedor?.id, isOpen])
+
+  const handleCrearCompra = async () => {
+    const items = compraItems.filter(i => i.descripcion.trim())
+    if (!items.length) return
+    setSavingCompra(true)
+    try {
+      await crearCompra(proveedor.id, perfil?.organization_id, items, compraNota)
+      toast.success('Compra registrada')
+      setShowCompra(false)
+      setCompraItems([{ descripcion: '', cantidad: 1, precio_unitario_usd: 0 }])
+      setCompraNota('')
+      const c = await fetchComprasProveedor(proveedor.id)
+      setCompras(c)
+    } catch (err) { toast.error(err.message) }
+    finally { setSavingCompra(false) }
+  }
+
+  const handleRecibir = async (compraId) => {
+    try {
+      await recibirCompra(compraId)
+      toast.success('Compra recibida — stock actualizado')
+      const c = await fetchComprasProveedor(proveedor.id)
+      setCompras(c)
+    } catch (err) { toast.error(err.message) }
+  }
+
+  if (!proveedor) return null
+  const totalGastado = compras.filter(c => c.estado === 'recibido').reduce((s, c) => s + Number(c.total_usd || 0), 0)
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="" maxWidth="max-w-3xl">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 mb-5 -mt-2">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-xl font-bold">{proveedor.empresa}</h2>
+            <span className={`text-[9px] font-mono font-bold border rounded px-2 py-0.5 uppercase ${ESTADO_COLOR[proveedor.estado]}`}>
+              {proveedor.estado}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 text-sm text-hm-muted">
+            {proveedor.rubro && <span>{proveedor.rubro}</span>}
+            <Stars value={proveedor.rating} />
+            <span className="font-mono">Entrega: {proveedor.tiempo_entrega_dias}d · {proveedor.condicion_pago}</span>
+          </div>
+        </div>
+        <button onClick={() => onEdit(proveedor)}
+          className="text-xs font-mono font-bold border border-hm-border text-hm-muted rounded px-3 py-1.5 hover:border-hm-accent hover:text-hm-accent transition-colors shrink-0">
+          ✏️ Editar
+        </button>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        {[
+          ['Compras totales', compras.length, ''],
+          ['Repuestos vinculados', repuestos.length, ''],
+          ['Total gastado', formatUSD(totalGastado), totalGastado > 0 ? 'text-hm-accent' : ''],
+        ].map(([label, val, cls]) => (
+          <div key={label} className="bg-hm-surface2/30 border border-hm-border/50 rounded-lg p-3">
+            <div className={`text-xl font-bold ${cls}`}>{val}</div>
+            <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-0 border-b border-hm-border mb-4">
+        {[['info','INFORMACIÓN'],['compras','COMPRAS'],['repuestos','REPUESTOS']].map(([k,l]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`px-4 py-2 text-xs font-mono font-bold border-b-2 transition-all ${tab===k ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-hm-text'}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab: INFO */}
+      {tab === 'info' && (
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            ['Contacto', proveedor.contacto_nombre],
+            ['Teléfono', proveedor.telefono],
+            ['Email', proveedor.email],
+            ['Cond. pago', proveedor.condicion_pago],
+          ].map(([label, val]) => (
+            <div key={label} className="bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+              <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">{label}</div>
+              <div className="text-sm font-medium">{val || '—'}</div>
+            </div>
+          ))}
+          {proveedor.observaciones && (
+            <div className="col-span-2 bg-hm-surface2/20 border border-hm-border/40 rounded-lg p-3">
+              <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-0.5">Observaciones</div>
+              <div className="text-sm text-hm-muted italic">{proveedor.observaciones}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: COMPRAS */}
+      {tab === 'compras' && (
+        <div className="flex flex-col gap-3">
+          <button onClick={() => setShowCompra(v => !v)}
+            className="text-xs font-mono font-bold border border-hm-accent/40 text-hm-accent rounded-lg px-4 py-2 hover:bg-hm-accent/10 transition-colors self-start">
+            {showCompra ? '✕ Cancelar' : '+ Nueva compra'}
+          </button>
+
+          {showCompra && (
+            <div className="bg-hm-surface2/20 border border-hm-border rounded-lg p-4 flex flex-col gap-3">
+              <div className="text-xs font-mono text-hm-muted mb-1">ÍTEMS</div>
+              {compraItems.map((item, idx) => (
+                <div key={idx} className="grid grid-cols-[1fr_80px_100px_32px] gap-2 items-end">
+                  <Input placeholder="Descripción" value={item.descripcion}
+                    onChange={e => setCompraItems(p => p.map((x,i) => i===idx ? {...x, descripcion: e.target.value} : x))} />
+                  <Input type="number" placeholder="Cant." value={item.cantidad}
+                    onChange={e => setCompraItems(p => p.map((x,i) => i===idx ? {...x, cantidad: e.target.value} : x))} />
+                  <Input type="number" placeholder="Precio USD" value={item.precio_unitario_usd}
+                    onChange={e => setCompraItems(p => p.map((x,i) => i===idx ? {...x, precio_unitario_usd: e.target.value} : x))} />
+                  <button onClick={() => setCompraItems(p => p.filter((_,i) => i !== idx))}
+                    className="text-hm-muted hover:text-red-400 transition-colors text-sm pb-1">✕</button>
+                </div>
+              ))}
+              <button onClick={() => setCompraItems(p => [...p, { descripcion: '', cantidad: 1, precio_unitario_usd: 0 }])}
+                className="text-xs text-hm-muted hover:text-hm-text transition-colors self-start">+ agregar ítem</button>
+              <Input label="Notas" value={compraNota} onChange={e => setCompraNota(e.target.value)} placeholder="Referencia, observaciones..." />
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-bold text-hm-accent">
+                  Total: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+                    compraItems.reduce((s, i) => s + Number(i.cantidad || 0) * Number(i.precio_unitario_usd || 0), 0)
+                  )}
+                </span>
+                <Button variant="primary" onClick={handleCrearCompra} disabled={savingCompra}>
+                  {savingCompra ? 'GUARDANDO...' : 'REGISTRAR COMPRA'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {loading ? <div className="h-16 bg-hm-surface2 rounded animate-pulse" />
+          : compras.length === 0 ? (
+            <div className="text-center text-hm-muted font-mono text-sm py-6">Sin compras registradas.</div>
+          ) : (
+            <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
+              {compras.map(c => (
+                <div key={c.id} className="flex items-center justify-between bg-hm-surface2/20 border border-hm-border/50 rounded-lg px-3 py-2">
+                  <div>
+                    <div className="text-sm font-medium">{new Date(c.fecha).toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' })}</div>
+                    <div className="text-[10px] text-hm-muted">{c.items?.length || 0} ítems · {c.notas || ''}</div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-sm font-bold">{formatUSD(c.total_usd)}</span>
+                    <Badge variant={ESTADO_COMPRA_COLOR[c.estado] || 'default'}>{c.estado}</Badge>
+                    {c.estado === 'pendiente' && (
+                      <button onClick={() => handleRecibir(c.id)}
+                        className="text-[9px] font-mono font-bold border border-green-700/50 text-green-400/80 rounded px-2 py-1 hover:border-green-500 hover:text-green-400 transition-colors">
+                        ✓ RECIBIR
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: REPUESTOS */}
+      {tab === 'repuestos' && (
+        <div className="max-h-[300px] overflow-y-auto">
+          {loading ? <div className="h-16 bg-hm-surface2 rounded animate-pulse" />
+          : repuestos.length === 0 ? (
+            <div className="text-center text-hm-muted font-mono text-sm py-6">Sin repuestos vinculados.</div>
+          ) : (
+            <table className="w-full text-left">
+              <thead className="border-b border-hm-border">
+                <tr>
+                  {['Repuesto','SKU','Stock actual','Precio USD','Entrega','Principal'].map(h => (
+                    <th key={h} className="pb-2 font-mono text-[9px] text-hm-muted uppercase tracking-widest">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {repuestos.map(r => (
+                  <tr key={r.id} className="border-b border-hm-border/30 hover:bg-hm-surface2/20 transition-colors">
+                    <td className="py-2 pr-3 text-sm font-medium">{r.repuesto?.nombre || '—'}</td>
+                    <td className="py-2 pr-3 font-mono text-xs text-hm-muted">{r.repuesto?.sku || '—'}</td>
+                    <td className="py-2 pr-3 text-sm">{r.repuesto?.stock_actual ?? '—'} {r.repuesto?.unidad || ''}</td>
+                    <td className="py-2 pr-3 font-mono text-sm">{r.precio_usd ? `$${r.precio_usd}` : '—'}</td>
+                    <td className="py-2 pr-3 text-xs text-hm-muted">{r.tiempo_entrega_dias ? `${r.tiempo_entrega_dias}d` : '—'}</td>
+                    <td className="py-2">{r.es_principal ? <span className="text-hm-accent text-xs">✓</span> : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+export default function Proveedores() {
+  const { proveedores, loading, error, createProveedor, updateProveedor, deactivateProveedor } = useProveedores()
+  const { isOwner } = useAuth()
+  const [search, setSearch] = useState('')
+  const [filterEstado, setFilterEstado] = useState('todos')
+  const [page, setPage] = useState(1)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing]     = useState(null)
+  const [detalle, setDetalle]     = useState(null)
+  const [archivando, setArchivando] = useState(null)
+  const [loadingArchive, setLoadingArchive] = useState(false)
+
+  useEffect(() => { setPage(1) }, [search, filterEstado])
+
+  const filtrados = useMemo(() => {
+    const q = search.toLowerCase()
+    return proveedores.filter(p => {
+      const matchQ = p.empresa.toLowerCase().includes(q) || (p.rubro || '').toLowerCase().includes(q) || (p.contacto_nombre || '').toLowerCase().includes(q)
+      const matchE = filterEstado === 'todos' || p.estado === filterEstado
+      return matchQ && matchE
+    })
+  }, [proveedores, search, filterEstado])
+
+  const paginados = useMemo(() => filtrados.slice((page-1)*PER_PAGE, page*PER_PAGE), [filtrados, page])
+
+  const handleConfirm = async (payload) => {
+    try {
+      if (editing) { await updateProveedor(editing.id, payload); toast.success('Proveedor actualizado') }
+      else          { await createProveedor(payload); toast.success('Proveedor creado') }
+      setModalOpen(false); setEditing(null)
+    } catch (err) { toast.error(err.message); throw err }
+  }
+
+  const handleArchive = async () => {
+    setLoadingArchive(true)
+    try { await deactivateProveedor(archivando.id); toast.success(`${archivando.empresa} desactivado`); setArchivando(null) }
+    catch (err) { toast.error(err.message) }
+    finally { setLoadingArchive(false) }
+  }
+
+  // KPIs
+  const kpis = {
+    total:    proveedores.length,
+    preferidos: proveedores.filter(p => p.estado === 'preferido').length,
+    riesgosos:  proveedores.filter(p => p.estado === 'riesgoso').length,
+  }
+
+  if (error) return <div className="p-6 text-red-400 font-mono">Error: {error}</div>
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-hm-border pb-4">
+        <div>
+          <h1 className="text-2xl font-bold">Proveedores</h1>
+          <p className="text-sm text-hm-muted mt-1">{proveedores.length} proveedores activos</p>
+        </div>
+        <Button variant="primary" onClick={() => { setEditing(null); setModalOpen(true) }}>
+          + NUEVO PROVEEDOR
+        </Button>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card className="p-4">
+          <div className="text-2xl font-bold">{kpis.total}</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mt-0.5">Activos</div>
+        </Card>
+        <Card className="p-4 border-l-4 border-l-hm-accent">
+          <div className="text-2xl font-bold text-hm-accent">{kpis.preferidos}</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mt-0.5">Preferidos</div>
+        </Card>
+        <Card className="p-4 border-l-4 border-l-red-500">
+          <div className="text-2xl font-bold text-red-400">{kpis.riesgosos}</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mt-0.5">Riesgosos</div>
+        </Card>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex gap-3 flex-wrap items-end">
+        <div className="flex-1 min-w-[200px]">
+          <Input placeholder="Buscar por empresa, rubro o contacto..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div className="flex gap-1">
+          {['todos','activo','preferido','riesgoso','inactivo'].map(e => (
+            <button key={e} onClick={() => setFilterEstado(e)}
+              className={`px-3 py-2 text-xs font-mono font-bold rounded-lg border transition-colors ${
+                filterEstado === e ? 'bg-hm-accent/10 border-hm-accent text-hm-accent' : 'border-hm-border text-hm-muted hover:text-hm-text'
+              }`}>
+              {e.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabla */}
+      <Card className="overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-hm-surface2/50 border-b border-hm-border">
+            <tr>
+              {['EMPRESA','RUBRO','CONTACTO','ESTADO','RATING','ENTREGA','PAGO',''].map(h => (
+                <th key={h} className="p-4 font-mono text-xs text-hm-muted">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              [1,2,3].map(i => (
+                <tr key={i} className="border-b border-hm-border">
+                  {[1,2,3,4,5,6,7,8].map(j => (
+                    <td key={j} className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse" /></td>
+                  ))}
+                </tr>
+              ))
+            ) : filtrados.length === 0 ? (
+              <tr><td colSpan={8} className="p-8 text-center text-hm-muted font-mono text-sm">No se encontraron proveedores.</td></tr>
+            ) : paginados.map(p => (
+              <tr key={p.id} onClick={() => setDetalle(p)}
+                className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors group cursor-pointer">
+                <td className="p-4">
+                  <div className="font-medium text-sm">{p.empresa}</div>
+                </td>
+                <td className="p-4 text-sm text-hm-muted">{p.rubro || '—'}</td>
+                <td className="p-4 text-sm text-hm-muted">{p.contacto_nombre || '—'}</td>
+                <td className="p-4">
+                  <span className={`text-[9px] font-mono font-bold border rounded px-2 py-0.5 uppercase ${ESTADO_COLOR[p.estado]}`}>
+                    {p.estado}
+                  </span>
+                </td>
+                <td className="p-4">
+                  <div className="flex gap-0.5">
+                    {[1,2,3,4,5].map(n => (
+                      <span key={n} className={`text-xs ${n <= (p.rating||3) ? 'text-yellow-400' : 'text-hm-border'}`}>★</span>
+                    ))}
+                  </div>
+                </td>
+                <td className="p-4 text-sm text-hm-muted">{p.tiempo_entrega_dias ? `${p.tiempo_entrega_dias}d` : '—'}</td>
+                <td className="p-4 text-xs text-hm-muted">{p.condicion_pago || '—'}</td>
+                <td className="p-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={e => { e.stopPropagation(); setEditing(p); setModalOpen(true) }}
+                      className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-hm-accent hover:text-hm-accent transition-colors">
+                      EDITAR
+                    </button>
+                    {isOwner && (
+                      <button onClick={e => { e.stopPropagation(); setArchivando(p) }}
+                        className="px-3 py-1 text-xs font-mono font-bold border border-hm-border rounded hover:border-red-500 hover:text-red-400 transition-colors">
+                        DESACT.
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <Pagination total={filtrados.length} page={page} perPage={PER_PAGE} onPageChange={setPage} />
+      </Card>
+
+      <ModalProveedor isOpen={modalOpen} onClose={() => { setModalOpen(false); setEditing(null) }} proveedor={editing} onConfirm={handleConfirm} />
+
+      <ProveedorDetalle proveedor={detalle} isOpen={!!detalle} onClose={() => setDetalle(null)}
+        onEdit={p => { setDetalle(null); setEditing(p); setModalOpen(true) }} />
+
+      <ModalConfirm isOpen={!!archivando} onClose={() => setArchivando(null)} onConfirm={handleArchive}
+        loading={loadingArchive} title="Desactivar proveedor"
+        message={`¿Desactivás a "${archivando?.empresa}"? Dejará de aparecer en la lista activa.`}
+        confirmLabel="Desactivar" variant="danger" />
+    </div>
+  )
+}

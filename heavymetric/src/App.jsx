@@ -22,6 +22,8 @@ import Reportes from './pages/reportes/Reportes'
 import Configuracion from './pages/configuracion/Configuracion'
 import Perfil from './pages/perfil/Perfil'
 import Repuestos from './pages/repuestos/Repuestos'
+import Proveedores from './pages/proveedores/Proveedores'
+import CEODashboard from './pages/dashboard/CEODashboard'
 import Portal from './pages/portal/Portal'
 import NotFound from './pages/NotFound'
 
@@ -41,6 +43,8 @@ const PAGE_TITLES = {
   '/cotizaciones':  'Cotizaciones',
   '/setup':         'Configuración inicial',
   '/repuestos':     'Repuestos / Stock',
+  '/proveedores':   'Proveedores',
+  '/ceo':           'CEO Dashboard',
   '/configuracion': 'Configuración',
   '/perfil':        'Mi Perfil',
 }
@@ -95,6 +99,8 @@ export default function App() {
               <Route path="alquileres" element={<Guard soloSupervisor><Alquileres /></Guard>} />
               <Route path="ventas" element={<Ventas />} />
               <Route path="repuestos" element={<Guard soloSupervisor><Repuestos /></Guard>} />
+              <Route path="proveedores" element={<Guard soloSupervisor><Proveedores /></Guard>} />
+              <Route path="ceo" element={<Guard soloOwner><CEODashboard /></Guard>} />
               <Route path="clientes" element={<Guard soloSupervisor><Clientes /></Guard>} />
               <Route path="precios" element={<Guard soloOwner><Precios /></Guard>} />
               <Route path="facturacion" element={<Guard soloSupervisor><Facturacion /></Guard>} />
