@@ -99,6 +99,19 @@ export default function CEODashboard() {
         </button>
       </div>
 
+      {/* ── FINANZAS / ESTADO DE RESULTADOS ── */}
+      <Section title="Estado de Resultados Sintético (Año actual)">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+          {loading ? [1,2,3,4,5].map(i => <Skeleton key={i} className="h-[80px]" />) : <>
+            <KpiBlock label="Ventas Anuales" value={formatUSD(data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0)} accent="text-green-400" />
+            <KpiBlock label="Costo Operativo (OTs)" value={formatUSD(k?.costoMantenimiento)} accent="text-orange-400" />
+            <KpiBlock label="Gastos y Compras" value={formatUSD(k?.gastoProveedores)} accent="text-red-400" />
+            <KpiBlock label="Utilidad Bruta" value={formatUSD((data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0) - (k?.costoMantenimiento || 0) - (k?.gastoProveedores || 0))} accent="text-hm-accent" />
+            <KpiBlock label="Margen Op." value={`${(((data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 0) - (k?.costoMantenimiento || 0) - (k?.gastoProveedores || 0)) / (data?.ingresosPorMes?.reduce((s, m) => s + m.total, 0) || 1) * 100).toFixed(1)}%`} accent="text-hm-accent" />
+          </>}
+        </div>
+      </Section>
+
       {/* ── COMERCIAL ── */}
       <Section title="Comercial">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">

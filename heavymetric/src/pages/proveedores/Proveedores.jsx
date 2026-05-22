@@ -298,10 +298,10 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-0 border-b border-hm-border mb-4">
-        {[['info','INFORMACIÓN'],['compras','COMPRAS'],['repuestos','REPUESTOS'],['activos','ACTIVOS']].map(([k,l]) => (
+      <div className="flex gap-2 border-b border-hm-border mb-4 overflow-x-auto no-scrollbar scroll-smooth">
+        {[['info','INFORMACIÓN'],['compras','COMPRAS'],['pagos','CUENTAS A PAGAR'],['repuestos','REPUESTOS'],['activos','ACTIVOS'],['riesgo','RIESGO & SCORE']].map(([k,l]) => (
           <button key={k} onClick={() => setTab(k)}
-            className={`px-4 py-2 text-xs font-mono font-bold border-b-2 transition-all ${tab===k ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-hm-text'}`}>
+            className={`px-3 py-2 text-[10px] sm:text-xs font-mono font-bold border-b-2 transition-all whitespace-nowrap shrink-0 ${tab===k ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-hm-text'}`}>
             {l}
           </button>
         ))}
@@ -404,6 +404,42 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
         </div>
       )}
 
+      {/* Tab: PAGOS */}
+      {tab === 'pagos' && (
+        <div className="flex flex-col gap-5 max-h-[400px] overflow-y-auto pr-2">
+          {/* Cuentas a Pagar (Compras pendientes de pago, asumimos que estado pendiente también implica deuda) */}
+          <div>
+            <h3 className="text-xs font-mono font-bold text-hm-muted tracking-widest uppercase mb-3">Facturas / Cuentas a Pagar</h3>
+            <div className="flex flex-col gap-2">
+              {compras.filter(c => c.estado === 'pendiente' || c.estado === 'recibido_parcial').map(c => (
+                <div key={c.id} className="bg-red-500/5 border border-red-500/20 rounded-lg p-3 flex justify-between items-center">
+                  <div>
+                    <div className="font-mono text-xs text-red-300 mb-0.5">Vencimiento estimado: {new Date(new Date(c.fecha).getTime() + (proveedor.tiempo_entrega_dias || 30)*24*60*60*1000).toLocaleDateString()}</div>
+                    <div className="font-bold text-sm text-red-100">Orden de Compra / Remito {c.id.split('-')[0]}</div>
+                  </div>
+                  <div className="font-mono text-sm font-bold text-red-400">
+                    {formatUSD(c.total_usd)}
+                  </div>
+                </div>
+              ))}
+              {compras.filter(c => c.estado === 'pendiente' || c.estado === 'recibido_parcial').length === 0 && (
+                <div className="text-sm text-hm-muted p-4 bg-hm-surface2/20 border border-hm-border/50 rounded-lg text-center">Sin deuda pendiente registrada con este proveedor.</div>
+              )}
+            </div>
+          </div>
+
+          {/* Cheques y Pagos emitidos */}
+          <div className="mt-2">
+            <h3 className="text-xs font-mono font-bold text-hm-muted tracking-widest uppercase mb-3">Historial de Pagos & Cheques Emitidos</h3>
+            <div className="bg-hm-surface2/10 border border-hm-border/50 rounded-lg p-5 text-center flex flex-col items-center">
+              <span className="text-3xl mb-3">🏦</span>
+              <h4 className="font-bold text-sm">Cartera y Emisión de Cheques</h4>
+              <p className="text-xs text-hm-muted max-w-sm mt-1">El módulo de E-Cheqs, pagos parciales y transferencias bancarias se encuentra en el nuevo panel de Tesorería PYME.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tab: REPUESTOS */}
       {tab === 'repuestos' && (
         <div className="max-h-[300px] overflow-y-auto">
@@ -495,6 +531,34 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Tab: RIESGO */}
+      {tab === 'riesgo' && (
+        <div className="flex flex-col gap-6">
+          <div className={`p-6 rounded-xl border ${risk.bg} ${risk.color} border-current flex items-center gap-6`}>
+            <div className="text-5xl font-black">{calcRiskScore(proveedor)}</div>
+            <div>
+              <div className="text-xl font-bold">Riesgo {risk.label.toUpperCase()}</div>
+              <p className="text-sm opacity-80 mt-1">Este score se calcula en base a las entregas a tiempo, atrasos registrados e incidencias directas reportadas para este proveedor.</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-hm-surface2/20 border border-green-500/30 rounded-lg p-4 text-center">
+              <div className="text-xs font-mono text-green-400 mb-1 uppercase tracking-widest">Entregas a Tiempo</div>
+              <div className="text-3xl font-bold">{proveedor.entregas_a_tiempo || 0}</div>
+            </div>
+            <div className="bg-hm-surface2/20 border border-yellow-500/30 rounded-lg p-4 text-center">
+              <div className="text-xs font-mono text-yellow-400 mb-1 uppercase tracking-widest">Atrasos Registrados</div>
+              <div className="text-3xl font-bold">{proveedor.entregas_tarde || 0}</div>
+            </div>
+            <div className="bg-hm-surface2/20 border border-red-500/30 rounded-lg p-4 text-center">
+              <div className="text-xs font-mono text-red-400 mb-1 uppercase tracking-widest">Incidencias Críticas</div>
+              <div className="text-3xl font-bold">{proveedor.incidencias || 0}</div>
+            </div>
+          </div>
         </div>
       )}
     </Modal>

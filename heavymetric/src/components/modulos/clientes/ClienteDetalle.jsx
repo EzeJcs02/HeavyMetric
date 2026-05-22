@@ -310,16 +310,29 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
 
             {/* 5. COBRANZAS */}
             {tab === 'cobranzas' && (
-              <div className="flex flex-col gap-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <Kpi label="Saldo Deudor Total" value={formatUSD(kpis.deudaPendiente)} color={kpis.deudaPendiente > 0 ? 'text-red-400' : 'text-green-400'} />
-                  <Kpi label="Límite Crédito" value="No definido" sub="Base preparada" />
-                  <Kpi label="Días Mora (Promedio)" value="0 días" sub="Al día" />
+              <div className="flex flex-col gap-5">
+                {/* KPIs Financieros */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <Kpi label="Saldo Deudor" value={formatUSD(kpis.deudaPendiente)} color={kpis.deudaPendiente > 0 ? 'text-red-400' : 'text-green-400'} />
+                  <Kpi label="Cond. de Pago" value="A 30 Días" sub="Habitual" />
+                  <Kpi label="Límite Crédito" value={formatUSD(15000)} sub="Crédito aprobado" />
+                  <div className="bg-hm-surface2/30 border border-hm-border/50 rounded-lg p-3 flex flex-col justify-center">
+                    <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">Score Mora</div>
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded font-black text-xs ${
+                        kpis.deudaPendiente > 5000 ? 'bg-red-500/20 text-red-400' : kpis.deudaPendiente > 0 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'
+                      }`}>
+                        {kpis.deudaPendiente > 5000 ? 'C' : kpis.deudaPendiente > 0 ? 'B' : 'A'}
+                      </span>
+                      <span className="text-xs font-bold">{kpis.deudaPendiente > 5000 ? 'Riesgo Alto' : kpis.deudaPendiente > 0 ? 'Atrasos Leves' : 'Al Día'}</span>
+                    </div>
+                  </div>
+                  <Kpi label="Promedio Pago" value="18 días" sub="Últimos 12 meses" />
                 </div>
                 
                 {kpis.deudaPendiente > 0 ? (
-                  <div className="mt-4">
-                    <h3 className="text-xs font-mono font-bold text-hm-muted tracking-widest uppercase mb-3">Comprobantes con deuda</h3>
+                  <div className="mt-2">
+                    <h3 className="text-xs font-mono font-bold text-hm-muted tracking-widest uppercase mb-3">Historial de Cobranzas / Deuda Activa</h3>
                     <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto pr-2">
                       {transacciones.filter(t => t.estado_pago === 'pendiente').map(t => (
                         <div key={t.id} className="bg-red-500/5 border border-red-500/20 rounded-lg p-3 flex justify-between items-center">

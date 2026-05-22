@@ -24,6 +24,7 @@ import Configuracion from './pages/configuracion/Configuracion'
 import Perfil from './pages/perfil/Perfil'
 import Repuestos from './pages/repuestos/Repuestos'
 import Proveedores from './pages/proveedores/Proveedores'
+import Tesoreria from './pages/tesoreria/Tesoreria'
 import CEODashboard from './pages/dashboard/CEODashboard'
 import Portal from './pages/portal/Portal'
 import NotFound from './pages/NotFound'
@@ -46,6 +47,7 @@ const PAGE_TITLES = {
   '/setup':         'Configuración inicial',
   '/repuestos':     'Repuestos / Stock',
   '/proveedores':   'Proveedores',
+  '/tesoreria':     'Tesorería',
   '/ceo':           'CEO Dashboard',
   '/configuracion': 'Configuración',
   '/perfil':        'Mi Perfil',
@@ -107,6 +109,7 @@ export default function App() {
               <Route path="clientes" element={<Guard soloSupervisor><Clientes /></Guard>} />
               <Route path="precios" element={<Guard soloOwner><Precios /></Guard>} />
               <Route path="facturacion" element={<Guard soloSupervisor><Facturacion /></Guard>} />
+              <Route path="tesoreria" element={<Guard soloSupervisor><Tesoreria /></Guard>} />
               <Route path="usuarios" element={<Guard soloOwner><Usuarios /></Guard>} />
               <Route path="reportes" element={<Guard soloSupervisor><Reportes /></Guard>} />
               <Route path="configuracion" element={<Guard soloOwner><Configuracion /></Guard>} />
