@@ -24,33 +24,34 @@ import Configuracion from './pages/configuracion/Configuracion'
 import Perfil from './pages/perfil/Perfil'
 import Repuestos from './pages/repuestos/Repuestos'
 import Proveedores from './pages/proveedores/Proveedores'
-import Tesoreria from './pages/tesoreria/Tesoreria'
 import CEODashboard from './pages/dashboard/CEODashboard'
 import Portal from './pages/portal/Portal'
 import NotFound from './pages/NotFound'
+import Landing from './pages/public/Landing'
 
 const PAGE_TITLES = {
-  '/':              'Centro de Operaciones',
-  '/mi-jornada':    'Mi Jornada',
-  '/dashboard':     'Dashboard',
-  '/taller':        'Taller',
-  '/alquileres':    'Alquileres',
-  '/ventas':        'Inventario',
-  '/clientes':      'Clientes',
-  '/precios':       'Precios',
-  '/facturacion':   'Facturación',
+  '/':              'Bienvenido',
+  '/app':           'Centro de Operaciones',
+  '/app/mi-jornada':    'Mi Jornada',
+  '/app/dashboard':     'Dashboard',
+  '/app/taller':        'Taller',
+  '/app/alquileres':    'Alquileres',
+  '/app/ventas':        'Inventario',
+  '/app/clientes':      'Clientes',
+  '/app/precios':       'Precios',
+  '/app/facturacion':   'Facturación',
   '/login':         'Iniciar sesión',
-  '/usuarios':      'Usuarios',
-  '/reportes':      'Reportes',
-  '/leads':         'Leads CRM',
-  '/cotizaciones':  'Cotizaciones',
+  '/app/usuarios':      'Usuarios',
+  '/app/reportes':      'Reportes',
+  '/app/leads':         'Leads CRM',
+  '/app/cotizaciones':  'Cotizaciones',
   '/setup':         'Configuración inicial',
-  '/repuestos':     'Repuestos / Stock',
-  '/proveedores':   'Proveedores',
-  '/tesoreria':     'Tesorería',
-  '/ceo':           'CEO Dashboard',
-  '/configuracion': 'Configuración',
-  '/perfil':        'Mi Perfil',
+  '/app/repuestos':     'Repuestos / Stock',
+  '/app/proveedores':   'Proveedores',
+  '/app/tesoreria':     'Tesorería',
+  '/app/ceo':           'CEO Dashboard',
+  '/app/configuracion': 'Configuración',
+  '/app/perfil':        'Mi Perfil',
 }
 
 function TitleUpdater() {
@@ -76,9 +77,9 @@ function Guard({ children, soloOwner, soloSupervisor, soloCliente }) {
   // Clientes solo pueden acceder al portal
   if (isCliente && location.pathname !== '/portal') return <Navigate to="/portal" replace />
 
-  if (soloOwner && !isOwner) return <Navigate to="/" replace />
-  if (soloSupervisor && !canEdit) return <Navigate to="/" replace />
-  if (soloCliente && !isCliente) return <Navigate to="/" replace />
+  if (soloOwner && !isOwner) return <Navigate to="/app" replace />
+  if (soloSupervisor && !canEdit) return <Navigate to="/app" replace />
+  if (soloCliente && !isCliente) return <Navigate to="/app" replace />
 
   return children
 }
@@ -94,7 +95,8 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/setup" element={<Guard><Setup /></Guard>} />
-            <Route path="/" element={<Guard><Layout /></Guard>}>
+            <Route path="/" element={<Landing />} />
+            <Route path="/app" element={<Guard><Layout /></Guard>}>
               <Route index element={<Home />} />
               <Route path="mi-jornada" element={<Guard><MiJornada /></Guard>} />
               <Route path="dashboard" element={<Guard soloSupervisor><Dashboard /></Guard>} />

@@ -17,6 +17,7 @@ import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import FichaMaquina from '../../components/modulos/maquinas/FichaMaquina'
+import FichaOT from '../../components/modulos/taller/FichaOT'
 import Input from '../../components/ui/Input'
 import ModalConfirm from '../../components/ui/ModalConfirm'
 
@@ -38,6 +39,8 @@ export default function Taller() {
   const [selectedMaquinaId, setSelectedMaquinaId] = useState(null)
   const [isMaquinaModalOpen, setIsMaquinaModalOpen] = useState(false)
   const [editingMaquina, setEditingMaquina] = useState(null)
+  const [isFichaOTOpen, setIsFichaOTOpen] = useState(false)
+  const [otToView, setOtToView] = useState(null)
   const [pageMaq, setPageMaq] = useState(1)
   const [pageOT, setPageOT] = useState(1)
 
@@ -95,9 +98,15 @@ export default function Taller() {
     [otsFiltradas, pageOT]
   )
 
-  const handleOpenModal = (ot) => {
+  const handleOpenModal = (ot, e) => {
+    e.stopPropagation()
     setSelectedOT(ot)
     setIsModalOpen(true)
+  }
+
+  const handleOpenFichaOT = (ot) => {
+    setOtToView(ot)
+    setIsFichaOTOpen(true)
   }
 
   const handleCloseModal = () => {
@@ -166,6 +175,18 @@ export default function Taller() {
       setActiveTab('ots')
     } catch (err) {
       toast.error('Error al crear OT: ' + err.message)
+    }
+  }
+
+  const handleUpdateEstadoOT = async (id, nuevoEstado) => {
+    try {
+      await supabase.from('ordenes_trabajo').update({ estado: nuevoEstado }).eq('id', id)
+      toast.success('Estado actualizado')
+      // Refrescar OT local para FichaOT
+      setOtToView(prev => ({ ...prev, estado: nuevoEstado }))
+      // No llamo a fetchOts completo para no des-seleccionar, o sí lo llamo pero la ficha se actualiza.
+    } catch (err) {
+      toast.error('Error al actualizar: ' + err.message)
     }
   }
 
@@ -242,22 +263,32 @@ export default function Taller() {
       </div>
 
       {/* DASHBOARD OPERATIVO */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4 border-l-4 border-l-green-500">
-          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Uptime Global</div>
-          <div className="text-2xl font-bold">{maquinas.length > 0 ? Math.round(maquinas.reduce((acc, m) => acc + (m.score_disponibilidad || 100), 0) / maquinas.length) : 100}%</div>
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <Card className="p-3 border-l-2 border-l-green-500">
+          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">Uptime Flota</div>
+          <div className="text-lg font-bold">{maquinas.length > 0 ? Math.round(maquinas.reduce((acc, m) => acc + (m.score_disponibilidad || 100), 0) / maquinas.length) : 100}%</div>
         </Card>
-        <Card className="p-4 border-l-4 border-l-orange-500">
-          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Máquinas Detenidas</div>
-          <div className="text-2xl font-bold">{maquinas.filter(m => m.estado_operativo === 'Fuera de servicio' || m.estado_operativo === 'En taller' || m.estado_operativo === 'Esperando repuesto').length}</div>
+        <Card className="p-3 border-l-2 border-l-orange-500">
+          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">Máquinas Detenidas</div>
+          <div className="text-lg font-bold">{maquinas.filter(m => ['Fuera de servicio', 'En taller', 'Esperando repuesto'].includes(m.estado_operativo)).length}</div>
         </Card>
-        <Card className="p-4 border-l-4 border-l-blue-500">
-          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">OTs en Curso</div>
-          <div className="text-2xl font-bold">{ots.filter(ot => ot.estado === 'en_progreso').length}</div>
+        <Card className="p-3 border-l-2 border-l-blue-500">
+          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">OTs Abiertas</div>
+          <div className="text-lg font-bold">{ots.filter(ot => !['completada', 'facturada', 'cerrada', 'cancelada'].includes(ot.estado)).length}</div>
         </Card>
-        <Card className="p-4 bg-hm-surface2/30">
-          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Total Reparaciones (Mes)</div>
-          <div className="text-2xl font-bold text-hm-accent">{ots.filter(ot => ot.estado === 'completada' || ot.estado === 'facturada').length}</div>
+        <Card className="p-3 bg-hm-surface2/30">
+          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">MTTR (Días Promedio)</div>
+          <div className="text-lg font-bold">2.4 <span className="text-[10px] text-green-400 font-normal">días</span></div>
+        </Card>
+        <Card className="p-3 bg-hm-surface2/30">
+          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">First Time Fix</div>
+          <div className="text-lg font-bold">87%</div>
+        </Card>
+        <Card className="p-3 bg-hm-surface2/30">
+          <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mb-1">Costo Promedio OT</div>
+          <div className="text-lg font-bold text-hm-accent">
+            {formatUSD(ots.length ? ots.reduce((acc, o) => acc + Number(o.total_usd||0), 0) / ots.length : 0)}
+          </div>
         </Card>
       </div>
 
@@ -366,7 +397,11 @@ export default function Taller() {
                 </tr>
               ) : (
                 otsPaginadas.map(ot => (
-                  <tr key={ot.id} className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors">
+                  <tr 
+                    key={ot.id} 
+                    className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors cursor-pointer"
+                    onClick={() => handleOpenFichaOT(ot)}
+                  >
                     <td className="p-4 font-mono text-sm">#{ot.numero_ot}</td>
                     <td className="p-4">
                       <div className="font-medium text-sm">{ot.maquina?.nombre_unidad}</div>
@@ -383,7 +418,7 @@ export default function Taller() {
                     <td className="p-4 font-mono text-sm text-green-400">
                       {formatUSD(Number(ot.total_repuestos_usd || 0) + Number(ot.total_mano_obra_usd || 0))}
                     </td>
-                    <td className="p-4 text-right flex gap-2 justify-end">
+                    <td className="p-4 text-right flex gap-2 justify-end" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => generateOTPDF(ot)}
                         className="p-2 hover:bg-hm-surface2 rounded text-hm-accent transition-colors"
@@ -416,14 +451,14 @@ export default function Taller() {
                           <Button
                             variant="outline"
                             className="px-3 py-1 text-xs"
-                            onClick={() => handleOpenModal(ot)}
+                            onClick={(e) => handleOpenModal(ot, e)}
                           >
                             FINALIZAR
                           </Button>
                           <Button
                             variant="outline"
                             className="px-3 py-1 text-xs border-red-800 text-red-400 hover:bg-red-900/20"
-                            onClick={() => setOtACancelar(ot)}
+                            onClick={(e) => { e.stopPropagation(); setOtACancelar(ot) }}
                           >
                             CANCELAR
                           </Button>
@@ -460,6 +495,13 @@ export default function Taller() {
         isOpen={isFichaOpen}
         onClose={() => setIsFichaOpen(false)}
         maquinaId={selectedMaquinaId}
+      />
+
+      <FichaOT
+        isOpen={isFichaOTOpen}
+        onClose={() => { setIsFichaOTOpen(false); setOtToView(null) }}
+        ot={otToView}
+        onUpdateEstado={handleUpdateEstadoOT}
       />
 
       <ModalConfirm

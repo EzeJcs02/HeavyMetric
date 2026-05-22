@@ -39,58 +39,58 @@ export default function Sidebar({ onNavigate }) {
     {
       label: null, // Sin label para Home
       items: [
-        { to: '/', label: 'Centro de Operaciones' },
+        { to: '/app', label: 'Centro de Operaciones' },
       ]
     },
     {
       label: 'Operaciones',
       items: [
-        { to: '/taller', label: 'Taller / OTs' },
-        ...(canEdit ? [{ to: '/alquileres', label: 'Alquileres' }] : []),
+        { to: '/app/taller', label: 'Taller / OTs' },
+        ...(canEdit ? [{ to: '/app/alquileres', label: 'Alquileres' }] : []),
       ]
     },
     {
       label: 'Comercial',
       hide: !canEdit,
       items: [
-        { to: '/leads', label: 'Leads CRM' },
-        { to: '/clientes', label: 'Clientes' },
-        { to: '/cotizaciones', label: 'Cotizaciones' },
+        { to: '/app/leads', label: 'Leads CRM' },
+        { to: '/app/clientes', label: 'Clientes' },
+        { to: '/app/cotizaciones', label: 'Cotizaciones' },
       ]
     },
     {
       label: 'Supply',
       hide: !canEdit,
       items: [
-        { to: '/ventas', label: 'Inventario' },
-        { to: '/repuestos', label: 'Repuestos' },
-        { to: '/proveedores', label: 'Proveedores' },
+        { to: '/app/ventas', label: 'Inventario' },
+        { to: '/app/repuestos', label: 'Repuestos' },
+        { to: '/app/proveedores', label: 'Proveedores' },
       ]
     },
     {
       label: 'Administración',
       hide: !canEdit,
       items: [
-        { to: '/facturacion', label: 'Facturación / Cobros' },
-        { to: '/tesoreria', label: 'Tesorería PYME' },
-        { to: '/reportes', label: 'Reportes' },
+        { to: '/app/facturacion', label: 'Facturación / Cobros' },
+        { to: '/app/tesoreria', label: 'Tesorería PYME' },
+        { to: '/app/reportes', label: 'Reportes' },
       ]
     },
     {
       label: 'Gerencia',
       hide: !isOwner,
       items: [
-        { to: '/ceo', label: 'CEO Dashboard' },
-        { to: '/precios', label: 'Tarifas / Precios' },
-        { to: '/usuarios', label: 'Usuarios' },
+        { to: '/app/ceo', label: 'CEO Dashboard' },
+        { to: '/app/precios', label: 'Tarifas / Precios' },
+        { to: '/app/usuarios', label: 'Usuarios' },
       ]
     },
     {
       label: 'Usuario',
       items: [
-        { to: '/mi-jornada', label: 'Mi Jornada' },
-        { to: '/perfil', label: 'Mi Perfil' },
-        ...(isOwner ? [{ to: '/configuracion', label: 'Configuración' }] : []),
+        { to: '/app/mi-jornada', label: 'Mi Jornada' },
+        { to: '/app/perfil', label: 'Mi Perfil' },
+        ...(isOwner ? [{ to: '/app/configuracion', label: 'Configuración' }] : []),
       ]
     }
   ]
@@ -125,7 +125,7 @@ export default function Sidebar({ onNavigate }) {
                 <NavLink
                   key={m.to}
                   to={m.to}
-                  end={m.to === '/'}
+                  end={m.to === '/app'}
                   onClick={onNavigate}
                   className={({ isActive }) => `
                     flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150
