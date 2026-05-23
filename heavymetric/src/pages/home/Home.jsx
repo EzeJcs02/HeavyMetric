@@ -3,70 +3,101 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import ModuleCard from '../../components/home/ModuleCard'
 
-// Iconos Reutilizables
 const SVG = ({ d }) => (
   <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={d} />
   </svg>
 )
+
 const SVG2 = ({ d1, d2 }) => (
   <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={d1} />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={d2} />
+    {d1 && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={d1} />}
+    {d2 && <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={d2} />}
   </svg>
 )
 
+const emptyMetrics = {
+  otsAbiertas: 0,
+  servicesProximos: 0,
+  stockCritico: 0,
+  leadsActivos: 0,
+  alquilados: 0,
+  activosCriticos: 0,
+  aprobacionesPendientes: 0,
+}
+
+const safeCount = (result) => {
+  if (result?.error) {
+    console.warn('Home metric warning:', result.error.message)
+    return 0
+  }
+
+  return result?.count || 0
+}
+
 export default function Home() {
   const { perfil, orgId } = useAuth()
-  const [data, setData] = useState({
-    otsAbiertas: 0,
-    servicesProximos: 0,
-    stockCritico: 0,
-    leadsActivos: 0,
-    alquilados: 0,
-    activosCriticos: 0,
-    aprobacionesPendientes: 0,
-  })
+  const [data, setData] = useState(emptyMetrics)
   const [loading, setLoading] = useState(true)
+  const [dataMode, setDataMode] = useState('BASE_PREPARADA')
 
   useEffect(() => {
-    if (!orgId) return
+    let isMounted = true
+
     async function fetchMetrics() {
+      if (!orgId) {
+        if (isMounted) {
+          setData(emptyMetrics)
+          setDataMode('SIN_ORG')
+          setLoading(false)
+        }
+        return
+      }
+
+      setLoading(true)
+
       try {
-        const [
-          { count: otsAbiertas },
-          { count: servicesProximos },
-          { count: stockCritico },
-          { count: leadsActivos },
-          { count: alquilados },
-          { count: activosCriticos },
-          { count: aprobacionesPendientes }
-        ] = await Promise.all([
+        const results = await Promise.all([
           supabase.from('ordenes_trabajo').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado', ['en_progreso', 'borrador']),
           supabase.from('maquinas_service').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado_service', ['urgente', 'vencido', 'proximo']),
           supabase.from('inventario').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).lt('stock_actual', 5),
           supabase.from('leads').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado', ['nuevo', 'contactado', 'en_negociacion']),
           supabase.from('maquinas').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('en_alquiler', true),
           supabase.from('maquinas').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('estado_operativo', ['Fuera de servicio', 'Esperando repuesto']),
-          supabase.from('cotizaciones').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('estado', 'Enviada')
+          supabase.from('cotizaciones').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('estado', 'Enviada'),
         ])
 
-        setData({
-          otsAbiertas: otsAbiertas || 0,
-          servicesProximos: servicesProximos || 0,
-          stockCritico: stockCritico || 0,
-          leadsActivos: leadsActivos || 0,
-          alquilados: alquilados || 0,
-          activosCriticos: activosCriticos || 0,
-          aprobacionesPendientes: aprobacionesPendientes || 0,
-        })
-      } catch (e) {
-        console.error("Error fetching home metrics", e)
+        if (isMounted) {
+          setData({
+            otsAbiertas: safeCount(results[0]),
+            servicesProximos: safeCount(results[1]),
+            stockCritico: safeCount(results[2]),
+            leadsActivos: safeCount(results[3]),
+            alquilados: safeCount(results[4]),
+            activosCriticos: safeCount(results[5]),
+            aprobacionesPendientes: safeCount(results[6]),
+          })
+          setDataMode('REAL')
+        }
+      } catch (error) {
+        console.error('Error fetching home metrics:', error)
+
+        if (isMounted) {
+          setData(emptyMetrics)
+          setDataMode('BASE_PREPARADA')
+        }
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
+
     fetchMetrics()
+
+    return () => {
+      isMounted = false
+    }
   }, [orgId])
 
   const rol = perfil?.rol
@@ -74,7 +105,23 @@ export default function Home() {
   const isSupervisor = rol === 'supervisor' || isOwner
   const isOperativo = rol === 'operativo'
 
-  const MODULES = [
+  const hasOperationalRisk = data.activosCriticos > 0 || data.servicesProximos > 0 || data.stockCritico > 0
+  const estadoGeneral = data.activosCriticos > 2 ? 'CRÍTICO' : hasOperationalRisk ? 'ATENCIÓN' : 'OPERATIVO'
+
+  const estadoGeneralClass =
+    estadoGeneral === 'CRÍTICO'
+      ? 'text-red-400'
+      : estadoGeneral === 'ATENCIÓN'
+        ? 'text-amber-400'
+        : 'text-green-400'
+
+  const dataModeLabel = {
+    REAL: 'Datos reales',
+    BASE_PREPARADA: 'Base preparada',
+    SIN_ORG: 'Sin organización activa',
+  }[dataMode]
+
+  const modules = [
     {
       id: 'ventas',
       title: 'Ventas / CRM',
@@ -85,21 +132,27 @@ export default function Home() {
       show: isSupervisor,
       metrics: [
         { label: 'Leads activos', value: data.leadsActivos },
-        { label: 'Pipeline USD', value: 'Próximamente', isPlaceholder: true }
-      ]
+        { label: 'Pipeline USD', value: 'Base preparada', isPlaceholder: true },
+      ],
     },
     {
       id: 'postventa',
       title: 'Postventa / Servicios',
       description: 'Atención al cliente y reclamos',
       colorClass: 'from-teal-500/20 to-teal-600/10 border-teal-500/30 text-teal-400',
-      icon: <SVG2 d1="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" d2="" />,
+      icon: (
+        <SVG2 d1="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+      ),
       to: '/app/taller',
       show: isSupervisor,
       metrics: [
-        { label: 'Services Próximos', value: data.servicesProximos, color: data.servicesProximos > 0 ? 'text-red-400' : 'text-green-400' },
-        { label: 'Garantías activas', value: 'Próximamente', isPlaceholder: true }
-      ]
+        {
+          label: 'Services próximos',
+          value: data.servicesProximos,
+          color: data.servicesProximos > 0 ? 'text-red-400' : 'text-green-400',
+        },
+        { label: 'Garantías activas', value: 'Base preparada', isPlaceholder: true },
+      ],
     },
     {
       id: 'taller',
@@ -108,11 +161,15 @@ export default function Home() {
       colorClass: 'from-blue-500/20 to-blue-600/10 border-blue-500/30 text-blue-400',
       icon: <SVG d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />,
       to: '/app/taller',
-      show: true, // todos ven taller
+      show: true,
       metrics: [
-        { label: 'OTs Abiertas', value: data.otsAbiertas, color: data.otsAbiertas > 0 ? 'text-amber-400' : 'text-green-400' },
-        { label: 'Risk Score Medio', value: 'Base preparada', isPlaceholder: true }
-      ]
+        {
+          label: 'OTs abiertas',
+          value: data.otsAbiertas,
+          color: data.otsAbiertas > 0 ? 'text-amber-400' : 'text-green-400',
+        },
+        { label: 'Risk Score Medio', value: 'Base preparada', isPlaceholder: true },
+      ],
     },
     {
       id: 'stock',
@@ -123,9 +180,13 @@ export default function Home() {
       to: '/app/repuestos',
       show: true,
       metrics: [
-        { label: 'Stock crítico', value: data.stockCritico, color: data.stockCritico > 0 ? 'text-red-400' : 'text-green-400' },
-        { label: 'Sugerencia de compra', value: 'Próximamente', isPlaceholder: true }
-      ]
+        {
+          label: 'Stock crítico',
+          value: data.stockCritico,
+          color: data.stockCritico > 0 ? 'text-red-400' : 'text-green-400',
+        },
+        { label: 'Sugerencia de compra', value: 'Base preparada', isPlaceholder: true },
+      ],
     },
     {
       id: 'compras',
@@ -136,9 +197,9 @@ export default function Home() {
       to: '/app/proveedores',
       show: isSupervisor,
       metrics: [
-        { label: 'Riesgo proveedores', value: 'Próximamente', isPlaceholder: true },
-        { label: 'Órdenes de Compra', value: 'Próximamente', isPlaceholder: true }
-      ]
+        { label: 'Riesgo proveedores', value: 'Base preparada', isPlaceholder: true },
+        { label: 'Órdenes de Compra', value: 'Base preparada', isPlaceholder: true },
+      ],
     },
     {
       id: 'alquileres',
@@ -150,8 +211,8 @@ export default function Home() {
       show: isSupervisor,
       metrics: [
         { label: 'Activos alquilados', value: data.alquilados },
-        { label: 'Vencimientos próximos', value: 'Próximamente', isPlaceholder: true }
-      ]
+        { label: 'Vencimientos próximos', value: 'Base preparada', isPlaceholder: true },
+      ],
     },
     {
       id: 'admin',
@@ -162,9 +223,9 @@ export default function Home() {
       to: '/app/facturacion',
       show: isSupervisor,
       metrics: [
-        { label: 'Cobranzas pendientes', value: 'Próximamente', isPlaceholder: true },
-        { label: 'Facturación ARCA', value: 'Base preparada', isPlaceholder: true }
-      ]
+        { label: 'Cobranzas pendientes', value: 'Base preparada', isPlaceholder: true },
+        { label: 'Facturación ARCA', value: 'Base preparada', isPlaceholder: true },
+      ],
     },
     {
       id: 'gerencia',
@@ -175,9 +236,9 @@ export default function Home() {
       to: '/app/ceo',
       show: isOwner,
       metrics: [
-        { label: 'Estado de Resultados', value: 'Próximamente', isPlaceholder: true },
-        { label: 'Análisis IA', value: 'Base preparada', isPlaceholder: true }
-      ]
+        { label: 'Estado de Resultados', value: 'Base preparada', isPlaceholder: true },
+        { label: 'Análisis IA', value: 'Base preparada', isPlaceholder: true },
+      ],
     },
     {
       id: 'jornada',
@@ -189,30 +250,39 @@ export default function Home() {
       show: true,
       metrics: [
         { label: 'Mis OTs asignadas', value: isOperativo ? data.otsAbiertas : 'Ver detalle' },
-        { label: 'Aprobaciones', value: '0' }
-      ]
-    }
+        { label: 'Aprobaciones', value: data.aprobacionesPendientes },
+      ],
+    },
   ]
 
-  const visibleModules = MODULES.filter(m => m.show)
+  const visibleModules = modules.filter((module) => module.show)
 
   return (
     <div className="min-h-full flex flex-col px-4 md:px-8 py-3 md:py-4 w-full max-w-7xl mx-auto overflow-hidden gap-6">
-      <div className="mb-2">
-        <h1 className="text-2xl font-bold text-hm-text tracking-tight">Centro de Operaciones</h1>
-        <p className="text-hm-muted mt-0.5 text-xs">Vista general del estado de la PyME y accesos rápidos.</p>
+      <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-hm-text tracking-tight">Centro de Operaciones</h1>
+          <p className="text-hm-muted mt-0.5 text-xs">
+            Vista general del estado operativo, financiero y comercial de la PyME.
+          </p>
+        </div>
+
+        <div className="w-fit rounded-full border border-hm-border/50 bg-hm-surface2/30 px-3 py-1 text-[10px] font-mono uppercase tracking-widest text-hm-muted">
+          {dataModeLabel}
+        </div>
       </div>
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-32 bg-hm-surface2 rounded-xl animate-pulse" />)}
+          {[1, 2, 3, 4].map((item) => (
+            <div key={item} className="h-32 bg-hm-surface2 rounded-xl animate-pulse" />
+          ))}
         </div>
       ) : (
         <>
-          {/* SECCIÓN ARRIBA: Urgencias */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-orange-500/50 transition-colors cursor-pointer group">
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest flex items-center justify-between group-hover:text-orange-400 transition-colors">
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest group-hover:text-orange-400 transition-colors">
                 Qué hacer hoy
               </div>
               <div className="text-2xl font-bold text-hm-text mt-1">{data.otsAbiertas} OTs</div>
@@ -220,7 +290,7 @@ export default function Home() {
             </div>
 
             <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-red-500/50 transition-colors cursor-pointer group">
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest flex items-center justify-between group-hover:text-red-400 transition-colors">
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest group-hover:text-red-400 transition-colors">
                 Riesgos Operativos
               </div>
               <div className="text-2xl font-bold text-hm-text mt-1">{data.activosCriticos} Equipos</div>
@@ -228,7 +298,7 @@ export default function Home() {
             </div>
 
             <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-blue-500/50 transition-colors cursor-pointer group">
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest flex items-center justify-between group-hover:text-blue-400 transition-colors">
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest group-hover:text-blue-400 transition-colors">
                 Aprobaciones
               </div>
               <div className="text-2xl font-bold text-hm-text mt-1">{data.aprobacionesPendientes} Solicitudes</div>
@@ -236,63 +306,67 @@ export default function Home() {
             </div>
 
             <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-yellow-500/50 transition-colors cursor-pointer group">
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest flex items-center justify-between group-hover:text-yellow-400 transition-colors">
-                Alertas Financieras
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest group-hover:text-yellow-400 transition-colors">
+                Continuidad Operativa
               </div>
-              <div className="text-2xl font-bold text-hm-text mt-1">1 Cheque</div>
-              <div className="text-xs text-hm-muted">Cheque rechazado / Mora (Mock)</div>
+              <div className={`text-2xl font-bold mt-1 ${hasOperationalRisk ? 'text-amber-400' : 'text-green-400'}`}>
+                {hasOperationalRisk ? 'Atención' : 'Normal'}
+              </div>
+              <div className="text-xs text-hm-muted">Servicios, stock y activos críticos</div>
             </div>
           </div>
 
-          {/* SECCIÓN CENTRO: KPIs */}
           <div>
             <div className="text-[11px] font-mono text-hm-muted uppercase tracking-widest mb-3 flex items-center gap-2">
               <div className="h-px bg-hm-border/50 flex-1" />
               Indicadores Clave
               <div className="h-px bg-hm-border/50 flex-1" />
             </div>
-            
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
-                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Flujo 7 días</div>
-                <div className="text-xl font-bold text-green-400">ESTABLE</div>
+                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Modo de datos</div>
+                <div className="text-xl font-bold text-hm-text">{dataModeLabel}</div>
               </div>
+
               <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
                 <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Estado General</div>
-                <div className={`text-xl font-bold ${data.activosCriticos > 2 ? 'text-red-400' : 'text-hm-text'}`}>
-                  {data.activosCriticos > 2 ? 'CRÍTICO' : 'OPERATIVO'}
+                <div className={`text-xl font-bold ${estadoGeneralClass}`}>{estadoGeneral}</div>
+              </div>
+
+              <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
+                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Stock Crítico</div>
+                <div className={`text-xl font-bold ${data.stockCritico > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                  {data.stockCritico} Ítems
                 </div>
               </div>
-              <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
-                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Stock Inmovilizado</div>
-                <div className="text-xl font-bold text-orange-400">USD 12k</div>
-              </div>
+
               <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
                 <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Activos Críticos</div>
                 <div className={`text-xl font-bold ${data.activosCriticos > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                  {data.activosCriticos} {data.activosCriticos === 1 ? 'EQUIPO' : 'EQUIPOS'}
+                  {data.activosCriticos} {data.activosCriticos === 1 ? 'Equipo' : 'Equipos'}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* SECCIÓN ABAJO: Accesos Rápidos */}
           <div>
             <div className="text-[11px] font-mono text-hm-muted uppercase tracking-widest mb-3 flex items-center gap-2">
               <div className="h-px bg-hm-border/50 flex-1" />
               Accesos Directos
               <div className="h-px bg-hm-border/50 flex-1" />
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {visibleModules.map(mod => (
+              {visibleModules.map((module) => (
                 <ModuleCard
-                  key={mod.id}
-                  title={mod.title}
-                  description={mod.description}
-                  colorClass={mod.colorClass}
-                  icon={mod.icon}
-                  to={mod.to}
-                  metrics={mod.metrics}
+                  key={module.id}
+                  title={module.title}
+                  description={module.description}
+                  colorClass={module.colorClass}
+                  icon={module.icon}
+                  to={module.to}
+                  metrics={module.metrics}
                 />
               ))}
             </div>
