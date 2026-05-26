@@ -4,28 +4,29 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import Input from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
-import Card from '../../components/ui/Card'
 
 export default function Login() {
   const { user } = useAuth()
-  const [mode, setMode] = useState('login') // 'login' | 'register' | 'reset'
+  const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  if (user) return <Navigate to="/" replace />
+  if (user) return <Navigate to="/app" replace />
 
   function switchMode(next) {
     setMode(next)
     setError(null)
     setSuccess(null)
     setPassword('')
+    setShowPassword(false)
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
+  async function handleSubmit(event) {
+    event.preventDefault()
     setError(null)
     setSuccess(null)
     setLoading(true)
@@ -53,94 +54,265 @@ export default function Login() {
   }
 
   const titles = {
-    login:    { heading: 'Ingresar',             sub: 'Iniciá sesión en tu cuenta' },
-    register: { heading: 'Crear cuenta',         sub: 'Registrate con tu email corporativo' },
-    reset:    { heading: 'Restablecer contraseña', sub: 'Te enviamos un link a tu email' },
+    login: {
+      label: 'Acceso al sistema',
+      heading: 'Iniciá sesión',
+      sub: 'Ingresá tus credenciales para continuar.',
+      action: 'INGRESAR',
+    },
+    register: {
+      label: 'Alta de usuario',
+      heading: 'Crear cuenta',
+      sub: 'Registrate con tu email corporativo.',
+      action: 'CREAR CUENTA',
+    },
+    reset: {
+      label: 'Recuperación',
+      heading: 'Restablecer contraseña',
+      sub: 'Te enviamos un link a tu email.',
+      action: 'ENVIAR LINK',
+    },
   }
 
-  const { heading, sub } = titles[mode]
+  const current = titles[mode]
 
   return (
-    <div className="min-h-screen bg-hm-bg flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-hm-accent/5 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
+    <div className="relative min-h-screen overflow-hidden bg-[#0b0c0e] text-white">
+      <style>
+        {`
+          @keyframes hmGrid {
+            from { background-position: 0 0; }
+            to { background-position: 44px 44px; }
+          }
 
-      <Card className="w-full max-w-md p-10 bg-hm-surface/40 backdrop-blur-2xl border-white/5 shadow-2xl animate-fade-in relative z-10">
-        <div className="text-center mb-8">
-          <div className="font-display text-4xl font-bold tracking-tighter mb-2 flex justify-center items-center">
-            HM<span className="text-hm-accent">.</span>
+          @keyframes hmScanLogin {
+            0% { top: -2px; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: .35; }
+            100% { top: 100%; opacity: 0; }
+          }
+
+          @keyframes hmPulseLogin {
+            0%,100% { opacity: .35; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.12); }
+          }
+
+          .hm-login-grid {
+            background-image:
+              linear-gradient(rgba(0,212,255,0.028) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0,212,255,0.028) 1px, transparent 1px);
+            background-size: 44px 44px;
+            animation: hmGrid 22s linear infinite;
+          }
+
+          .hm-login-scan {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(0,212,255,.16), transparent);
+            animation: hmScanLogin 8s ease-in-out infinite;
+          }
+
+          .hm-login-pulse {
+            animation: hmPulseLogin 2.8s ease-in-out infinite;
+          }
+        `}
+      </style>
+
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(37,99,235,0.12),transparent_28%),radial-gradient(circle_at_80%_70%,rgba(0,245,160,0.07),transparent_28%)]" />
+
+      <div className="relative grid min-h-screen grid-cols-1 lg:grid-cols-[1.08fr_0.92fr]">
+        <section className="relative hidden overflow-hidden border-r border-neutral-800/70 bg-[#0b0c0e] p-10 lg:flex lg:flex-col lg:justify-between">
+          <div className="hm-login-grid absolute inset-0" />
+          <div className="hm-login-scan" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_35%_45%,transparent_30%,rgba(0,0,0,0.78)_100%)]" />
+
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-neutral-700/80 bg-neutral-950">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(0,245,160,0.14),transparent_35%),radial-gradient(circle_at_80%_70%,rgba(37,99,235,0.18),transparent_40%)]" />
+              <span className="relative bg-gradient-to-br from-zinc-100 via-zinc-400 to-zinc-700 bg-clip-text font-mono text-3xl font-black text-transparent">
+                ∞
+              </span>
+            </div>
+
+            <div>
+              <div className="bg-gradient-to-r from-zinc-100 via-zinc-300 to-zinc-500 bg-clip-text text-lg font-black tracking-[0.14em] text-transparent">
+                HEAVYMETRIC
+              </div>
+              <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.28em] text-neutral-500">
+                Industrial Operations System
+              </div>
+            </div>
           </div>
-          <div className="text-hm-text font-bold tracking-widest text-[10px] uppercase opacity-50 mb-4">HEAVYMETRIC OPERATIVE SYSTEM</div>
-          <h1 className="text-lg font-bold text-hm-text">{heading}</h1>
-          <p className="text-hm-muted text-sm mt-1">{sub}</p>
-        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-bold text-hm-muted uppercase tracking-widest ml-1">Email</label>
-            <Input
-              type="email"
-              placeholder="nombre@empresa.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="w-full py-3"
-              required
-            />
+          <div className="relative z-10 max-w-md">
+            <div className="mb-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300/70">
+              <span className="h-px w-8 bg-cyan-300/40" />
+              Operational Command Layer
+            </div>
+
+            <h1 className="text-4xl font-light leading-tight tracking-tight text-neutral-100">
+              Operaciones.
+              <br />
+              <span className="font-semibold text-white">Bajo control.</span>
+            </h1>
+
+            <p className="mt-5 max-w-sm text-sm leading-relaxed text-neutral-500">
+              Acceso seguro al entorno operativo de activos, taller, stock, tesorería y continuidad.
+            </p>
+
+            <div className="mt-8 grid grid-cols-2 gap-3">
+              {[
+                ['Activos online', '24', 'text-cyan-300'],
+                ['OT abiertas', '7', 'text-emerald-300'],
+                ['Stock crítico', '4', 'text-amber-300'],
+                ['Nodo', 'AR-01', 'text-neutral-200'],
+              ].map(([label, value, color]) => (
+                <div key={label} className="rounded-xl border border-neutral-800/80 bg-neutral-950/55 p-4 backdrop-blur-md">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-neutral-500">{label}</div>
+                  <div className={`mt-2 font-mono text-2xl font-black ${color}`}>{value}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {mode !== 'reset' && (
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-bold text-hm-muted uppercase tracking-widest ml-1">Contraseña</label>
-              <Input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="w-full py-3"
-                required
-              />
+          <div className="relative z-10 space-y-3">
+            {[
+              ['Motor principal', '1.840 RPM', 'bg-cyan-300'],
+              ['Hidráulico', '92°C · OK', 'bg-emerald-300'],
+              ['Filtro aceite', 'Revisar', 'bg-amber-300'],
+            ].map(([label, value, color]) => (
+              <div key={label} className="flex items-center gap-3 border-t border-neutral-800/70 py-3">
+                <span className={`hm-login-pulse h-1.5 w-1.5 rounded-full ${color}`} />
+                <span className="flex-1 font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">{label}</span>
+                <span className="font-mono text-xs text-neutral-300">{value}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="relative flex min-h-screen items-center justify-center px-5 py-10">
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]" />
+
+          <div className="relative w-full max-w-md rounded-3xl border border-neutral-800/80 bg-neutral-950/70 p-8 shadow-2xl shadow-black/60 backdrop-blur-xl">
+            <div className="mb-8">
+              <div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300/80">
+                <span className="h-px w-6 bg-cyan-300/50" />
+                {current.label}
+              </div>
+
+              <h2 className="text-3xl font-light tracking-tight text-white">
+                {current.heading}
+              </h2>
+
+              <p className="mt-2 text-sm text-neutral-500">{current.sub}</p>
             </div>
-          )}
 
-          {error && (
-            <div className="text-red-400 text-xs font-medium p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-              ⚠️ {error}
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-1.5">
+                <label className="block font-mono text-[10px] font-bold uppercase tracking-[0.20em] text-neutral-500">
+                  Email
+                </label>
+                <Input
+                  type="email"
+                  placeholder="nombre@empresa.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="w-full border-neutral-800 bg-neutral-900/70 py-3 font-mono text-sm text-neutral-100"
+                  required
+                />
+              </div>
+
+              {mode !== 'reset' && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-mono text-[10px] font-bold uppercase tracking-[0.20em] text-neutral-500">
+                      Contraseña
+                    </label>
+                    {mode === 'login' && (
+                      <button
+                        type="button"
+                        onClick={() => switchMode('reset')}
+                        className="text-[11px] text-cyan-300/70 transition-colors hover:text-cyan-200"
+                      >
+                        ¿Olvidaste?
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className="w-full border-neutral-800 bg-neutral-900/70 py-3 pr-20 font-mono text-sm text-neutral-100"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((value) => !value)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500 hover:text-cyan-300"
+                    >
+                      {showPassword ? 'Ocultar' : 'Ver'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs font-medium text-red-300">
+                  ⚠️ {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs font-medium text-emerald-300">
+                  ✓ {success}
+                </div>
+              )}
+
+              <Button type="submit" className="w-full py-4 text-sm font-bold tracking-[0.18em]" disabled={loading}>
+                {loading ? 'PROCESANDO...' : current.action}
+              </Button>
+            </form>
+
+            <div className="mt-6 flex flex-col items-center gap-2 text-xs text-neutral-500">
+              {mode === 'login' && (
+                <button onClick={() => switchMode('register')} className="transition-colors hover:text-white">
+                  ¿No tenés cuenta? <span className="font-semibold text-cyan-300">Registrate</span>
+                </button>
+              )}
+
+              {(mode === 'register' || mode === 'reset') && (
+                <button onClick={() => switchMode('login')} className="transition-colors hover:text-white">
+                  ← Volver al inicio de sesión
+                </button>
+              )}
             </div>
-          )}
 
-          {success && (
-            <div className="text-green-400 text-xs font-medium p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-              ✓ {success}
+            <div className="mt-8 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-1 h-2 w-2 rounded-full bg-[#00f5a0]" />
+                <div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-400">
+                    Sesión segura
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-neutral-600">
+                    Acceso restringido a usuarios autorizados. Entorno operativo protegido.
+                  </p>
+                </div>
+              </div>
             </div>
-          )}
 
-          <Button type="submit" className="w-full py-4 text-sm font-bold tracking-widest" disabled={loading}>
-            {loading ? 'PROCESANDO...' : mode === 'login' ? 'INGRESAR' : mode === 'register' ? 'CREAR CUENTA' : 'ENVIAR LINK'}
-          </Button>
-        </form>
-
-        <div className="mt-6 flex flex-col items-center gap-2 text-xs text-hm-muted">
-          {mode === 'login' && (
-            <>
-              <button onClick={() => switchMode('reset')} className="hover:text-hm-text transition-colors">
-                ¿Olvidaste tu contraseña?
-              </button>
-              <button onClick={() => switchMode('register')} className="hover:text-hm-text transition-colors">
-                ¿No tenés una cuenta? <span className="text-hm-accent font-semibold">Registrate</span>
-              </button>
-            </>
-          )}
-          {(mode === 'register' || mode === 'reset') && (
-            <button onClick={() => switchMode('login')} className="hover:text-hm-text transition-colors">
-              ← Volver al inicio de sesión
-            </button>
-          )}
-        </div>
-
-        <div className="mt-8 text-center">
-          <p className="text-[10px] text-hm-muted font-bold tracking-wider uppercase opacity-30">© 2026 HeavyMetric — v2.5.0</p>
-        </div>
-      </Card>
+            <div className="mt-6 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.14em] text-neutral-700">
+              <span>© 2026 HeavyMetric</span>
+              <span className="text-emerald-300/60">Sistema activo</span>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   )
 }
