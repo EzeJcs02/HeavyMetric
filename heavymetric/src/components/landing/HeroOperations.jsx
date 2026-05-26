@@ -889,7 +889,7 @@ export default function HeroOperations() {
   return (
     <div className="hm-root">
       <video
-        src="https://assets.mixkit.co/videos/7163/7163-1080.mp4"
+        src="https://assets.mixkit.co/videos/7163/7163-720.mp4"
         autoPlay
         loop
         muted

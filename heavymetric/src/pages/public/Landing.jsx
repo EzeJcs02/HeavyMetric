@@ -81,7 +81,7 @@ export default function Landing() {
         {/* Video Background (using HD version with hardware acceleration) */}
         <div className="absolute inset-0 z-0 select-none pointer-events-none">
           <video 
-            src="https://assets.mixkit.co/videos/7163/7163-1080.mp4" 
+            src="https://assets.mixkit.co/videos/7163/7163-720.mp4" 
             autoPlay 
             loop 
             muted 
