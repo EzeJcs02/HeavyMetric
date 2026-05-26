@@ -7,6 +7,10 @@ import Button from '../../components/ui/Button'
 
 export default function Login() {
   const { user } = useAuth()
+
+  // REDIRECCIÓN CORRECTA
+  if (user) return <Navigate to="/app" replace />
+
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -14,8 +18,6 @@ export default function Login() {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [loading, setLoading] = useState(false)
-
-  if (user) return <Navigate to="/app" replace />
 
   function switchMode(next) {
     setMode(next)
@@ -32,22 +34,37 @@ export default function Login() {
     setLoading(true)
 
     if (mode === 'login') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
       if (error) setError(error.message)
     }
 
     if (mode === 'register') {
-      const { error } = await supabase.auth.signUp({ email, password })
-      if (error) setError(error.message)
-      else setSuccess('Cuenta creada. Revisá tu email para confirmar el registro.')
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      })
+
+      if (error) {
+        setError(error.message)
+      } else {
+        setSuccess('Cuenta creada. Revisá tu email para confirmar el registro.')
+      }
     }
 
     if (mode === 'reset') {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       })
-      if (error) setError(error.message)
-      else setSuccess('Te enviamos un link para restablecer tu contraseña.')
+
+      if (error) {
+        setError(error.message)
+      } else {
+        setSuccess('Te enviamos un link para restablecer tu contraseña.')
+      }
     }
 
     setLoading(false)
@@ -140,6 +157,7 @@ export default function Login() {
               <div className="bg-gradient-to-r from-zinc-100 via-zinc-300 to-zinc-500 bg-clip-text text-lg font-black tracking-[0.14em] text-transparent">
                 HEAVYMETRIC
               </div>
+
               <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.28em] text-neutral-500">
                 Industrial Operations System
               </div>
@@ -161,40 +179,10 @@ export default function Login() {
             <p className="mt-5 max-w-sm text-sm leading-relaxed text-neutral-500">
               Acceso seguro al entorno operativo de activos, taller, stock, tesorería y continuidad.
             </p>
-
-            <div className="mt-8 grid grid-cols-2 gap-3">
-              {[
-                ['Activos online', '24', 'text-cyan-300'],
-                ['OT abiertas', '7', 'text-emerald-300'],
-                ['Stock crítico', '4', 'text-amber-300'],
-                ['Nodo', 'AR-01', 'text-neutral-200'],
-              ].map(([label, value, color]) => (
-                <div key={label} className="rounded-xl border border-neutral-800/80 bg-neutral-950/55 p-4 backdrop-blur-md">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-neutral-500">{label}</div>
-                  <div className={`mt-2 font-mono text-2xl font-black ${color}`}>{value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="relative z-10 space-y-3">
-            {[
-              ['Motor principal', '1.840 RPM', 'bg-cyan-300'],
-              ['Hidráulico', '92°C · OK', 'bg-emerald-300'],
-              ['Filtro aceite', 'Revisar', 'bg-amber-300'],
-            ].map(([label, value, color]) => (
-              <div key={label} className="flex items-center gap-3 border-t border-neutral-800/70 py-3">
-                <span className={`hm-login-pulse h-1.5 w-1.5 rounded-full ${color}`} />
-                <span className="flex-1 font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500">{label}</span>
-                <span className="font-mono text-xs text-neutral-300">{value}</span>
-              </div>
-            ))}
           </div>
         </section>
 
         <section className="relative flex min-h-screen items-center justify-center px-5 py-10">
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]" />
-
           <div className="relative w-full max-w-md rounded-3xl border border-neutral-800/80 bg-neutral-950/70 p-8 shadow-2xl shadow-black/60 backdrop-blur-xl">
             <div className="mb-8">
               <div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300/80">
@@ -206,7 +194,9 @@ export default function Login() {
                 {current.heading}
               </h2>
 
-              <p className="mt-2 text-sm text-neutral-500">{current.sub}</p>
+              <p className="mt-2 text-sm text-neutral-500">
+                {current.sub}
+              </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -214,6 +204,7 @@ export default function Login() {
                 <label className="block font-mono text-[10px] font-bold uppercase tracking-[0.20em] text-neutral-500">
                   Email
                 </label>
+
                 <Input
                   type="email"
                   placeholder="nombre@empresa.com"
@@ -230,6 +221,7 @@ export default function Login() {
                     <label className="block font-mono text-[10px] font-bold uppercase tracking-[0.20em] text-neutral-500">
                       Contraseña
                     </label>
+
                     {mode === 'login' && (
                       <button
                         type="button"
@@ -250,6 +242,7 @@ export default function Login() {
                       className="w-full border-neutral-800 bg-neutral-900/70 py-3 pr-20 font-mono text-sm text-neutral-100"
                       required
                     />
+
                     <button
                       type="button"
                       onClick={() => setShowPassword((value) => !value)}
@@ -263,7 +256,7 @@ export default function Login() {
 
               {error && (
                 <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs font-medium text-red-300">
-                  ⚠️ {error}
+                  ⚠ {error}
                 </div>
               )}
 
@@ -273,43 +266,14 @@ export default function Login() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full py-4 text-sm font-bold tracking-[0.18em]" disabled={loading}>
+              <Button
+                type="submit"
+                className="w-full py-4 text-sm font-bold tracking-[0.18em]"
+                disabled={loading}
+              >
                 {loading ? 'PROCESANDO...' : current.action}
               </Button>
             </form>
-
-            <div className="mt-6 flex flex-col items-center gap-2 text-xs text-neutral-500">
-              {mode === 'login' && (
-                <button onClick={() => switchMode('register')} className="transition-colors hover:text-white">
-                  ¿No tenés cuenta? <span className="font-semibold text-cyan-300">Registrate</span>
-                </button>
-              )}
-
-              {(mode === 'register' || mode === 'reset') && (
-                <button onClick={() => switchMode('login')} className="transition-colors hover:text-white">
-                  ← Volver al inicio de sesión
-                </button>
-              )}
-            </div>
-
-            <div className="mt-8 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
-              <div className="flex items-start gap-3">
-                <span className="mt-1 h-2 w-2 rounded-full bg-[#00f5a0]" />
-                <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-400">
-                    Sesión segura
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-neutral-600">
-                    Acceso restringido a usuarios autorizados. Entorno operativo protegido.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.14em] text-neutral-700">
-              <span>© 2026 HeavyMetric</span>
-              <span className="text-emerald-300/60">Sistema activo</span>
-            </div>
           </div>
         </section>
       </div>
