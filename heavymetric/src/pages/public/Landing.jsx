@@ -71,73 +71,9 @@ export default function Landing() {
         </div>
       </header>
 
-      <main className="relative px-6 pb-24 pt-36">
-        <div className="pointer-events-none absolute left-1/2 top-24 h-[540px] w-[720px] -translate-x-1/2 rounded-full bg-blue-600/10 blur-[140px]" />
-        <div className="pointer-events-none absolute right-0 top-40 h-[420px] w-[420px] rounded-full bg-emerald-400/5 blur-[120px]" />
-
-        <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-16 lg:grid-cols-2">
-          <div className="relative z-10 flex flex-col gap-8">
-            <div>
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-neutral-800 bg-neutral-900/60 px-3 py-1">
-                <span className="h-2 w-2 rounded-full bg-[#00f5a0]" />
-                <span className="font-mono text-xs text-neutral-500">
-                  v2.5 — Plataforma Operativa 360
-                </span>
-              </div>
-
-              <h1 className="mb-6 max-w-2xl text-5xl font-black leading-[1.05] tracking-tighter md:text-7xl">
-                Operación, activos y postventa en un{' '}
-                <span className="bg-gradient-to-r from-amber-400 via-zinc-400 to-blue-500 bg-clip-text text-transparent">
-                  solo sistema.
-                </span>
-              </h1>
-
-              <p className="max-w-xl text-lg leading-relaxed text-neutral-500 md:text-xl">
-                HeavyMetric centraliza clientes, activos, OTs, stock, tesorería,
-                proveedores, aprobaciones y continuidad operativa para PyMEs
-                industriales, talleres, rental y flotas.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-4">
-              <Link to="/login">
-                <button className="h-14 rounded-xl bg-white px-8 text-lg font-bold text-black transition-colors hover:bg-neutral-200">
-                  Iniciar sesión
-                </button>
-              </Link>
-
-              <button className="h-14 rounded-xl border border-neutral-700 bg-neutral-950/40 px-8 text-lg font-bold text-white transition-colors hover:border-cyan-300/40 hover:bg-neutral-900">
-                Solicitar Demo
-              </button>
-            </div>
-
-            <div className="grid max-w-xl grid-cols-3 gap-4 border-t border-neutral-800 pt-8">
-              <div>
-                <div className="font-mono text-2xl font-black text-amber-400">360°</div>
-                <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500">
-                  Operación
-                </div>
-              </div>
-
-              <div>
-                <div className="font-mono text-2xl font-black text-cyan-300">LIVE</div>
-                <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500">
-                  Alertas
-                </div>
-              </div>
-
-              <div>
-                <div className="font-mono text-2xl font-black text-emerald-300">IA</div>
-                <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500">
-                  Silenciosa
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative z-10">
-            <HeroOperations />
-          </div>
+      <main className="px-6 pb-24 pt-28">
+        <div className="mx-auto max-w-7xl">
+          <HeroOperations />
         </div>
       </main>
 
