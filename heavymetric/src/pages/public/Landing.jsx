@@ -77,16 +77,31 @@ export default function Landing() {
         </div>
       </main>
 
-      <section className="border-t border-neutral-900 bg-black/40 py-24">
-        <div className="mx-auto max-w-7xl px-6">
+      <section className="relative border-t border-neutral-900 py-24 overflow-hidden">
+        {/* Video Background */}
+        <div className="absolute inset-0 z-0">
+          <video 
+            src="https://assets.mixkit.co/videos/7163/7163-720.mp4" 
+            autoPlay 
+            loop 
+            muted 
+            playsInline 
+            className="w-full h-full object-cover opacity-20"
+          />
+          {/* Overlay gradient to blend with surrounding sections and make text readable */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0b0c0e] via-transparent to-[#0b0c0e]" />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px]" />
+        </div>
+
+        <div className="relative z-10 mx-auto max-w-7xl px-6">
           <div className="mb-16 text-center">
             <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.30em] text-neutral-600">
               Ecosistema operativo
             </div>
-            <h2 className="mb-4 text-3xl font-black tracking-tight md:text-5xl">
+            <h2 className="mb-4 text-3xl font-black tracking-tight md:text-5xl text-white">
               Todo conectado. Sin planillas aisladas.
             </h2>
-            <p className="text-lg text-neutral-500">
+            <p className="text-lg text-neutral-400">
               Una plataforma para vender, operar, mantener, cobrar y decidir.
             </p>
           </div>
@@ -95,13 +110,13 @@ export default function Landing() {
             {modules.map((mod) => (
               <div
                 key={mod.t}
-                className="group rounded-2xl border border-neutral-800/80 bg-neutral-950/50 p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-neutral-900/70"
+                className="group rounded-2xl border border-white/5 bg-black/45 backdrop-blur-md p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-neutral-900/60"
               >
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-700/70 bg-neutral-900 font-mono text-lg text-cyan-200 transition-transform group-hover:scale-105">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-800/80 bg-neutral-950 font-mono text-lg text-cyan-200 transition-transform group-hover:scale-105">
                   {mod.i}
                 </div>
-                <h3 className="mb-2 text-lg font-black">{mod.t}</h3>
-                <p className="text-sm leading-relaxed text-neutral-500">{mod.d}</p>
+                <h3 className="mb-2 text-lg font-black text-white">{mod.t}</h3>
+                <p className="text-sm leading-relaxed text-neutral-400">{mod.d}</p>
               </div>
             ))}
           </div>
