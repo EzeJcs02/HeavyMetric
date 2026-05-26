@@ -35,6 +35,74 @@ const safeCount = (result) => {
   return result?.count || 0
 }
 
+const HeavyMetricMark = () => (
+  <div className="relative h-12 w-12 shrink-0 rounded-2xl border border-neutral-700/70 bg-neutral-950/80 overflow-hidden">
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(0,245,160,0.18),transparent_35%),radial-gradient(circle_at_80%_70%,rgba(37,99,235,0.20),transparent_40%)]" />
+    <div className="absolute inset-x-2 top-1/2 h-px bg-gradient-to-r from-transparent via-cyan-300/60 to-transparent animate-pulse" />
+    <div className="relative flex h-full w-full items-center justify-center">
+      <div className="font-mono text-[23px] font-black tracking-tighter bg-gradient-to-br from-zinc-100 via-zinc-400 to-zinc-600 bg-clip-text text-transparent">
+        ∞
+      </div>
+    </div>
+  </div>
+)
+
+const SystemBadge = ({ label, active }) => (
+  <div
+    className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-mono uppercase tracking-[0.22em] ${
+      active
+        ? 'border-cyan-400/30 bg-cyan-400/5 text-cyan-200'
+        : 'border-neutral-700/70 bg-neutral-900/50 text-neutral-400'
+    }`}
+  >
+    <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-[#00f5a0] animate-pulse' : 'bg-neutral-500'}`} />
+    {label}
+  </div>
+)
+
+const SectionLabel = ({ children }) => (
+  <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-[0.28em] text-neutral-500">
+    <div className="h-px flex-1 bg-gradient-to-r from-transparent via-neutral-800 to-neutral-800/40" />
+    <span>{children}</span>
+    <div className="h-px flex-1 bg-gradient-to-l from-transparent via-neutral-800 to-neutral-800/40" />
+  </div>
+)
+
+const CommandCard = ({ label, value, description, tone = 'neutral', delay = '0ms' }) => {
+  const toneClass = {
+    orange: 'group-hover:border-orange-400/50 text-orange-300',
+    red: 'group-hover:border-red-400/50 text-red-300',
+    blue: 'group-hover:border-blue-400/50 text-blue-300',
+    cyan: 'group-hover:border-cyan-300/50 text-cyan-200',
+    green: 'group-hover:border-emerald-300/50 text-emerald-200',
+    neutral: 'group-hover:border-neutral-500/70 text-neutral-100',
+  }[tone]
+
+  return (
+    <div
+      className="group relative overflow-hidden rounded-2xl border border-neutral-800/70 bg-neutral-950/45 p-4 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-neutral-900/60"
+      style={{ animationDelay: delay }}
+    >
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/30 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-neutral-500 transition-colors group-hover:text-neutral-300">
+        {label}
+      </div>
+      <div className={`mt-3 font-mono text-2xl font-black tracking-tight ${toneClass}`}>
+        {value}
+      </div>
+      <div className="mt-1 text-xs text-neutral-500">{description}</div>
+    </div>
+  )
+}
+
+const KpiCard = ({ label, value, toneClass = 'text-neutral-100' }) => (
+  <div className="relative overflow-hidden rounded-2xl border border-neutral-800/70 bg-neutral-950/35 p-4 text-center backdrop-blur-md">
+    <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-neutral-600/50 to-transparent" />
+    <div className="mb-2 text-[10px] font-mono uppercase tracking-[0.22em] text-neutral-500">{label}</div>
+    <div className={`font-mono text-xl font-black ${toneClass}`}>{value}</div>
+  </div>
+)
+
 export default function Home() {
   const { perfil, orgId } = useAuth()
   const [data, setData] = useState(emptyMetrics)
@@ -112,8 +180,8 @@ export default function Home() {
     estadoGeneral === 'CRÍTICO'
       ? 'text-red-400'
       : estadoGeneral === 'ATENCIÓN'
-        ? 'text-amber-400'
-        : 'text-green-400'
+        ? 'text-amber-300'
+        : 'text-[#00f5a0]'
 
   const dataModeLabel = {
     REAL: 'Datos reales',
@@ -258,121 +326,133 @@ export default function Home() {
   const visibleModules = modules.filter((module) => module.show)
 
   return (
-    <div className="min-h-full flex flex-col px-4 md:px-8 py-3 md:py-4 w-full max-w-7xl mx-auto overflow-hidden gap-6">
-      <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-hm-text tracking-tight">Centro de Operaciones</h1>
-          <p className="text-hm-muted mt-0.5 text-xs">
-            Vista general del estado operativo, financiero y comercial de la PyME.
-          </p>
-        </div>
+    <div className="relative min-h-full overflow-hidden bg-[#0b0c0e] px-4 py-4 text-neutral-100 md:px-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(37,99,235,0.14),transparent_28%),radial-gradient(circle_at_85%_12%,rgba(0,245,160,0.08),transparent_28%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent" />
 
-        <div className="w-fit rounded-full border border-hm-border/50 bg-hm-surface2/30 px-3 py-1 text-[10px] font-mono uppercase tracking-widest text-hm-muted">
-          {dataModeLabel}
-        </div>
-      </div>
+      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-6">
+        <section className="relative overflow-hidden rounded-3xl border border-neutral-800/70 bg-neutral-950/60 p-5 backdrop-blur-md md:p-6">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#00f5a0]/40 to-transparent" />
+          <div className="pointer-events-none absolute -right-24 -top-24 h-56 w-56 rounded-full bg-blue-600/10 blur-3xl" />
 
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((item) => (
-            <div key={item} className="h-32 bg-hm-surface2 rounded-xl animate-pulse" />
-          ))}
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-orange-500/50 transition-colors cursor-pointer group">
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest group-hover:text-orange-400 transition-colors">
-                Qué hacer hoy
-              </div>
-              <div className="text-2xl font-bold text-hm-text mt-1">{data.otsAbiertas} OTs</div>
-              <div className="text-xs text-hm-muted">Tareas en progreso o borrador</div>
-            </div>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <HeavyMetricMark />
 
-            <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-red-500/50 transition-colors cursor-pointer group">
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest group-hover:text-red-400 transition-colors">
-                Riesgos Operativos
-              </div>
-              <div className="text-2xl font-bold text-hm-text mt-1">{data.activosCriticos} Equipos</div>
-              <div className="text-xs text-hm-muted">Fuera de servicio o esperando repuesto</div>
-            </div>
-
-            <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-blue-500/50 transition-colors cursor-pointer group">
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest group-hover:text-blue-400 transition-colors">
-                Aprobaciones
-              </div>
-              <div className="text-2xl font-bold text-hm-text mt-1">{data.aprobacionesPendientes} Solicitudes</div>
-              <div className="text-xs text-hm-muted">Cotizaciones enviadas sin respuesta</div>
-            </div>
-
-            <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl flex flex-col gap-1 hover:border-yellow-500/50 transition-colors cursor-pointer group">
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest group-hover:text-yellow-400 transition-colors">
-                Continuidad Operativa
-              </div>
-              <div className={`text-2xl font-bold mt-1 ${hasOperationalRisk ? 'text-amber-400' : 'text-green-400'}`}>
-                {hasOperationalRisk ? 'Atención' : 'Normal'}
-              </div>
-              <div className="text-xs text-hm-muted">Servicios, stock y activos críticos</div>
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[11px] font-mono text-hm-muted uppercase tracking-widest mb-3 flex items-center gap-2">
-              <div className="h-px bg-hm-border/50 flex-1" />
-              Indicadores Clave
-              <div className="h-px bg-hm-border/50 flex-1" />
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
-                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Modo de datos</div>
-                <div className="text-xl font-bold text-hm-text">{dataModeLabel}</div>
-              </div>
-
-              <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
-                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Estado General</div>
-                <div className={`text-xl font-bold ${estadoGeneralClass}`}>{estadoGeneral}</div>
-              </div>
-
-              <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
-                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Stock Crítico</div>
-                <div className={`text-xl font-bold ${data.stockCritico > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                  {data.stockCritico} Ítems
+              <div>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <SystemBadge label="Live system" active={dataMode === 'REAL'} />
+                  <SystemBadge label={dataModeLabel} active={dataMode === 'REAL'} />
                 </div>
-              </div>
 
-              <div className="bg-hm-surface2/20 border border-hm-border/40 p-4 rounded-xl text-center">
-                <div className="text-[10px] font-mono text-hm-muted uppercase mb-1">Activos Críticos</div>
-                <div className={`text-xl font-bold ${data.activosCriticos > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                  {data.activosCriticos} {data.activosCriticos === 1 ? 'Equipo' : 'Equipos'}
-                </div>
+                <h1 className="bg-gradient-to-br from-zinc-100 via-zinc-300 to-zinc-500 bg-clip-text text-3xl font-black tracking-tight text-transparent md:text-4xl">
+                  Centro de Operaciones
+                </h1>
+
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-400">
+                  Vista ejecutiva del estado operativo, financiero y comercial de la PyME.
+                  Diseñado para detectar riesgo, continuidad y acción inmediata.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 rounded-2xl border border-neutral-800/70 bg-neutral-900/35 p-2 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500">
+              <div className="rounded-xl bg-neutral-950/60 p-3">
+                <div>ORG</div>
+                <div className="mt-1 text-neutral-200">{orgId ? 'ONLINE' : 'SIN ORG'}</div>
+              </div>
+              <div className="rounded-xl bg-neutral-950/60 p-3">
+                <div>ROL</div>
+                <div className="mt-1 text-neutral-200">{rol || '—'}</div>
+              </div>
+              <div className="rounded-xl bg-neutral-950/60 p-3">
+                <div>OPS</div>
+                <div className={`mt-1 ${estadoGeneralClass}`}>{estadoGeneral}</div>
               </div>
             </div>
           </div>
+        </section>
 
-          <div>
-            <div className="text-[11px] font-mono text-hm-muted uppercase tracking-widest mb-3 flex items-center gap-2">
-              <div className="h-px bg-hm-border/50 flex-1" />
-              Accesos Directos
-              <div className="h-px bg-hm-border/50 flex-1" />
-            </div>
+        {loading ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((item) => (
+              <div key={item} className="h-32 rounded-2xl border border-neutral-800/60 bg-neutral-900/50 animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <>
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <CommandCard
+                label="Qué hacer hoy"
+                value={`${data.otsAbiertas} OTs`}
+                description="Tareas en progreso o borrador"
+                tone="orange"
+              />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {visibleModules.map((module) => (
-                <ModuleCard
-                  key={module.id}
-                  title={module.title}
-                  description={module.description}
-                  colorClass={module.colorClass}
-                  icon={module.icon}
-                  to={module.to}
-                  metrics={module.metrics}
+              <CommandCard
+                label="Riesgo operativo"
+                value={`${data.activosCriticos} Equipos`}
+                description="Fuera de servicio o esperando repuesto"
+                tone={data.activosCriticos > 0 ? 'red' : 'green'}
+                delay="60ms"
+              />
+
+              <CommandCard
+                label="Aprobaciones"
+                value={`${data.aprobacionesPendientes} Solicitudes`}
+                description="Cotizaciones enviadas sin respuesta"
+                tone="blue"
+                delay="120ms"
+              />
+
+              <CommandCard
+                label="Continuidad operativa"
+                value={hasOperationalRisk ? 'Atención' : 'Normal'}
+                description="Servicios, stock y activos críticos"
+                tone={hasOperationalRisk ? 'orange' : 'cyan'}
+                delay="180ms"
+              />
+            </section>
+
+            <section className="flex flex-col gap-4">
+              <SectionLabel>Indicadores clave</SectionLabel>
+
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <KpiCard label="Modo de datos" value={dataModeLabel} />
+                <KpiCard label="Estado general" value={estadoGeneral} toneClass={estadoGeneralClass} />
+                <KpiCard
+                  label="Stock crítico"
+                  value={`${data.stockCritico} Ítems`}
+                  toneClass={data.stockCritico > 0 ? 'text-red-400' : 'text-[#00f5a0]'}
                 />
-              ))}
-            </div>
-          </div>
-        </>
-      )}
+                <KpiCard
+                  label="Activos críticos"
+                  value={`${data.activosCriticos} ${data.activosCriticos === 1 ? 'Equipo' : 'Equipos'}`}
+                  toneClass={data.activosCriticos > 0 ? 'text-red-400' : 'text-[#00f5a0]'}
+                />
+              </div>
+            </section>
+
+            <section className="flex flex-col gap-4">
+              <SectionLabel>Accesos directos</SectionLabel>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {visibleModules.map((module) => (
+                  <ModuleCard
+                    key={module.id}
+                    title={module.title}
+                    description={module.description}
+                    colorClass={module.colorClass}
+                    icon={module.icon}
+                    to={module.to}
+                    metrics={module.metrics}
+                  />
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+      </div>
     </div>
   )
 }
