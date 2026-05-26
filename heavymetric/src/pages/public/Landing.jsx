@@ -78,18 +78,19 @@ export default function Landing() {
       </main>
 
       <section className="relative border-t border-neutral-900 py-24 overflow-hidden bg-[#070809]">
-        {/* Video Background (using optimized 360p version for performance and fluidity) */}
+        {/* Video Background (using HD version with hardware acceleration) */}
         <div className="absolute inset-0 z-0 select-none pointer-events-none">
           <video 
-            src="https://assets.mixkit.co/videos/7163/7163-360.mp4" 
+            src="https://assets.mixkit.co/videos/7163/7163-1080.mp4" 
             autoPlay 
             loop 
             muted 
             playsInline 
-            className="w-full h-full object-cover opacity-50"
+            className="w-full h-full object-cover opacity-80"
+            style={{ transform: 'translate3d(0, 0, 0)', backfaceVisibility: 'hidden' }}
           />
           {/* Overlay gradient to blend with surrounding sections and make text readable */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0b0c0e] via-black/30 to-[#0b0c0e]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0b0c0e] via-[#0b0c0e]/30 to-[#0b0c0e]" />
         </div>
 
         <div className="relative z-10 mx-auto max-w-7xl px-6">

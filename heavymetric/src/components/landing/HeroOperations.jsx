@@ -888,6 +888,24 @@ export default function HeroOperations() {
 
   return (
     <div className="hm-root">
+      <video
+        src="https://assets.mixkit.co/videos/7163/7163-1080.mp4"
+        autoPlay
+        loop
+        muted
+        playsInline
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          opacity: 0.25,
+          transform: 'translate3d(0, 0, 0)',
+          backfaceVisibility: 'hidden',
+          pointerEvents: 'none',
+        }}
+      />
       <div className="hm-grid-bg" />
       <div className="hm-scanline" />
       <div className="hm-vignette" />
