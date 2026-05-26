@@ -77,31 +77,30 @@ export default function Landing() {
         </div>
       </main>
 
-      <section className="relative border-t border-neutral-900 py-24 overflow-hidden">
-        {/* Video Background */}
-        <div className="absolute inset-0 z-0">
+      <section className="relative border-t border-neutral-900 py-24 overflow-hidden bg-[#070809]">
+        {/* Video Background (using optimized 360p version for performance and fluidity) */}
+        <div className="absolute inset-0 z-0 select-none pointer-events-none">
           <video 
-            src="https://assets.mixkit.co/videos/7163/7163-720.mp4" 
+            src="https://assets.mixkit.co/videos/7163/7163-360.mp4" 
             autoPlay 
             loop 
             muted 
             playsInline 
-            className="w-full h-full object-cover opacity-20"
+            className="w-full h-full object-cover opacity-50"
           />
           {/* Overlay gradient to blend with surrounding sections and make text readable */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0b0c0e] via-transparent to-[#0b0c0e]" />
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0b0c0e] via-black/30 to-[#0b0c0e]" />
         </div>
 
         <div className="relative z-10 mx-auto max-w-7xl px-6">
           <div className="mb-16 text-center">
-            <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.30em] text-neutral-600">
+            <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.30em] text-neutral-500">
               Ecosistema operativo
             </div>
-            <h2 className="mb-4 text-3xl font-black tracking-tight md:text-5xl text-white">
+            <h2 className="mb-4 text-3xl font-black tracking-tight md:text-5xl text-white [text-shadow:0_2px_10px_rgba(0,0,0,0.8)]">
               Todo conectado. Sin planillas aisladas.
             </h2>
-            <p className="text-lg text-neutral-400">
+            <p className="text-lg text-neutral-300 [text-shadow:0_1px_5px_rgba(0,0,0,0.8)]">
               Una plataforma para vender, operar, mantener, cobrar y decidir.
             </p>
           </div>
@@ -110,7 +109,7 @@ export default function Landing() {
             {modules.map((mod) => (
               <div
                 key={mod.t}
-                className="group rounded-2xl border border-white/5 bg-black/45 backdrop-blur-md p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-neutral-900/60"
+                className="group rounded-2xl border border-white/5 bg-[#0e1013]/90 p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-[#121418]/95 shadow-xl"
               >
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-800/80 bg-neutral-950 font-mono text-lg text-cyan-200 transition-transform group-hover:scale-105">
                   {mod.i}
