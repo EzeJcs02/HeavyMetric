@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import Button from '../../components/ui/Button'
 
 export default function Landing() {
   const { user, loading } = useAuth()
+  const [activeTab, setActiveTab] = useState('activos')
 
   if (loading) return <div className="min-h-screen bg-hm-bg flex items-center justify-center text-hm-muted font-mono">Cargando...</div>
   if (user) return <Navigate to="/app" replace />
@@ -86,18 +88,128 @@ export default function Landing() {
                 <div className="w-3 h-3 rounded-full bg-yellow-500/50" />
                 <div className="w-3 h-3 rounded-full bg-green-500/50" />
               </div>
-              <div className="p-6 grid grid-cols-3 gap-4 bg-gradient-to-br from-[#111] to-[#0a0a0a]">
-                <div className="col-span-3 pb-4 border-b border-white/5 mb-2">
-                  <div className="h-4 w-32 bg-white/10 rounded mb-2" />
-                  <div className="h-8 w-48 bg-white/5 rounded" />
+              <div className="flex border-b border-white/10 bg-[#161616] px-4 gap-1">
+                <button 
+                  onClick={() => setActiveTab('activos')} 
+                  className={`px-4 py-3 text-xs font-bold font-mono transition-all border-b-2 -mb-[1px] flex items-center gap-1.5 ${activeTab === 'activos' ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-white'}`}
+                >
+                  🚜 Activos
+                </button>
+                <button 
+                  onClick={() => setActiveTab('taller')} 
+                  className={`px-4 py-3 text-xs font-bold font-mono transition-all border-b-2 -mb-[1px] flex items-center gap-1.5 ${activeTab === 'taller' ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-white'}`}
+                >
+                  🔧 Taller
+                </button>
+                <button 
+                  onClick={() => setActiveTab('stock')} 
+                  className={`px-4 py-3 text-xs font-bold font-mono transition-all border-b-2 -mb-[1px] flex items-center gap-1.5 ${activeTab === 'stock' ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-white'}`}
+                >
+                  📦 Stock
+                </button>
+              </div>
+
+              <div className="relative h-[350px] w-full overflow-hidden bg-black">
+                <video 
+                  src="https://assets.mixkit.co/videos/7163/7163-720.mp4" 
+                  autoPlay 
+                  loop 
+                  muted 
+                  playsInline 
+                  className="absolute inset-0 w-full h-full object-cover opacity-50 mix-blend-screen"
+                />
+                
+                {/* Cyberpunk Grid / Scanline overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.15)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[size:100%_4px,3px_100%] pointer-events-none" />
+
+                {/* CCTV Badges */}
+                <div className="absolute top-4 left-4 flex items-center gap-2 px-2.5 py-1 rounded bg-black/75 border border-white/10 backdrop-blur-md">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-[9px] font-mono tracking-wider text-white uppercase font-bold">FEED_CAM04 // ACTIVO</span>
                 </div>
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className={`p-4 rounded-xl border border-white/5 bg-white/[0.02] ${i === 0 ? 'border-hm-accent/30 bg-hm-accent/5' : ''}`}>
-                    <div className="h-3 w-16 bg-white/10 rounded mb-4" />
-                    <div className="h-6 w-24 bg-white/20 rounded" />
-                  </div>
-                ))}
-                <div className="col-span-3 mt-4 h-32 rounded-xl bg-gradient-to-r from-hm-accent/20 to-transparent border border-hm-accent/10" />
+
+                <div className="absolute top-4 right-4 flex items-center gap-2 px-2.5 py-1 rounded bg-black/75 border border-white/10 backdrop-blur-md text-[9px] font-mono text-hm-muted">
+                  <span>REC 🟢</span>
+                </div>
+
+                {/* Content Overlay */}
+                <div className="absolute inset-0 p-6 flex flex-col justify-end gap-3 bg-gradient-to-t from-black via-black/40 to-transparent">
+                  {activeTab === 'activos' && (
+                    <div className="backdrop-blur-md bg-black/60 border border-white/10 p-5 rounded-xl max-w-sm transition-all duration-300 border-l-hm-accent border-l-4">
+                      <div className="text-[10px] font-mono text-hm-accent uppercase mb-1 tracking-widest font-black">Telemetría de Activos</div>
+                      <h4 className="text-base font-black text-white mb-2">Excavadora Oruga CAT 320D</h4>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-mono mt-3">
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">OPERARIO</span>
+                          <span className="text-white font-bold">Marcos Benítez</span>
+                        </div>
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">HORÓMETRO</span>
+                          <span className="text-white font-bold">3,542.8 hs</span>
+                        </div>
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">PRESIÓN HIDR.</span>
+                          <span className="text-green-400 font-bold">210 bar (Normal)</span>
+                        </div>
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">UBICACIÓN</span>
+                          <span className="text-white font-bold">Frente 2, Minera</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'taller' && (
+                    <div className="backdrop-blur-md bg-black/60 border border-white/10 p-5 rounded-xl max-w-sm transition-all duration-300 border-l-blue-500 border-l-4">
+                      <div className="text-[10px] font-mono text-blue-500 uppercase mb-1 tracking-widest font-black">Taller / Postventa</div>
+                      <h4 className="text-base font-black text-white mb-2">Orden de Trabajo #4829</h4>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-mono mt-3">
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">TIPO</span>
+                          <span className="text-white font-bold">Preventivo 250h</span>
+                        </div>
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">ESTADO</span>
+                          <span className="text-yellow-500 font-bold">En Proceso</span>
+                        </div>
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">MECÁNICO</span>
+                          <span className="text-white font-bold">Gómez, Ariel</span>
+                        </div>
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">PROGRESO</span>
+                          <span className="text-white font-bold">75% completado</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'stock' && (
+                    <div className="backdrop-blur-md bg-black/60 border border-white/10 p-5 rounded-xl max-w-sm transition-all duration-300 border-l-red-500 border-l-4">
+                      <div className="text-[10px] font-mono text-red-500 uppercase mb-1 tracking-widest font-black">Control de Stock</div>
+                      <h4 className="text-base font-black text-white mb-2">Repuestos Críticos</h4>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-mono mt-3">
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">ARTÍCULO</span>
+                          <span className="text-white font-bold">Filtro de Aire CAT</span>
+                        </div>
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">DISPONIBLE</span>
+                          <span className="text-red-500 font-bold">0 unids</span>
+                        </div>
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">EN CAMINO</span>
+                          <span className="text-white font-bold">12 unids (Vía Aérea)</span>
+                        </div>
+                        <div>
+                          <span className="text-hm-muted block text-[10px]">PROVEEDOR</span>
+                          <span className="text-white font-bold">Finning S.A.</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
