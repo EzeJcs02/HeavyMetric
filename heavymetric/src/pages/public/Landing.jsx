@@ -10,8 +10,6 @@ export default function Landing() {
   const [demoSubmitted, setDemoSubmitted] = useState(false)
   const [formData, setFormData] = useState({ name: '', company: '', email: '' })
   const [hoveredStat, setHoveredStat] = useState(null)
-  const [showOtAlert, setShowOtAlert] = useState(true)
-  const [showStockAlert, setShowStockAlert] = useState(true)
 
   if (loading) return <div className="min-h-screen bg-hm-bg flex items-center justify-center text-hm-muted font-mono">Cargando...</div>
   if (user) return <Navigate to="/app" replace />
@@ -273,41 +271,6 @@ export default function Landing() {
                 </div>
               </div>
             </div>
-
-            {/* Floating Cards (Dismissible & Interactive) */}
-            {showOtAlert && (
-              <div className="absolute -left-6 top-24 bg-[#161616]/95 backdrop-blur-md p-4 pr-8 rounded-xl border border-green-500/20 shadow-xl hidden md:flex items-center gap-3 transition-all hover:scale-105 hover:border-green-500/50 cursor-pointer group animate-[bounce_5s_infinite]">
-                <div className="w-10 h-10 rounded bg-green-500/20 flex items-center justify-center text-xl">✅</div>
-                <div>
-                  <div className="text-sm font-bold text-white">OT #1459 Lista</div>
-                  <div className="text-xs text-hm-muted">Excavadora CAT 320</div>
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setShowOtAlert(false); }}
-                  className="absolute top-2 right-2 w-4 h-4 flex items-center justify-center text-[10px] text-hm-muted hover:text-white font-mono hover:bg-white/10 rounded"
-                  title="Cerrar alerta"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-
-            {showStockAlert && (
-              <div className="absolute -bottom-6 right-6 bg-[#161616]/95 backdrop-blur-md p-4 pr-8 rounded-xl border border-red-500/20 shadow-xl hidden md:flex items-center gap-3 transition-all hover:scale-105 hover:border-red-500/50 cursor-pointer group animate-[bounce_6s_infinite_reverse]">
-                <div className="w-10 h-10 rounded bg-red-500/20 flex items-center justify-center text-xl">⚠️</div>
-                <div>
-                  <div className="text-sm font-bold text-white">Stock Crítico</div>
-                  <div className="text-xs text-hm-muted">Filtro de Aceite (2 unid)</div>
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setShowStockAlert(false); }}
-                  className="absolute top-2 right-2 w-4 h-4 flex items-center justify-center text-[10px] text-hm-muted hover:text-white font-mono hover:bg-white/10 rounded"
-                  title="Cerrar alerta"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
 
           </div>
         </div>
