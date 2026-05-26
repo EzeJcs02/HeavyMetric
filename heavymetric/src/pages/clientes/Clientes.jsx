@@ -33,6 +33,8 @@ const EMPTY = {
   propension_compra: 'B',
 }
 
+const safeText = (value) => value || '—'
+
 function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
   const [form, setForm] = useState(EMPTY)
   const [loading, setLoading] = useState(false)
@@ -110,7 +112,7 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
       } else {
         toast.error(res.error || 'Error al consultar ARCA')
       }
-    } catch (err) {
+    } catch {
       toast.error('Error de conexión con ARCA')
     } finally {
       setLoading(false)
@@ -329,16 +331,16 @@ export default function Clientes() {
     }
 
     const rows = clientesFiltrados.map((cliente) => ({
-      'RAZÓN SOCIAL': cliente.razon_social || '—',
-      'NOMBRE COMERCIAL': cliente.nombre_comercial || '—',
-      CUIT: cliente.cuit || '—',
-      'CONDICIÓN IVA': cliente.condicion_iva || '—',
-      RUBRO: cliente.rubro || '—',
-      PROPENSIÓN: cliente.propension_compra || '—',
-      EMAIL: cliente.email || '—',
-      TELÉFONO: cliente.telefono || '—',
-      CONTACTO: cliente.contacto_nombre || '—',
-      DIRECCIÓN: cliente.direccion || '—',
+      'RAZÓN SOCIAL': safeText(cliente.razon_social),
+      'NOMBRE COMERCIAL': safeText(cliente.nombre_comercial),
+      CUIT: safeText(cliente.cuit),
+      'CONDICIÓN IVA': safeText(cliente.condicion_iva),
+      RUBRO: safeText(cliente.rubro),
+      PROPENSIÓN: safeText(cliente.propension_compra),
+      EMAIL: safeText(cliente.email),
+      TELÉFONO: safeText(cliente.telefono),
+      CONTACTO: safeText(cliente.contacto_nombre),
+      DIRECCIÓN: safeText(cliente.direccion),
     }))
 
     const ws = XLSX.utils.json_to_sheet(rows)
@@ -373,7 +375,13 @@ export default function Clientes() {
             EXPORTAR EXCEL
           </Button>
 
-          <Button variant="primary" onClick={() => { setEditingCliente(null); setIsModalOpen(true) }}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setEditingCliente(null)
+              setIsModalOpen(true)
+            }}
+          >
             + NUEVO CLIENTE
           </Button>
         </div>
