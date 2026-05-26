@@ -213,26 +213,7 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* Floating Cards */}
-            <div className="absolute -left-10 top-20 bg-[#161616] p-4 rounded-xl border border-white/10 shadow-xl hidden md:block animate-[bounce_5s_infinite]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded bg-green-500/20 flex items-center justify-center text-xl">✅</div>
-                <div>
-                  <div className="text-sm font-bold">OT #1459 Lista</div>
-                  <div className="text-xs text-hm-muted">Excavadora CAT 320</div>
-                </div>
-              </div>
-            </div>
 
-            <div className="absolute -bottom-10 right-10 bg-[#161616] p-4 rounded-xl border border-white/10 shadow-xl hidden md:block animate-[bounce_6s_infinite_reverse]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded bg-red-500/20 flex items-center justify-center text-xl">⚠️</div>
-                <div>
-                  <div className="text-sm font-bold">Stock Crítico</div>
-                  <div className="text-xs text-hm-muted">Filtro de Aceite (2 unid)</div>
-                </div>
-              </div>
-            </div>
 
           </div>
         </div>
