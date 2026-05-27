@@ -1,7 +1,6 @@
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import Button from '../../components/ui/Button'
-import HeroOperations from '../../components/landing/HeroOperations'
 
 const modules = [
   { t: 'Cliente 360', d: 'Historial comercial, postventa, deuda, equipos y oportunidades.', i: '◎' },
@@ -71,25 +70,83 @@ export default function Landing() {
         </div>
       </header>
 
-      <main className="px-6 pb-24 pt-28">
-        <div className="mx-auto max-w-7xl">
-          <HeroOperations />
+      <main className="relative px-6 pb-24 pt-36">
+        <div className="pointer-events-none absolute left-1/2 top-24 h-[520px] w-[720px] -translate-x-1/2 rounded-full bg-blue-600/10 blur-[140px]" />
+        <div className="pointer-events-none absolute right-0 top-40 h-[420px] w-[420px] rounded-full bg-emerald-400/5 blur-[120px]" />
+
+        <div className="relative z-10 mx-auto max-w-7xl">
+          <div className="max-w-4xl">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-neutral-800 bg-neutral-900/60 px-3 py-1">
+              <span className="h-2 w-2 rounded-full bg-[#00f5a0]" />
+              <span className="font-mono text-xs text-neutral-500">
+                Plataforma Operativa 360 para PyMEs industriales
+              </span>
+            </div>
+
+            <h1 className="max-w-5xl text-5xl font-black leading-[1.03] tracking-tighter md:text-7xl">
+              Operación, activos y postventa en un{' '}
+              <span className="bg-gradient-to-r from-amber-400 via-zinc-400 to-blue-500 bg-clip-text text-transparent">
+                solo sistema.
+              </span>
+            </h1>
+
+            <p className="mt-7 max-w-2xl text-lg leading-relaxed text-neutral-500 md:text-xl">
+              HeavyMetric centraliza clientes, activos, OTs, stock, tesorería,
+              proveedores, aprobaciones y continuidad operativa para empresas de maquinaria,
+              talleres, rental, campo y servicios técnicos.
+            </p>
+
+            <div className="mt-9 flex flex-wrap items-center gap-4">
+              <Link to="/login">
+                <button className="h-14 rounded-xl bg-white px-8 text-lg font-bold text-black transition-colors hover:bg-neutral-200">
+                  Entrar al sistema
+                </button>
+              </Link>
+
+              <Link to="/login">
+                <button className="h-14 rounded-xl border border-neutral-700 bg-neutral-950/40 px-8 text-lg font-bold text-white transition-colors hover:border-cyan-300/40 hover:bg-neutral-900">
+                  Solicitar demo
+                </button>
+              </Link>
+            </div>
+
+            <div className="mt-12 grid max-w-2xl grid-cols-1 gap-4 border-t border-neutral-800 pt-8 sm:grid-cols-3">
+              <div>
+                <div className="font-mono text-2xl font-black text-amber-400">360°</div>
+                <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500">
+                  Operación
+                </div>
+              </div>
+
+              <div>
+                <div className="font-mono text-2xl font-black text-cyan-300">LIVE</div>
+                <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500">
+                  Alertas
+                </div>
+              </div>
+
+              <div>
+                <div className="font-mono text-2xl font-black text-emerald-300">IA</div>
+                <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500">
+                  Silenciosa
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
 
-      <section className="relative border-t border-neutral-900 py-24 overflow-hidden bg-[#070809]">
-        {/* Video Background (using HD version with hardware acceleration) */}
-        <div className="absolute inset-0 z-0 select-none pointer-events-none">
-          <video 
-            src="https://assets.mixkit.co/videos/7163/7163-720.mp4" 
-            autoPlay 
-            loop 
-            muted 
-            playsInline 
-            className="w-full h-full object-cover opacity-80"
+      <section className="relative overflow-hidden border-t border-neutral-900 bg-[#070809] py-24">
+        <div className="pointer-events-none absolute inset-0 z-0 select-none">
+          <video
+            src="https://assets.mixkit.co/videos/7163/7163-720.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="h-full w-full object-cover opacity-80"
             style={{ transform: 'translate3d(0, 0, 0)', backfaceVisibility: 'hidden' }}
           />
-          {/* Overlay gradient to blend with surrounding sections and make text readable */}
           <div className="absolute inset-0 bg-gradient-to-b from-[#0b0c0e] via-[#0b0c0e]/30 to-[#0b0c0e]" />
         </div>
 
@@ -98,7 +155,7 @@ export default function Landing() {
             <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.30em] text-neutral-500">
               Ecosistema operativo
             </div>
-            <h2 className="mb-4 text-3xl font-black tracking-tight md:text-5xl text-white [text-shadow:0_2px_10px_rgba(0,0,0,0.8)]">
+            <h2 className="mb-4 text-3xl font-black tracking-tight text-white [text-shadow:0_2px_10px_rgba(0,0,0,0.8)] md:text-5xl">
               Todo conectado. Sin planillas aisladas.
             </h2>
             <p className="text-lg text-neutral-300 [text-shadow:0_1px_5px_rgba(0,0,0,0.8)]">
@@ -110,7 +167,7 @@ export default function Landing() {
             {modules.map((mod) => (
               <div
                 key={mod.t}
-                className="group rounded-2xl border border-white/5 bg-[#0e1013]/90 p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-[#121418]/95 shadow-xl"
+                className="group rounded-2xl border border-white/5 bg-[#0e1013]/90 p-6 shadow-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-[#121418]/95"
               >
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-800/80 bg-neutral-950 font-mono text-lg text-cyan-200 transition-transform group-hover:scale-105">
                   {mod.i}
