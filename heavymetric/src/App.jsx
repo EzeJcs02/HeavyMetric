@@ -148,8 +148,13 @@ export default function App() {
               <Route path="aprobaciones" element={<Guard soloSupervisor><Aprobaciones /></Guard>} />
               <Route path="remitos" element={<Guard soloSupervisor><Remitos /></Guard>} />
               
-              {/* Activo 360 */}
+             {/* Activo 360 */}
               <Route path="activo360" element={<Guard soloSupervisor><Activo360 /></Guard>} />
+
+              <Route
+                path="activos"
+                element={<Navigate to="/app/activo360" replace />}
+              />
               
               {/* Placeholders Discretos */}
               <Route path="postventa" element={<Guard soloSupervisor><Placeholder title="Postventa y Reclamos" description="Gestión de tickets de postventa, garantías y atención al cliente." /></Guard>} />
