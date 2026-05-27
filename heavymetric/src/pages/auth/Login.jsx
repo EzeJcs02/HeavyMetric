@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import Input from '../../components/ui/Input'
@@ -8,9 +8,6 @@ import Button from '../../components/ui/Button'
 export default function Login() {
   const { user } = useAuth()
 
-  // REDIRECCIÓN CORRECTA
-  if (user) return <Navigate to="/app" replace />
-
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -18,6 +15,8 @@ export default function Login() {
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  if (user) return <Navigate to="/app" replace />
 
   function switchMode(next) {
     setMode(next)
@@ -145,7 +144,11 @@ export default function Login() {
           <div className="hm-login-scan" />
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_35%_45%,transparent_30%,rgba(0,0,0,0.78)_100%)]" />
 
-          <div className="relative z-10 flex items-center gap-3">
+          <Link
+            to="/"
+            aria-label="Volver al home de HeavyMetric"
+            className="relative z-20 flex w-fit cursor-pointer items-center gap-3 rounded-2xl transition-all duration-200 hover:scale-[1.02] hover:opacity-90"
+          >
             <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-neutral-700/80 bg-neutral-950">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(0,245,160,0.14),transparent_35%),radial-gradient(circle_at_80%_70%,rgba(37,99,235,0.18),transparent_40%)]" />
               <span className="relative bg-gradient-to-br from-zinc-100 via-zinc-400 to-zinc-700 bg-clip-text font-mono text-3xl font-black text-transparent">
@@ -162,7 +165,7 @@ export default function Login() {
                 Industrial Operations System
               </div>
             </div>
-          </div>
+          </Link>
 
           <div className="relative z-10 max-w-md">
             <div className="mb-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300/70">
