@@ -60,7 +60,7 @@ const commandItems = [
   {
     title: 'Activo 360',
     description: 'Máquinas, horómetros, disponibilidad y continuidad operativa.',
-    route: '/app/activos',
+    route: '/app/activo360',
     icon: Truck,
     status: 'Operativo',
   },
