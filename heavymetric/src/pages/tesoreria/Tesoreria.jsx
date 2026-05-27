@@ -1,562 +1,920 @@
-import { useState } from 'react'
-import Card from '../../components/ui/Card'
+import { useMemo, useState } from 'react'
 import Button from '../../components/ui/Button'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { syncEcheqs } from '../../lib/integrations/bancos'
 import { toast } from 'sonner'
+import {
+  AlertTriangle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Banknote,
+  CalendarDays,
+  CreditCard,
+  FileCheck2,
+  Plus,
+  RefreshCw,
+  X,
+} from 'lucide-react'
 
-// ─── Mock Data ─── TODO: conectar con tablas SQL en próxima etapa
-const MOCK_CAJAS = [
-  { id: 1, nombre: 'Caja Fija (Mostrador)', saldo: 152000, moneda: 'ARS' },
-  { id: 2, nombre: 'Caja Fuerte (Gerencia)', saldo: 4500, moneda: 'USD' },
-]
-const MOCK_BANCOS = [
-  { id: 1, banco: 'Santander', cuenta: 'CC 000-12345/6', saldo: 1450000, moneda: 'ARS' },
-  { id: 2, banco: 'Galicia', cuenta: 'CA 123-45678/9', saldo: 2300, moneda: 'USD' },
-]
-const MOCK_CHEQUES_RECIBIDOS = [
-  { id: 1, banco: 'Macro', numero: '00123456', importe: 250000, vencimiento: '2026-06-15', estado: 'en_cartera', emisor: 'Constructora Sur S.A.', moneda: 'ARS' },
-  { id: 2, banco: 'BBVA', numero: '00987654', importe: 120000, vencimiento: '2026-05-25', estado: 'depositado', emisor: 'Vialidad Provincial', moneda: 'ARS' },
-  { id: 3, banco: 'Nación', numero: '00555555', importe: 500000, vencimiento: '2026-05-30', estado: 'en_cartera', emisor: 'Transportes Hnos.', moneda: 'ARS' },
-]
-const MOCK_CHEQUES_EMITIDOS = [
-  { id: 1, banco: 'Macro', numero: '00234501', importe: 180000, vencimiento: '2026-06-10', estado: 'emitido', beneficiario: 'Repuestos Sur S.A.', moneda: 'ARS' },
-  { id: 2, banco: 'Santander', numero: '00876543', importe: 3200, vencimiento: '2026-05-29', estado: 'por_debitar', beneficiario: 'Proveedor USA Parts', moneda: 'USD' },
+const FORMAS = [
+  'Contado',
+  'Transferencia',
+  'Tarjeta crédito',
+  'Tarjeta débito',
+  'Cheque físico',
+  'ECHEQ',
 ]
 
+const BANCOS = [
+  { id: 1, nombre: 'Banco Nación', cuenta: 'CC · ****4821', saldo: 3840000, moneda: 'ARS' },
+  { id: 2, nombre: 'BBVA Argentina', cuenta: 'CC · ****7732', saldo: 2180300, moneda: 'ARS' },
+  { id: 3, nombre: 'ICBC', cuenta: 'CA · ****2290', saldo: 4200, moneda: 'USD' },
+  { id: 4, nombre: 'Caja chica', cuenta: 'Efectivo · Sucursal', saldo: 400000, moneda: 'ARS' },
+]
+
+const MOCK_PLANES_INICIALES = [
+  {
+    id: 'plan-001',
+    tipo: 'cobro',
+    tercero: 'DUX',
+    cuit: '',
+    concepto: 'Excavadora LOVOL FR60F',
+    importeTotal: 56770336.3,
+    moneda: 'ARS',
+    cuotas: 10,
+    fechaInicio: '2026-01-26',
+    frecuencia: 'mensual',
+    forma: 'ECHEQ',
+    banco: 'Banco Nación',
+    referencia: 'Venta maquinaria',
+    estado: 'programado',
+  },
+  {
+    id: 'plan-002',
+    tipo: 'pago',
+    tercero: 'Turbodisel S.A.',
+    cuit: '',
+    concepto: 'Retro pala LOVOL FB878M',
+    importeTotal: 74424526.3,
+    moneda: 'ARS',
+    cuotas: 12,
+    fechaInicio: '2026-01-15',
+    frecuencia: 'mensual',
+    forma: 'ECHEQ',
+    banco: 'BBVA Argentina',
+    referencia: 'Compra proveedor',
+    estado: 'programado',
+  },
+]
+
+const MOCK_ECHEQS = [
+  {
+    id: 1,
+    tipo: 'cobro',
+    tercero: 'Minera Río Grande SA',
+    numero: 'CH-2026-00811',
+    importe: 820000,
+    moneda: 'ARS',
+    vencimiento: '2026-06-05',
+    estado: 'en cartera',
+  },
+  {
+    id: 2,
+    tipo: 'pago',
+    tercero: 'G&G Motors SRL',
+    numero: 'CH-2026-00834',
+    importe: 4211707.5,
+    moneda: 'ARS',
+    vencimiento: '2026-06-11',
+    estado: 'emitido',
+  },
+]
+
+function addPeriod(dateString, index, frecuencia) {
+  const date = new Date(`${dateString}T00:00:00`)
+
+  if (frecuencia === 'semanal') date.setDate(date.getDate() + index * 7)
+  if (frecuencia === 'quincenal') date.setDate(date.getDate() + index * 15)
+  if (frecuencia === 'mensual') date.setMonth(date.getMonth() + index)
+
+  return date.toISOString().slice(0, 10)
+}
+
+function formatCurrency(value, moneda = 'ARS') {
+  return new Intl.NumberFormat(moneda === 'USD' ? 'en-US' : 'es-AR', {
+    style: 'currency',
+    currency: moneda,
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0))
+}
+
+function formatDate(value) {
+  if (!value) return 'Sin fecha'
+  return new Date(`${value}T00:00:00`).toLocaleDateString('es-AR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function daysTo(value) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const target = new Date(`${value}T00:00:00`)
+  return Math.ceil((target - today) / (1000 * 60 * 60 * 24))
+}
+
+function generateCuotas(plan) {
+  const importeCuota = Number(plan.importeTotal || 0) / Number(plan.cuotas || 1)
+
+  return Array.from({ length: Number(plan.cuotas || 1) }, (_, index) => {
+    const vencimiento = addPeriod(plan.fechaInicio, index, plan.frecuencia)
+
+    return {
+      id: `${plan.id}-${index + 1}`,
+      planId: plan.id,
+      tipo: plan.tipo,
+      tercero: plan.tercero,
+      concepto: plan.concepto,
+      cuota: `${index + 1}/${plan.cuotas}`,
+      importe: importeCuota,
+      moneda: plan.moneda,
+      vencimiento,
+      forma: plan.forma,
+      banco: plan.banco,
+      referencia: plan.referencia,
+      estado: daysTo(vencimiento) < 0 ? 'vencido' : 'pendiente',
+    }
+  })
+}
+
+function Badge({ children, tone = 'neutral' }) {
+  const tones = {
+    cobro: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300',
+    pago: 'border-red-400/20 bg-red-400/10 text-red-300',
+    echeq: 'border-cyan-400/20 bg-cyan-400/10 text-cyan-300',
+    cuota: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
+    ok: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300',
+    warning: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
+    danger: 'border-red-400/20 bg-red-400/10 text-red-300',
+    neutral: 'border-white/[0.06] bg-white/[0.03] text-neutral-400',
+  }
+
+  return (
+    <span className={`inline-flex items-center rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] ${tones[tone]}`}>
+      {children}
+    </span>
+  )
+}
+
+function Panel({ children, className = '' }) {
+  return (
+    <section className={`rounded-2xl border border-white/[0.06] bg-[#0d0f14] ${className}`}>
+      {children}
+    </section>
+  )
+}
 
 export default function Tesoreria() {
+  const finanzas = useFinanzas() || {}
+  const transacciones = finanzas.transacciones || []
+  const compras = finanzas.compras || []
+
   const [tab, setTab] = useState('resumen')
   const [syncing, setSyncing] = useState(false)
-  const { transacciones, compras } = useFinanzas()
+  const [showPlanModal, setShowPlanModal] = useState(false)
+  const [filterTipo, setFilterTipo] = useState('todos')
+  const [planes, setPlanes] = useState(MOCK_PLANES_INICIALES)
+
+  const [form, setForm] = useState({
+    tipo: 'cobro',
+    tercero: '',
+    cuit: '',
+    concepto: '',
+    importeTotal: '',
+    cuotas: 6,
+    fechaInicio: '',
+    frecuencia: 'mensual',
+    forma: 'ECHEQ',
+    moneda: 'ARS',
+    banco: 'Banco Nación',
+    referencia: '',
+    observaciones: '',
+  })
+
+  const cuotasGeneradas = useMemo(() => {
+    return planes.flatMap(generateCuotas).sort((a, b) => a.vencimiento.localeCompare(b.vencimiento))
+  }, [planes])
+
+  const vencimientos = useMemo(() => {
+    const realesCobros = transacciones
+      .filter((t) => t.estado_pago === 'pendiente')
+      .map((t) => ({
+        id: `real-cobro-${t.id}`,
+        tipo: 'cobro',
+        tercero: t.cliente_nombre || 'Cliente',
+        concepto: t.concepto || 'Cobranza pendiente',
+        cuota: '-',
+        importe: t.monto_total_ars || (t.monto_total_usd || 0) * 1000,
+        moneda: t.monto_total_usd ? 'USD' : 'ARS',
+        vencimiento: t.fecha_vencimiento || '',
+        forma: 'A definir',
+        banco: 'Sin asignar',
+        estado: 'pendiente',
+        origen: 'REAL',
+      }))
+
+    const realesPagos = compras
+      .filter((c) => c.estado === 'recibido' || c.estado === 'pendiente')
+      .map((c) => ({
+        id: `real-pago-${c.id}`,
+        tipo: 'pago',
+        tercero: c.proveedor_nombre || 'Proveedor',
+        concepto: c.concepto || 'Pago pendiente',
+        cuota: '-',
+        importe: c.total_ars || (c.total_usd || 0) * 1000,
+        moneda: c.total_usd ? 'USD' : 'ARS',
+        vencimiento: c.fecha_vencimiento || '',
+        forma: 'A definir',
+        banco: 'Sin asignar',
+        estado: 'pendiente',
+        origen: 'REAL',
+      }))
+
+    return [...cuotasGeneradas, ...realesCobros, ...realesPagos]
+      .filter((v) => v.vencimiento)
+      .sort((a, b) => a.vencimiento.localeCompare(b.vencimiento))
+  }, [cuotasGeneradas, transacciones, compras])
+
+  const vencimientosFiltrados = vencimientos.filter((v) => {
+    if (filterTipo === 'todos') return true
+    if (filterTipo === 'echeq') return v.forma?.toLowerCase() === 'echeq'
+    return v.tipo === filterTipo
+  })
+
+  const totalBancosArs = BANCOS.filter((b) => b.moneda === 'ARS').reduce((s, b) => s + b.saldo, 0)
+  const totalBancosUsd = BANCOS.filter((b) => b.moneda === 'USD').reduce((s, b) => s + b.saldo, 0)
+
+  const totalACobrar = vencimientos
+    .filter((v) => v.tipo === 'cobro' && v.moneda === 'ARS')
+    .reduce((s, v) => s + v.importe, 0)
+
+  const totalAPagar = vencimientos
+    .filter((v) => v.tipo === 'pago' && v.moneda === 'ARS')
+    .reduce((s, v) => s + v.importe, 0)
+
+  const vencidos = vencimientos.filter((v) => daysTo(v.vencimiento) < 0).length
+  const proximos15 = vencimientos.filter((v) => daysTo(v.vencimiento) >= 0 && daysTo(v.vencimiento) <= 15).length
+  const posicionNeta = totalBancosArs + totalACobrar - totalAPagar
+
+  const flujoMensual = useMemo(() => {
+    const months = []
+
+    for (let i = 0; i < 6; i += 1) {
+      const base = new Date()
+      base.setMonth(base.getMonth() + i)
+
+      const key = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`
+
+      const label = base.toLocaleDateString('es-AR', { month: 'short' })
+
+      const delMes = vencimientos.filter((v) => v.vencimiento?.startsWith(key))
+      const cobros = delMes.filter((v) => v.tipo === 'cobro').reduce((s, v) => s + v.importe, 0)
+      const pagos = delMes.filter((v) => v.tipo === 'pago').reduce((s, v) => s + v.importe, 0)
+
+      months.push({ label, cobros, pagos, neto: cobros - pagos })
+    }
+
+    return months
+  }, [vencimientos])
 
   const handleSyncEcheqs = async () => {
     setSyncing(true)
-    toast.info('Sincronizando con banco...')
+    toast.info('Sincronizando ECHEQ con banco...')
+
     try {
       const res = await syncEcheqs()
+
       if (res.success) {
-        toast.success(`Se sincronizaron ${res.nuevosCheques.length} E-Cheqs nuevos`)
+        toast.success(`Se sincronizaron ${res.nuevosCheques?.length || 0} ECHEQ nuevos`)
       } else {
         toast.error(res.error || 'Error al sincronizar')
       }
     } catch (err) {
+      console.error(err)
       toast.error('Error de conexión bancaria')
     } finally {
       setSyncing(false)
     }
   }
 
-  const cobranzasReales = transacciones.filter(t => t.estado_pago === 'pendiente')
-  const pagosReales = compras.filter(c => c.estado === 'recibido' || c.estado === 'pendiente')
+  const handleCreatePlan = (event) => {
+    event.preventDefault()
 
-  // Calcular flujo proyectado real agrupando por ventanas (7, 15, 30, 60, 90)
-  const hoy = new Date()
-  const agruparFlujo = () => {
-    const ventanas = [
-      { label: '7 días', maxDias: 7, cobrar: 0, pagar: 0, saldo: 0 },
-      { label: '15 días', maxDias: 15, cobrar: 0, pagar: 0, saldo: 0 },
-      { label: '30 días', maxDias: 30, cobrar: 0, pagar: 0, saldo: 0 },
-      { label: '60 días', maxDias: 60, cobrar: 0, pagar: 0, saldo: 0 },
-      { label: '90 días', maxDias: 90, cobrar: 0, pagar: 0, saldo: 0 },
-    ]
-    let sinVencimientoCobrar = 0
-    let sinVencimientoPagar = 0
+    if (!form.tercero || !form.concepto || !form.importeTotal || !form.fechaInicio) {
+      toast.error('Completá tercero, concepto, importe y fecha inicial')
+      return
+    }
 
-    cobranzasReales.forEach(c => {
-      // Regla pedida: no inventar fecha, si no hay vencimiento, va a sinVencimiento
-      let fechaObj = null
-      if (c.fecha_vencimiento) {
-         fechaObj = new Date(c.fecha_vencimiento)
-      }
+    const newPlan = {
+      id: `plan-${Date.now()}`,
+      ...form,
+      importeTotal: Number(String(form.importeTotal).replace(',', '.')),
+      cuotas: Number(form.cuotas),
+      estado: 'programado',
+    }
 
-      const monto = (c.monto_total_ars || c.monto_total_usd * 1000)
+    setPlanes((prev) => [newPlan, ...prev])
+    setShowPlanModal(false)
+    toast.success(`Plan de ${form.tipo === 'cobro' ? 'cobro' : 'pago'} creado correctamente`)
 
-      if (!fechaObj) {
-         sinVencimientoCobrar += monto
-         return
-      }
-      
-      const dias = Math.ceil((fechaObj - hoy) / (1000*60*60*24))
-      const ventana = ventanas.find(v => dias <= v.maxDias && dias >= 0)
-      if (ventana) ventana.cobrar += monto
-      else if (dias < 0) ventanas[0].cobrar += monto // Vencido entra en urgentes (7 días)
+    setForm({
+      tipo: 'cobro',
+      tercero: '',
+      cuit: '',
+      concepto: '',
+      importeTotal: '',
+      cuotas: 6,
+      fechaInicio: '',
+      frecuencia: 'mensual',
+      forma: 'ECHEQ',
+      moneda: 'ARS',
+      banco: 'Banco Nación',
+      referencia: '',
+      observaciones: '',
     })
-
-    pagosReales.forEach(p => {
-      let fechaObj = null
-      if (p.fecha_vencimiento) {
-        fechaObj = new Date(p.fecha_vencimiento)
-      }
-
-      const monto = ((p.total_usd || 0) * 1000)
-
-      if (!fechaObj) {
-        sinVencimientoPagar += monto
-        return
-      }
-
-      const dias = Math.ceil((fechaObj - hoy) / (1000*60*60*24))
-      const ventana = ventanas.find(v => dias <= v.maxDias && dias >= 0)
-      if (ventana) ventana.pagar += monto
-      else if (dias < 0) ventanas[0].pagar += monto // Vencido entra en urgentes
-    })
-
-    ventanas.forEach(v => {
-      v.saldo = v.cobrar - v.pagar
-    })
-
-    return { ventanas, sinVencimientoCobrar, sinVencimientoPagar }
   }
 
-  const flujoCalculado = agruparFlujo()
-  const FLUJO_PROYECTADO = flujoCalculado.ventanas
-  const SIN_VENCIMIENTO = { cobrar: flujoCalculado.sinVencimientoCobrar, pagar: flujoCalculado.sinVencimientoPagar }
+  const previewCuotas = useMemo(() => {
+    if (!form.importeTotal || !form.cuotas || !form.fechaInicio) return []
 
-  const totalACobrar = cobranzasReales.reduce((s, c) => s + (c.monto_total_ars || c.monto_total_usd * 1000), 0)
-  const totalAPagar = pagosReales.reduce((s, c) => s + ((c.total_usd || 0) * 1000), 0)
+    return generateCuotas({
+      id: 'preview',
+      ...form,
+      importeTotal: Number(String(form.importeTotal).replace(',', '.')),
+      cuotas: Number(form.cuotas),
+    })
+  }, [form])
 
-  const totalCajaArs = MOCK_CAJAS.reduce((s, c) => s + (c.moneda === 'ARS' ? c.saldo : 0), 0)
-  const totalBancosArs = MOCK_BANCOS.reduce((s, c) => s + (c.moneda === 'ARS' ? c.saldo : 0), 0)
-  const totalChequesCartera = MOCK_CHEQUES_RECIBIDOS.filter(c => c.estado === 'en_cartera').reduce((s, c) => s + c.importe, 0)
-  const saldoProyectado = totalCajaArs + totalBancosArs + totalChequesCartera + totalACobrar - totalAPagar
-  const chequesProximos = [...MOCK_CHEQUES_RECIBIDOS, ...MOCK_CHEQUES_EMITIDOS].filter(c => {
-    const dias = Math.ceil((new Date(c.vencimiento + 'T00:00:00') - new Date()) / (1000*60*60*24))
-    return dias >= 0 && dias <= 15
-  }).length
-
-  const fmtArs = (v) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(v)
-  const fmtUsd = (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v)
-  const fmtMoneda = (importe, moneda) => moneda === 'USD' ? fmtUsd(importe) : fmtArs(importe)
-  const fmtFecha = (d) => new Date(d + 'T00:00:00').toLocaleDateString('es-AR', { day:'2-digit', month:'short' })
-
-  const TABS = [
-    ['resumen', 'RESUMEN'],
-    ['cajas', 'CAJAS & BANCOS'],
-    ['cheques_recibidos', 'CHEQUES RECIBIDOS'],
-    ['cheques_emitidos', 'CHEQUES EMITIDOS'],
-    ['cobranzas', 'COBRANZAS'],
-    ['pagos', 'PAGOS PRÓXIMOS'],
-    ['flujo', 'FLUJO PROYECTADO'],
-    ['proyeccion', '📈 PROYECCIÓN'],
+  const tabs = [
+    ['resumen', 'Resumen'],
+    ['vencimientos', 'Vencimientos'],
+    ['planes', 'Planes'],
+    ['bancos', 'Caja y bancos'],
+    ['echeqs', 'ECHEQ'],
   ]
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-hm-border pb-4">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 border-b border-white/[0.06] pb-5 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Tesorería PYME</h1>
-          <p className="text-sm text-hm-muted mt-1">Control de caja, bancos, valores, cobranzas y flujo de caja.</p>
+          <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300/70">
+            <span className="h-px w-8 bg-cyan-300/40" />
+            Tesorería operativa
+          </div>
+          <h1 className="text-2xl font-black tracking-tight text-white">Pagos, cobros y flujo proyectado</h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            Planificá cuotas, ECHEQ, vencimientos y caja futura con lectura financiera real.
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">+ Nuevo Ingreso</Button>
-          <Button variant="outline">+ Nuevo Egreso</Button>
+
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setShowPlanModal(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo plan
+          </Button>
+
+          <Button variant="outline" onClick={handleSyncEcheqs} disabled={syncing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            Sincronizar ECHEQ
+          </Button>
         </div>
       </div>
 
-      <div className="bg-hm-accent/10 border border-hm-accent/30 text-hm-accent text-xs p-3 rounded-lg font-mono">
-        MODO DEMO — Datos simulados (Mock). Próxima etapa: conexión con motor SQL para asentar pagos, cobros y valores reales.
+      <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/5 px-4 py-3 font-mono text-[11px] uppercase tracking-[0.12em] text-cyan-300">
+        BASE PREPARADA — La lógica de planes, cuotas y vencimientos ya está operativa en frontend. Próxima etapa: persistencia SQL/Supabase.
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-hm-border overflow-x-auto no-scrollbar">
-        {TABS.map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            className={`px-3 py-2 text-xs font-mono font-bold border-b-2 transition-all whitespace-nowrap ${tab === k ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-hm-text'}`}>
-            {l}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Panel className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Saldo disponible</span>
+            <Banknote className="h-4 w-4 text-cyan-300" />
+          </div>
+          <div className="mt-3 font-mono text-2xl font-black text-cyan-300">{formatCurrency(totalBancosArs)}</div>
+          <div className="mt-1 text-xs text-neutral-500">ARS · bancos + caja</div>
+        </Panel>
+
+        <Panel className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">A cobrar</span>
+            <ArrowDownLeft className="h-4 w-4 text-emerald-300" />
+          </div>
+          <div className="mt-3 font-mono text-2xl font-black text-emerald-300">{formatCurrency(totalACobrar)}</div>
+          <div className="mt-1 text-xs text-neutral-500">Planes + cobranzas pendientes</div>
+        </Panel>
+
+        <Panel className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">A pagar</span>
+            <ArrowUpRight className="h-4 w-4 text-red-300" />
+          </div>
+          <div className="mt-3 font-mono text-2xl font-black text-red-300">{formatCurrency(totalAPagar)}</div>
+          <div className="mt-1 text-xs text-neutral-500">Planes + pagos pendientes</div>
+        </Panel>
+
+        <Panel className="p-4">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Posición neta</span>
+            <CalendarDays className="h-4 w-4 text-amber-300" />
+          </div>
+          <div className={`mt-3 font-mono text-2xl font-black ${posicionNeta >= 0 ? 'text-amber-300' : 'text-red-300'}`}>
+            {formatCurrency(posicionNeta)}
+          </div>
+          <div className="mt-1 text-xs text-neutral-500">
+            {proximos15} vencimientos próximos · {vencidos} vencidos
+          </div>
+        </Panel>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto border-b border-white/[0.06]">
+        {tabs.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={`whitespace-nowrap border-b-2 px-3 py-3 font-mono text-xs font-bold uppercase tracking-[0.16em] transition-colors ${
+              tab === key
+                ? 'border-cyan-300 text-cyan-300'
+                : 'border-transparent text-neutral-600 hover:text-neutral-300'
+            }`}
+          >
+            {label}
           </button>
         ))}
       </div>
 
-      {/* ── RESUMEN ── */}
       {tab === 'resumen' && (
-        <div className="flex flex-col gap-6">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {[
-              { label: 'Total Caja (ARS)', value: fmtArs(totalCajaArs), color: 'border-l-green-500' },
-              { label: 'Total Bancos (ARS)', value: fmtArs(totalBancosArs), color: 'border-l-blue-500' },
-              { label: 'Cheques en Cartera', value: fmtArs(totalChequesCartera), color: 'border-l-yellow-500' },
-              { label: 'Total a Cobrar', value: fmtArs(totalACobrar), color: 'border-l-orange-500' },
-              { label: 'Total a Pagar', value: fmtArs(totalAPagar), color: 'border-l-red-500' },
-            ].map(({ label, value, color }) => (
-              <Card key={label} className={`p-5 border-l-4 ${color}`}>
-                <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">{label}</div>
-                <div className="text-xl font-bold">{value}</div>
-              </Card>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className={`p-5 ${saldoProyectado >= 0 ? 'bg-green-500/5 border-green-500/30' : 'bg-red-500/5 border-red-500/30'}`}>
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Saldo Proyectado 30d</div>
-              <div className={`text-2xl font-black ${saldoProyectado >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmtArs(saldoProyectado)}</div>
-            </Card>
-            <Card className="p-5">
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Cheques Próx. Vencer</div>
-              <div className={`text-2xl font-black ${chequesProximos > 0 ? 'text-orange-400' : 'text-green-400'}`}>{chequesProximos}</div>
-              <div className="text-[10px] text-hm-muted mt-1">en los próx. 15 días</div>
-            </Card>
-            <Card className="p-5">
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Facturas Vencidas</div>
-              <div className={`text-2xl font-black ${cobranzasReales.filter(c => c.fecha_vencimiento && new Date(c.fecha_vencimiento) < hoy).length > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                {cobranzasReales.filter(c => c.fecha_vencimiento && new Date(c.fecha_vencimiento) < hoy).length}
-              </div>
-            </Card>
-            <Card className="p-5">
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Pagos Vencidos</div>
-              <div className={`text-2xl font-black ${pagosReales.filter(p => p.fecha_vencimiento && new Date(p.fecha_vencimiento) < hoy).length > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                {pagosReales.filter(p => p.fecha_vencimiento && new Date(p.fecha_vencimiento) < hoy).length}
-              </div>
-            </Card>
-          </div>
-
-          {/* Alertas banner */}
-          <div className="flex flex-col gap-2">
-            {MOCK_COBRANZAS.some(c => c.estado === 'vencida') && (
-              <div className="bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3 flex justify-between items-center">
-                <div>
-                  <div className="text-red-400 font-bold text-sm">⚠️ Facturas de clientes vencidas</div>
-                  <div className="text-xs text-red-200 mt-0.5">Hay cobranzas vencidas. Gestionar urgente.</div>
-                </div>
-              </div>
-            )}
-            {MOCK_PAGOS_PROXIMOS.some(p => p.estado === 'urgente') && (
-              <div className="bg-orange-500/10 border-l-4 border-orange-500 rounded-r-lg p-3">
-                <div className="text-orange-400 font-bold text-sm">📅 Pagos urgentes próximos</div>
-                <div className="text-xs text-orange-200 mt-0.5">Verificar disponibilidad para los pagos inminentes.</div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── CAJAS & BANCOS ── */}
-      {tab === 'cajas' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="p-0 overflow-hidden">
-            <div className="p-4 border-b border-hm-border bg-hm-surface2/30">
-              <h3 className="font-bold font-mono uppercase tracking-widest text-xs">Cajas Físicas</h3>
-            </div>
-            {MOCK_CAJAS.map(c => (
-              <div key={c.id} className="p-4 border-b border-hm-border/50 flex justify-between items-center hover:bg-hm-surface2/20">
-                <div className="font-medium text-sm">{c.nombre}</div>
-                <div className="font-bold font-mono">{c.moneda === 'ARS' ? fmtArs(c.saldo) : fmtUsd(c.saldo)}</div>
-              </div>
-            ))}
-          </Card>
-          <Card className="p-0 overflow-hidden">
-            <div className="p-4 border-b border-hm-border bg-hm-surface2/30">
-              <h3 className="font-bold font-mono uppercase tracking-widest text-xs">Cuentas Bancarias</h3>
-            </div>
-            {MOCK_BANCOS.map(b => (
-              <div key={b.id} className="p-4 border-b border-hm-border/50 flex justify-between items-center hover:bg-hm-surface2/20">
-                <div>
-                  <div className="font-medium text-sm">{b.banco}</div>
-                  <div className="text-xs text-hm-muted font-mono">{b.cuenta}</div>
-                </div>
-                <div className="font-bold font-mono text-blue-400">{b.moneda === 'ARS' ? fmtArs(b.saldo) : fmtUsd(b.saldo)}</div>
-              </div>
-            ))}
-          </Card>
-        </div>
-      )}
-
-      {/* ── CHEQUES RECIBIDOS ── */}
-      {tab === 'cheques_recibidos' && (
-        <Card className="overflow-hidden p-0">
-          <div className="p-4 border-b border-hm-border bg-hm-surface2/30 flex justify-between items-center">
-            <h3 className="font-bold font-mono uppercase tracking-widest text-xs">Cheques y E-Cheqs Recibidos (Cartera)</h3>
-            <Button variant="outline" className="text-xs py-1 px-2" onClick={handleSyncEcheqs} disabled={syncing}>
-              {syncing ? 'Sincronizando...' : 'Sincronizar E-Cheqs'}
-            </Button>
-          </div>
-          <table className="w-full text-left">
-            <thead className="bg-hm-surface2/30 border-b border-hm-border">
-              <tr>{['NRO','BANCO','EMISOR','VENCIMIENTO','IMPORTE','ESTADO'].map(h => (
-                <th key={h} className="p-4 font-mono text-xs text-hm-muted">{h}</th>
-              ))}</tr>
-            </thead>
-            <tbody>
-              {MOCK_CHEQUES_RECIBIDOS.map(c => {
-                const dias = Math.ceil((new Date(c.vencimiento+'T00:00:00') - new Date()) / (1000*60*60*24))
-                const urgente = dias <= 10 && dias >= 0
-                return (
-                  <tr key={c.id} className={`border-b border-hm-border/50 ${urgente ? 'bg-yellow-500/5' : 'hover:bg-hm-surface2/20'}`}>
-                    <td className="p-4 font-mono text-xs">{c.numero}</td>
-                    <td className="p-4 text-sm font-medium">{c.banco}</td>
-                    <td className="p-4 text-sm text-hm-muted">{c.emisor}</td>
-                    <td className={`p-4 font-mono text-xs ${urgente ? 'text-yellow-400 font-bold' : ''}`}>{fmtFecha(c.vencimiento)} {urgente && `(${dias}d)`}</td>
-                    <td className="p-4 font-mono text-sm font-bold text-right">{fmtMoneda(c.importe, c.moneda)}</td>
-                    <td className="p-4 text-center">
-                      <span className={`text-[10px] font-mono border rounded px-2 py-0.5 uppercase ${c.estado === 'en_cartera' ? 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10' : 'border-blue-500/50 text-blue-400 bg-blue-500/10'}`}>
-                        {c.estado.replace('_', ' ')}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </Card>
-      )}
-
-      {/* ── CHEQUES EMITIDOS ── */}
-      {tab === 'cheques_emitidos' && (
-        <Card className="overflow-hidden p-0">
-          <div className="p-4 border-b border-hm-border bg-hm-surface2/30">
-            <h3 className="font-bold font-mono uppercase tracking-widest text-xs">Cheques y E-Cheqs Emitidos (A Pagar)</h3>
-          </div>
-          <table className="w-full text-left">
-            <thead className="bg-hm-surface2/30 border-b border-hm-border">
-              <tr>{['NRO','BANCO','BENEFICIARIO','VENCIMIENTO','IMPORTE','ESTADO'].map(h => (
-                <th key={h} className="p-4 font-mono text-xs text-hm-muted">{h}</th>
-              ))}</tr>
-            </thead>
-            <tbody>
-              {MOCK_CHEQUES_EMITIDOS.map(c => {
-                const dias = Math.ceil((new Date(c.vencimiento+'T00:00:00') - new Date()) / (1000*60*60*24))
-                const urgente = dias <= 7 && dias >= 0
-                return (
-                  <tr key={c.id} className={`border-b border-hm-border/50 ${urgente ? 'bg-red-500/5' : 'hover:bg-hm-surface2/20'}`}>
-                    <td className="p-4 font-mono text-xs">{c.numero}</td>
-                    <td className="p-4 text-sm font-medium">{c.banco}</td>
-                    <td className="p-4 text-sm text-hm-muted">{c.beneficiario}</td>
-                    <td className={`p-4 font-mono text-xs ${urgente ? 'text-red-400 font-bold' : ''}`}>{fmtFecha(c.vencimiento)} {urgente && `(${dias}d)`}</td>
-                    <td className="p-4 font-mono text-sm font-bold text-right">{fmtMoneda(c.importe, c.moneda)}</td>
-                    <td className="p-4 text-center">
-                      <span className={`text-[10px] font-mono border rounded px-2 py-0.5 uppercase ${c.estado === 'por_debitar' ? 'border-red-500/50 text-red-400 bg-red-500/10' : 'border-blue-500/50 text-blue-400 bg-blue-500/10'}`}>
-                        {c.estado.replace('_', ' ')}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </Card>
-      )}
-
-      {/* ── COBRANZAS ── */}
-      {tab === 'cobranzas' && (
-        <Card className="overflow-hidden p-0">
-          <div className="p-4 border-b border-hm-border bg-hm-surface2/30">
-            <h3 className="font-bold font-mono uppercase tracking-widest text-xs">Cobranzas Pendientes (Por Cliente)</h3>
-          </div>
-          <table className="w-full text-left">
-            <thead className="bg-hm-surface2/30 border-b border-hm-border">
-              <tr>{['CLIENTE','FACTURA','VENCIMIENTO','IMPORTE','ESTADO'].map(h => (
-                <th key={h} className="p-4 font-mono text-xs text-hm-muted">{h}</th>
-              ))}</tr>
-            </thead>
-            <tbody>
-              {MOCK_COBRANZAS.map(c => (
-                <tr key={c.id} className={`border-b border-hm-border/50 ${c.estado === 'vencida' ? 'bg-red-500/5' : 'hover:bg-hm-surface2/20'}`}>
-                  <td className="p-4 text-sm font-medium">{c.cliente}</td>
-                  <td className="p-4 font-mono text-xs text-hm-muted">{c.factura}</td>
-                  <td className={`p-4 font-mono text-xs ${c.estado === 'vencida' ? 'text-red-400 font-bold' : ''}`}>{fmtFecha(c.vencimiento)}</td>
-                  <td className="p-4 font-mono text-sm font-bold">{fmtMoneda(c.importe, c.moneda)}</td>
-                  <td className="p-4">
-                    <span className={`text-[10px] font-mono border rounded px-2 py-0.5 uppercase ${c.estado === 'vencida' ? 'border-red-500/50 text-red-400 bg-red-500/10' : 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10'}`}>
-                      {c.estado}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      )}
-
-      {/* ── PAGOS PRÓXIMOS ── */}
-      {tab === 'pagos' && (
-        <Card className="overflow-hidden p-0">
-          <div className="p-4 border-b border-hm-border bg-hm-surface2/30">
-            <h3 className="font-bold font-mono uppercase tracking-widest text-xs">Pagos Próximos (A Proveedores)</h3>
-          </div>
-          <table className="w-full text-left">
-            <thead className="bg-hm-surface2/30 border-b border-hm-border">
-              <tr>{['PROVEEDOR','CONCEPTO','VENCIMIENTO','IMPORTE','ESTADO'].map(h => (
-                <th key={h} className="p-4 font-mono text-xs text-hm-muted">{h}</th>
-              ))}</tr>
-            </thead>
-            <tbody>
-              {MOCK_PAGOS_PROXIMOS.map(p => (
-                <tr key={p.id} className={`border-b border-hm-border/50 ${p.estado === 'urgente' ? 'bg-red-500/5' : 'hover:bg-hm-surface2/20'}`}>
-                  <td className="p-4 text-sm font-medium">{p.proveedor}</td>
-                  <td className="p-4 text-sm text-hm-muted">{p.concepto}</td>
-                  <td className={`p-4 font-mono text-xs ${p.estado === 'urgente' ? 'text-red-400 font-bold' : ''}`}>{fmtFecha(p.vencimiento)}</td>
-                  <td className="p-4 font-mono text-sm font-bold">{fmtMoneda(p.importe, p.moneda)}</td>
-                  <td className="p-4">
-                    <span className={`text-[10px] font-mono border rounded px-2 py-0.5 uppercase ${p.estado === 'urgente' ? 'border-red-500/50 text-red-400 bg-red-500/10' : 'border-blue-500/50 text-blue-400 bg-blue-500/10'}`}>
-                      {p.estado}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      )}
-
-      {/* ── FLUJO PROYECTADO ── */}
-      {tab === 'flujo' && (
-        <div className="flex flex-col gap-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {FLUJO_PROYECTADO.map(f => (
-              <Card key={f.label} className={`p-5 ${f.saldo >= 0 ? 'border-green-500/20' : 'border-red-500/30'}`}>
-                <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-3">{f.label}</div>
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-green-400">+ Cobrar</span>
-                    <span className="font-mono font-bold text-green-400">{fmtArs(f.cobrar)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-red-400">- Pagar</span>
-                    <span className="font-mono font-bold text-red-400">{fmtArs(f.pagar)}</span>
-                  </div>
-                  <div className="border-t border-hm-border/50 pt-1.5 flex justify-between text-xs">
-                    <span className="text-hm-muted font-bold">= Saldo</span>
-                    <span className={`font-mono font-black ${f.saldo >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmtArs(f.saldo)}</span>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-
-          <Card className="p-5">
-            <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-4">Representación Visual del Flujo (30 días)</div>
-            <div className="h-40 flex items-end justify-around gap-4 p-4 bg-hm-surface2/10 border border-hm-border/30 rounded-xl">
-              <div className="flex flex-col items-center gap-2 flex-1">
-                <div className="w-full bg-green-500/70 rounded-t" style={{height:'80%'}} />
-                <span className="text-[10px] font-mono text-green-400">+ Ingresos</span>
-              </div>
-              <div className="flex flex-col items-center gap-2 flex-1">
-                <div className="w-full bg-red-500/70 rounded-t" style={{height:'35%'}} />
-                <span className="text-[10px] font-mono text-red-400">- Egresos</span>
-              </div>
-              <div className="flex flex-col items-center gap-2 flex-1">
-                <div className="w-full bg-hm-accent/70 rounded-t" style={{height:'55%'}} />
-                <span className="text-[10px] font-mono text-hm-accent">= Flujo Neto</span>
-              </div>
-            </div>
-            <div className="text-center text-xs text-hm-muted italic mt-3">
-              Proyección basada en mock data. Próxima etapa: cálculo real desde facturas, OTs y compras.
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* ── PROYECCIÓN DE NEGOCIO ── */}
-      {tab === 'proyeccion' && (() => {
-        const saldo7  = FLUJO_PROYECTADO[0].saldo
-        const saldo30 = FLUJO_PROYECTADO[2].saldo
-        const presion = saldo7 < 0 ? 'alta' : saldo30 < 0 ? 'media' : 'baja'
-        const PRESION_CONFIG = {
-          alta:  { label: 'PRESIÓN ALTA', cls: 'bg-red-500/20 text-red-300 border-red-500/40', dot: 'bg-red-500 animate-pulse', desc: 'Los pagos próximos superan las cobranzas esperadas. Revisar liquidez inmediata.' },
-          media: { label: 'PRESIÓN MEDIA', cls: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40', dot: 'bg-yellow-500', desc: 'Equilibrio frágil. Monitorear cobranzas y postergar pagos no urgentes si es posible.' },
-          baja:  { label: 'FLUJO POSITIVO', cls: 'bg-green-500/20 text-green-300 border-green-500/40', dot: 'bg-green-500', desc: 'Posición financiera saludable. Cobranzas superan pagos próximos.' },
-        }
-        const pc = PRESION_CONFIG[presion]
-
-        return (
-          <div className="flex flex-col gap-6">
-            {/* Semáforo de presión financiera */}
-            <div className={`border rounded-xl p-5 ${pc.cls}`}>
-              <div className="flex items-center gap-3 mb-2">
-                <div className={`w-3 h-3 rounded-full ${pc.dot}`} />
-                <div className="font-bold text-sm">{pc.label}</div>
-              </div>
-              <div className="text-xs opacity-80">{pc.desc}</div>
+        <div className="grid gap-4 xl:grid-cols-[1fr_0.72fr]">
+          <Panel>
+            <div className="border-b border-white/[0.06] px-5 py-4">
+              <h2 className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
+                Flujo proyectado — próximos 6 meses
+              </h2>
             </div>
 
-            {/* KPIs de caja estimada */}
-            <div>
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-3">Caja estimada disponible</div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  { label: '7 días', value: saldo7, dias: 7 },
-                  { label: '15 días', value: FLUJO_PROYECTADO[1].saldo, dias: 15 },
-                  { label: '30 días', value: saldo30, dias: 30 },
-                  { label: '90 días', value: FLUJO_PROYECTADO[4].saldo, dias: 90 },
-                ].map(({ label, value }) => (
-                  <div key={label} className={`rounded-xl p-4 border ${value >= 0 ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/10 border-red-500/30'}`}>
-                    <div className="text-[9px] font-mono text-hm-muted uppercase mb-1">{label}</div>
-                    <div className={`text-xl font-bold font-mono ${value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {value >= 0 ? '+' : ''}{fmtArs(value)}
+            <div className="p-5">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+                {flujoMensual.map((m) => {
+                  const max = Math.max(...flujoMensual.map((x) => Math.max(x.cobros, x.pagos, 1)))
+                  const cobrosHeight = Math.max(8, (m.cobros / max) * 90)
+                  const pagosHeight = Math.max(8, (m.pagos / max) * 90)
+
+                  return (
+                    <div key={m.label} className="rounded-xl border border-white/[0.06] bg-black/20 p-3">
+                      <div className="mb-3 text-center font-mono text-[10px] uppercase text-neutral-500">{m.label}</div>
+                      <div className="flex h-28 items-end justify-center gap-2">
+                        <div className="w-5 rounded-t bg-emerald-300/35" style={{ height: `${cobrosHeight}px` }} />
+                        <div className="w-5 rounded-t bg-red-300/35" style={{ height: `${pagosHeight}px` }} />
+                      </div>
+                      <div className={`mt-3 text-center font-mono text-xs font-bold ${m.neto >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                        {formatCurrency(m.neto)}
+                      </div>
                     </div>
-                    <div className="text-[10px] text-hm-muted mt-0.5">{value >= 0 ? 'Flujo positivo' : 'Flujo negativo'}</div>
-                  </div>
-                ))}
+                  )
+                })}
+              </div>
+
+              <div className="mt-4 flex gap-4 text-xs text-neutral-500">
+                <span className="flex items-center gap-2"><span className="h-2 w-2 bg-emerald-300/60" /> Cobros</span>
+                <span className="flex items-center gap-2"><span className="h-2 w-2 bg-red-300/60" /> Pagos</span>
               </div>
             </div>
+          </Panel>
 
-            {/* Cobranzas vs Pagos próximos */}
-            <div>
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-3">Cobranzas vs Pagos (próximos 30 días)</div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
-                  <div className="text-[9px] font-mono text-green-400 uppercase mb-1">A cobrar</div>
-                  <div className="text-2xl font-bold text-green-400">{fmtArs(totalACobrar)}</div>
-                  <div className="text-xs text-hm-muted mt-1">{cobranzasReales.length} facturas/OTs</div>
+          <Panel>
+            <div className="border-b border-white/[0.06] px-5 py-4">
+              <h2 className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
+                Riesgo financiero
+              </h2>
+            </div>
+
+            <div className="space-y-3 p-5">
+              {vencidos > 0 && (
+                <div className="rounded-xl border border-red-400/20 bg-red-400/10 p-4">
+                  <div className="flex gap-3">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 text-red-300" />
+                    <div>
+                      <div className="text-sm font-bold text-white">Vencimientos vencidos</div>
+                      <div className="mt-1 text-xs text-neutral-500">Hay {vencidos} compromisos fuera de fecha.</div>
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
-                  <div className="text-[9px] font-mono text-red-400 uppercase mb-1">A pagar</div>
-                  <div className="text-2xl font-bold text-red-400">{fmtArs(totalAPagar)}</div>
-                  <div className="text-xs text-hm-muted mt-1">{pagosReales.length} comprobantes</div>
+              )}
+
+              <div className="rounded-xl border border-amber-400/20 bg-amber-400/10 p-4">
+                <div className="flex gap-3">
+                  <CreditCard className="mt-0.5 h-4 w-4 text-amber-300" />
+                  <div>
+                    <div className="text-sm font-bold text-white">ECHEQ y cuotas activas</div>
+                    <div className="mt-1 text-xs text-neutral-500">Controlá vencimientos próximos y cartera diferida.</div>
+                  </div>
                 </div>
-                <div className={`border rounded-xl p-4 ${totalACobrar - totalAPagar >= 0 ? 'bg-hm-accent/5 border-hm-accent/20' : 'bg-red-500/10 border-red-500/30'}`}>
-                  <div className={`text-[9px] font-mono uppercase mb-1 ${totalACobrar - totalAPagar >= 0 ? 'text-hm-accent' : 'text-red-400'}`}>Resultado neto</div>
-                  <div className={`text-2xl font-bold ${totalACobrar - totalAPagar >= 0 ? 'text-hm-accent' : 'text-red-400'}`}>
-                    {totalACobrar - totalAPagar >= 0 ? '+' : ''}{fmtArs(totalACobrar - totalAPagar)}
+              </div>
+
+              <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-4">
+                <div className="flex gap-3">
+                  <FileCheck2 className="mt-0.5 h-4 w-4 text-cyan-300" />
+                  <div>
+                    <div className="text-sm font-bold text-white">Planes activos</div>
+                    <div className="mt-1 text-xs text-neutral-500">{planes.length} planes programados de pagos/cobros.</div>
                   </div>
                 </div>
               </div>
             </div>
+          </Panel>
+        </div>
+      )}
 
-            {/* Mini tabla flujo */}
-            <div>
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-3">Detalle de flujo proyectado</div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-hm-border">
-                      <th className="pb-2 font-mono text-hm-muted uppercase">Horizonte</th>
-                      <th className="pb-2 font-mono text-green-400 uppercase">Cobrar</th>
-                      <th className="pb-2 font-mono text-red-400 uppercase">Pagar</th>
-                      <th className="pb-2 font-mono text-hm-accent uppercase">Flujo neto</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {FLUJO_PROYECTADO.map(r => (
-                      <tr key={r.label} className="border-b border-hm-border/30">
-                        <td className="py-2 font-mono text-hm-muted">{r.label}</td>
-                        <td className="py-2 font-bold text-green-400">{fmtArs(r.cobrar)}</td>
-                        <td className="py-2 font-bold text-red-400">{fmtArs(r.pagar)}</td>
-                        <td className={`py-2 font-bold font-mono ${r.saldo >= 0 ? 'text-hm-accent' : 'text-red-400'}`}>
-                          {r.saldo >= 0 ? '+' : ''}{fmtArs(r.saldo)}
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="border-b border-hm-border/30 bg-hm-surface2/10">
-                      <td className="py-2 font-mono text-hm-muted">Sin Vencimiento<br/><span className="text-[9px]">(Pendiente)</span></td>
-                      <td className="py-2 font-bold text-green-400/50">{fmtArs(SIN_VENCIMIENTO.cobrar)}</td>
-                      <td className="py-2 font-bold text-red-400/50">{fmtArs(SIN_VENCIMIENTO.pagar)}</td>
-                      <td className={`py-2 font-bold font-mono ${(SIN_VENCIMIENTO.cobrar - SIN_VENCIMIENTO.pagar) >= 0 ? 'text-hm-accent/50' : 'text-red-400/50'}`}>
-                        {(SIN_VENCIMIENTO.cobrar - SIN_VENCIMIENTO.pagar) >= 0 ? '+' : ''}{fmtArs(SIN_VENCIMIENTO.cobrar - SIN_VENCIMIENTO.pagar)}
+      {tab === 'vencimientos' && (
+        <Panel className="overflow-hidden">
+          <div className="flex flex-col gap-3 border-b border-white/[0.06] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <h2 className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
+              Vencimientos programados
+            </h2>
+
+            <div className="flex flex-wrap gap-2">
+              {[
+                ['todos', 'Todos'],
+                ['cobro', 'Cobros'],
+                ['pago', 'Pagos'],
+                ['echeq', 'ECHEQ'],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFilterTipo(key)}
+                  className={`rounded border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] ${
+                    filterTipo === key
+                      ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-300'
+                      : 'border-white/[0.06] bg-black/20 text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[920px] text-left">
+              <thead className="border-b border-white/[0.06] bg-black/20">
+                <tr>
+                  {['Vencimiento', 'Tipo', 'Tercero', 'Concepto', 'Cuota', 'Forma', 'Banco', 'Importe', 'Estado'].map((h) => (
+                    <th key={h} className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-600">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {vencimientosFiltrados.map((v) => {
+                  const dias = daysTo(v.vencimiento)
+
+                  return (
+                    <tr key={v.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                      <td className="px-4 py-3">
+                        <div className={`font-mono text-xs font-bold ${dias < 0 ? 'text-red-300' : dias <= 7 ? 'text-amber-300' : 'text-neutral-300'}`}>
+                          {formatDate(v.vencimiento)}
+                        </div>
+                        <div className="mt-1 font-mono text-[10px] text-neutral-600">
+                          {dias < 0 ? `Vencido hace ${Math.abs(dias)} d` : dias === 0 ? 'Hoy' : `En ${dias} d`}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge tone={v.tipo === 'cobro' ? 'cobro' : 'pago'}>
+                          {v.tipo}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-semibold text-neutral-200">{v.tercero}</td>
+                      <td className="px-4 py-3 text-sm text-neutral-500">{v.concepto}</td>
+                      <td className="px-4 py-3"><Badge tone="cuota">{v.cuota || '-'}</Badge></td>
+                      <td className="px-4 py-3">
+                        <Badge tone={v.forma === 'ECHEQ' ? 'echeq' : 'neutral'}>{v.forma}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-neutral-500">{v.banco}</td>
+                      <td className={`px-4 py-3 text-right font-mono text-sm font-black ${v.tipo === 'cobro' ? 'text-emerald-300' : 'text-red-300'}`}>
+                        {v.tipo === 'cobro' ? '+' : '-'} {formatCurrency(v.importe, v.moneda)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge tone={dias < 0 ? 'danger' : dias <= 7 ? 'warning' : 'ok'}>
+                          {dias < 0 ? 'Vencido' : 'Pendiente'}
+                        </Badge>
                       </td>
                     </tr>
-                  </tbody>
-                </table>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      )}
+
+      {tab === 'planes' && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {planes.map((plan) => {
+            const cuotas = generateCuotas(plan)
+            const vencidas = cuotas.filter((c) => daysTo(c.vencimiento) < 0).length
+            const avance = Math.min(100, (vencidas / cuotas.length) * 100)
+
+            return (
+              <Panel key={plan.id} className="p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <Badge tone={plan.tipo === 'cobro' ? 'cobro' : 'pago'}>{plan.tipo}</Badge>
+                    <h3 className="mt-3 text-lg font-black text-white">{plan.concepto}</h3>
+                    <p className="mt-1 text-sm text-neutral-500">{plan.tercero}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono text-lg font-black text-cyan-300">
+                      {formatCurrency(plan.importeTotal, plan.moneda)}
+                    </div>
+                    <div className="mt-1 font-mono text-[10px] text-neutral-600">{plan.cuotas} cuotas · {plan.forma}</div>
+                  </div>
+                </div>
+
+                <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/[0.05]">
+                  <div className="h-full rounded-full bg-cyan-300/70" style={{ width: `${avance}%` }} />
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-neutral-500">
+                  <div>
+                    <span className="block font-mono text-[10px] uppercase text-neutral-600">Inicio</span>
+                    {formatDate(plan.fechaInicio)}
+                  </div>
+                  <div>
+                    <span className="block font-mono text-[10px] uppercase text-neutral-600">Banco</span>
+                    {plan.banco}
+                  </div>
+                </div>
+              </Panel>
+            )
+          })}
+        </div>
+      )}
+
+      {tab === 'bancos' && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {BANCOS.map((banco) => (
+            <Panel key={banco.id} className="p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-base font-bold text-white">{banco.nombre}</div>
+                  <div className="mt-1 font-mono text-xs text-neutral-600">{banco.cuenta}</div>
+                </div>
+                <div className="text-right">
+                  <div className={`font-mono text-xl font-black ${banco.moneda === 'USD' ? 'text-amber-300' : 'text-cyan-300'}`}>
+                    {formatCurrency(banco.saldo, banco.moneda)}
+                  </div>
+                  <div className="mt-1 font-mono text-[10px] text-neutral-600">{banco.moneda}</div>
+                </div>
               </div>
-              <div className="text-xs text-hm-muted italic text-center mt-3">
-                <span className="text-[10px] bg-hm-surface2/50 px-1.5 py-0.5 rounded border border-hm-border text-hm-accent mr-2">[REAL]</span>
-                Proyección generada a partir de transacciones y compras reales sin estado de pago completado.
+            </Panel>
+          ))}
+
+          <Panel className="p-5 md:col-span-2">
+            <div className="font-mono text-xs uppercase tracking-[0.18em] text-neutral-500">
+              Posición por moneda
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
+                <div className="text-sm text-neutral-500">Total ARS</div>
+                <div className="mt-1 font-mono text-2xl font-black text-cyan-300">{formatCurrency(totalBancosArs)}</div>
+              </div>
+              <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
+                <div className="text-sm text-neutral-500">Total USD</div>
+                <div className="mt-1 font-mono text-2xl font-black text-amber-300">{formatCurrency(totalBancosUsd, 'USD')}</div>
               </div>
             </div>
+          </Panel>
+        </div>
+      )}
+
+      {tab === 'echeqs' && (
+        <Panel className="overflow-hidden">
+          <div className="border-b border-white/[0.06] px-5 py-4">
+            <h2 className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
+              ECHEQ en cartera / emitidos
+            </h2>
           </div>
-        )
-      })()}
+
+          <div className="divide-y divide-white/[0.06]">
+            {MOCK_ECHEQS.map((e) => (
+              <div key={e.id} className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={e.tipo === 'cobro' ? 'cobro' : 'pago'}>{e.tipo}</Badge>
+                    <Badge tone="echeq">ECHEQ</Badge>
+                  </div>
+                  <div className="mt-3 text-sm font-bold text-white">{e.tercero}</div>
+                  <div className="mt-1 font-mono text-xs text-neutral-600">{e.numero} · {e.estado}</div>
+                </div>
+
+                <div className="text-right">
+                  <div className={`font-mono text-lg font-black ${e.tipo === 'cobro' ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {formatCurrency(e.importe, e.moneda)}
+                  </div>
+                  <div className="mt-1 font-mono text-xs text-neutral-600">{formatDate(e.vencimiento)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+
+      {showPlanModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <form onSubmit={handleCreatePlan} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/[0.08] bg-[#0d0f14] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
+              <div>
+                <h2 className="text-lg font-black text-white">Nuevo plan financiero</h2>
+                <p className="mt-1 text-xs text-neutral-500">Genera cuotas automáticas para pagos o cobros.</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowPlanModal(false)}
+                className="rounded-xl border border-white/[0.08] bg-black/20 p-2 text-neutral-500 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid gap-4 p-5 md:grid-cols-2">
+              <label className="space-y-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Tipo</span>
+                <select
+                  value={form.tipo}
+                  onChange={(e) => setForm({ ...form, tipo: e.target.value })}
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
+                >
+                  <option value="cobro">Cobro a cliente</option>
+                  <option value="pago">Pago a proveedor</option>
+                </select>
+              </label>
+
+              <label className="space-y-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+                  {form.tipo === 'cobro' ? 'Cliente' : 'Proveedor'}
+                </span>
+                <input
+                  value={form.tercero}
+                  onChange={(e) => setForm({ ...form, tercero: e.target.value })}
+                  placeholder={form.tipo === 'cobro' ? 'Ej: DUX' : 'Ej: Turbodisel S.A.'}
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <label className="space-y-2 md:col-span-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Concepto</span>
+                <input
+                  value={form.concepto}
+                  onChange={(e) => setForm({ ...form, concepto: e.target.value })}
+                  placeholder="Ej: Excavadora LOVOL FR60F"
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <label className="space-y-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Importe total</span>
+                <input
+                  value={form.importeTotal}
+                  onChange={(e) => setForm({ ...form, importeTotal: e.target.value })}
+                  placeholder="56770336.30"
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 font-mono text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <label className="space-y-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Moneda</span>
+                <select
+                  value={form.moneda}
+                  onChange={(e) => setForm({ ...form, moneda: e.target.value })}
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
+                >
+                  <option value="ARS">ARS</option>
+                  <option value="USD">USD</option>
+                </select>
+              </label>
+
+              <label className="space-y-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Cantidad de cuotas</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={form.cuotas}
+                  onChange={(e) => setForm({ ...form, cuotas: e.target.value })}
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 font-mono text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <label className="space-y-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Primera fecha</span>
+                <input
+                  type="date"
+                  value={form.fechaInicio}
+                  onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })}
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 font-mono text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+
+              <label className="space-y-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Frecuencia</span>
+                <select
+                  value={form.frecuencia}
+                  onChange={(e) => setForm({ ...form, frecuencia: e.target.value })}
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
+                >
+                  <option value="mensual">Mensual</option>
+                  <option value="quincenal">Quincenal</option>
+                  <option value="semanal">Semanal</option>
+                </select>
+              </label>
+
+              <label className="space-y-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Forma</span>
+                <select
+                  value={form.forma}
+                  onChange={(e) => setForm({ ...form, forma: e.target.value })}
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
+                >
+                  {FORMAS.map((forma) => (
+                    <option key={forma} value={forma}>{forma}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Banco / cuenta</span>
+                <select
+                  value={form.banco}
+                  onChange={(e) => setForm({ ...form, banco: e.target.value })}
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
+                >
+                  {BANCOS.map((banco) => (
+                    <option key={banco.id} value={banco.nombre}>{banco.nombre} · {banco.cuenta}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-2 md:col-span-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Referencia / observación</span>
+                <input
+                  value={form.referencia}
+                  onChange={(e) => setForm({ ...form, referencia: e.target.value })}
+                  placeholder="Factura, operación, máquina, OT, acuerdo, etc."
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
+                />
+              </label>
+            </div>
+
+            {previewCuotas.length > 0 && (
+              <div className="border-t border-white/[0.06] px-5 py-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">Vista previa</span>
+                  <span className="font-mono text-xs text-cyan-300">
+                    {formatCurrency(previewCuotas[0]?.importe, form.moneda)} por cuota
+                  </span>
+                </div>
+
+                <div className="grid max-h-40 gap-2 overflow-y-auto md:grid-cols-2">
+                  {previewCuotas.map((cuota) => (
+                    <div key={cuota.id} className="rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-xs text-neutral-300">Cuota {cuota.cuota}</span>
+                        <span className="font-mono text-xs text-cyan-300">{formatCurrency(cuota.importe, form.moneda)}</span>
+                      </div>
+                      <div className="mt-1 font-mono text-[10px] text-neutral-600">{formatDate(cuota.vencimiento)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 border-t border-white/[0.06] px-5 py-4">
+              <Button type="button" variant="outline" onClick={() => setShowPlanModal(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit">
+                Crear plan
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }
