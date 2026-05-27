@@ -24,11 +24,26 @@ export default function Activo360() {
   const [selectedActivoId, setSelectedActivoId] = useState(null)
   const { taxonomia } = useRubro()
 
+  const alertas = useMemo(() => {
+    if (!maquinas?.length) return 0
+    return maquinas.filter(m => {
+      const svc = calcServiceState(m)
+      return m.activa !== false && (
+        ['Fuera de servicio', 'Esperando repuesto', 'En taller'].includes(m.estado_operativo) ||
+        ['vencido', 'urgente'].includes(svc?.estado)
+      )
+    }).length
+  }, [maquinas])
+
   const activosFiltrados = useMemo(() => {
     let filtrados = maquinas
     if (filtroTipo === 'Propio') filtrados = filtrados.filter(m => !m.en_alquiler && m.tipo !== 'Movilidad')
     if (filtroTipo === 'Rental') filtrados = filtrados.filter(m => m.en_alquiler)
     if (filtroTipo === 'Movilidad') filtrados = filtrados.filter(m => m.tipo === 'Movilidad')
+    if (filtroTipo === 'Alertas') filtrados = filtrados.filter(m => {
+      const svc = calcServiceState(m)
+      return ['Fuera de servicio', 'Esperando repuesto', 'En taller'].includes(m.estado_operativo) || ['vencido', 'urgente'].includes(svc?.estado)
+    })
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
@@ -41,6 +56,17 @@ export default function Activo360() {
     }
     return filtrados
   }, [maquinas, searchQuery, filtroTipo])
+
+  const resumenActivos = useMemo(() => {
+    const total = maquinas.length
+    const propios = maquinas.filter(m => !m.en_alquiler && m.tipo !== 'Movilidad').length
+    const rental = maquinas.filter(m => m.en_alquiler).length
+    const movilidad = maquinas.filter(m => m.tipo === 'Movilidad').length
+    const sinServicio = maquinas.filter(m => ['Fuera de servicio', 'Esperando repuesto', 'En taller'].includes(m.estado_operativo)).length
+    const promedioDisponibilidad = total ? Math.round(maquinas.reduce((sum, m) => sum + Number(m.score_disponibilidad || 0), 0) / total) : 0
+
+    return { total, propios, rental, movilidad, sinServicio, promedioDisponibilidad }
+  }, [maquinas])
 
   if (error) {
     return <div className="p-6 text-red-400 font-mono">Error cargando activos: {error}</div>
@@ -60,7 +86,41 @@ export default function Activo360() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="bg-hm-surface2/70 border-hm-border/50 p-4">
+          <div className="text-sm text-hm-muted uppercase font-mono tracking-widest">Activos totales</div>
+          <div className="text-2xl font-bold text-hm-text">{resumenActivos.total}</div>
+        </Card>
+        <Card className="bg-hm-surface2/70 border-hm-border/50 p-4">
+          <div className="text-sm text-hm-muted uppercase font-mono tracking-widest">Flota propia</div>
+          <div className="text-2xl font-bold text-hm-text">{resumenActivos.propios}</div>
+        </Card>
+        <Card className="bg-hm-surface2/70 border-hm-border/50 p-4">
+          <div className="text-sm text-hm-muted uppercase font-mono tracking-widest">Rental / Alquiler</div>
+          <div className="text-2xl font-bold text-hm-text">{resumenActivos.rental}</div>
+        </Card>
+        <Card className="bg-hm-surface2/70 border-hm-border/50 p-4">
+          <div className="text-sm text-hm-muted uppercase font-mono tracking-widest">Movilidad</div>
+          <div className="text-2xl font-bold text-hm-text">{resumenActivos.movilidad}</div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
+        <Card className="bg-hm-surface2/70 border-hm-border/50 p-4">
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest">Disponibilidad promedio</div>
+          <div className="text-xl font-bold text-hm-accent">{resumenActivos.promedioDisponibilidad}%</div>
+        </Card>
+        <Card className="bg-hm-surface2/70 border-hm-border/50 p-4">
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest">Activos con alerta</div>
+          <div className="text-xl font-bold text-red-400">{alertas}</div>
+        </Card>
+        <Card className="bg-hm-surface2/70 border-hm-border/50 p-4">
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest">Sin servicio</div>
+          <div className="text-xl font-bold text-orange-400">{resumenActivos.sinServicio}</div>
+        </Card>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-4 bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50 mt-4">
         <div className="flex-1">
           <label className="text-[10px] font-mono text-hm-muted mb-1 block uppercase tracking-widest">Buscar</label>
           <Input 
@@ -80,6 +140,7 @@ export default function Activo360() {
             <option value="Propio">Flota Propia</option>
             <option value="Rental">Rental / Alquiler</option>
             <option value="Movilidad">Movilidad / Vehículos</option>
+            <option value="Alertas">Activos con alerta ({alertas})</option>
           </select>
         </div>
       </div>
