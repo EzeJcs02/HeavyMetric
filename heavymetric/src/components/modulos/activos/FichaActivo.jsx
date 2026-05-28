@@ -11,6 +11,7 @@ import ActivoTimelinePanel from './ActivoTimelinePanel'
 import ActivoDocumentsPanel from './ActivoDocumentsPanel'
 import ActivoChecklistPanel from './ActivoChecklistPanel'
 import ActivoRentalPanel from './ActivoRentalPanel'
+import ActivoPredictivePanel from './ActivoPredictivePanel'
 
 export default function FichaActivo({
   isOpen,
@@ -33,7 +34,10 @@ export default function FichaActivo({
     if (activo?.estado_operativo === 'Esperando repuesto') score -= 25
     if (activo?.estado_operativo === 'En mantenimiento') score -= 10
 
-    return Math.max(0, Math.min(100, score))
+    return Math.max(
+      0,
+      Math.min(100, score)
+    )
   }, [activo])
 
   if (!activo) return null
@@ -56,7 +60,9 @@ export default function FichaActivo({
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           <div className="xl:col-span-1 flex flex-col gap-4">
-            <ActivoOperationalData activo={activo} />
+            <ActivoOperationalData
+              activo={activo}
+            />
 
             <ActivoServicePanel
               activo={activo}
@@ -80,6 +86,11 @@ export default function FichaActivo({
           </div>
 
           <div className="xl:col-span-2 flex flex-col gap-4">
+            <ActivoPredictivePanel
+              activo={activo}
+              ots={ots}
+            />
+
             <ActivoCostPanel
               activo={activo}
               ots={ots}
