@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
+import { supabase } from '../../lib/supabase'
 import { isValidCuit, formatCuit } from '../../lib/cuitValidator'
 import { generateOCPDF } from '../../lib/pdfGenerator'
 import { evaluateProviderRisk } from '../../lib/aiEngines'
@@ -212,12 +213,25 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
 
   useEffect(() => {
     if (tab !== 'activos' || maquinasDisp.length > 0) return
-    // Cargar lista de maquinas para vincular
-    import('../../lib/supabase').then(({ supabase }) =>
-      supabase.from('maquinas').select('id, nombre_unidad, tipo, marca').eq('activa', true).order('nombre_unidad')
-        .then(({ data }) => setMaquinasDisp(data || []))
-    )
-  }, [tab])
+
+    const loadMaquinas = async () => {
+      const { data, error } = await supabase
+        .from('maquinas')
+        .select('id, nombre_unidad, tipo, marca')
+        .eq('activa', true)
+        .order('nombre_unidad')
+
+      if (error) {
+        console.error('Error cargando activos disponibles:', error)
+        setMaquinasDisp([])
+        return
+      }
+
+      setMaquinasDisp(data || [])
+    }
+
+    loadMaquinas()
+  }, [tab, maquinasDisp.length])
 
   const handleCrearCompra = async () => {
     const items = compraItems.filter(i => i.descripcion.trim())
