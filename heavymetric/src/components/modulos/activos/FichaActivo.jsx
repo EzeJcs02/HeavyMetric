@@ -8,6 +8,7 @@ import ActivoOperationalData from './ActivoOperationalData'
 import ActivoServicePanel from './ActivoServicePanel'
 import ActivoCostPanel from './ActivoCostPanel'
 import ActivoTimelinePanel from './ActivoTimelinePanel'
+import ActivoDocumentsPanel from './ActivoDocumentsPanel'
 
 export default function FichaActivo({
   isOpen,
@@ -56,6 +57,11 @@ export default function FichaActivo({
             <ActivoServicePanel
               activo={activo}
               ots={ots}
+            />
+
+            <ActivoDocumentsPanel
+              activo={activo}
+              documentos={activo?.documentos || []}
             />
           </div>
 
