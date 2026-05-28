@@ -10,6 +10,7 @@ import ActivoCostPanel from './ActivoCostPanel'
 import ActivoTimelinePanel from './ActivoTimelinePanel'
 import ActivoDocumentsPanel from './ActivoDocumentsPanel'
 import ActivoChecklistPanel from './ActivoChecklistPanel'
+import ActivoRentalPanel from './ActivoRentalPanel'
 
 export default function FichaActivo({
   isOpen,
@@ -70,6 +71,11 @@ export default function FichaActivo({
             <ActivoChecklistPanel
               activo={activo}
               checklist={activo?.checklist || []}
+            />
+
+            <ActivoRentalPanel
+              activo={activo}
+              contratos={contratos}
             />
           </div>
 
