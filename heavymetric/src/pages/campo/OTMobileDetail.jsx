@@ -1,126 +1,220 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useRubro } from '../../context/RubroContext'
 import { getCache, queueMutation, setCache } from '../../lib/syncQueue'
-import { ChevronLeft, Play, Pause, Square, CheckSquare, Camera, PenTool, Wrench, Save, CheckCircle2 } from 'lucide-react'
+import {
+  ChevronLeft,
+  Play,
+  Pause,
+  Square,
+  CheckSquare,
+  Camera,
+  PenTool,
+  Wrench,
+  Save,
+  CheckCircle2,
+  Clock,
+  Wifi,
+  WifiOff,
+  ShieldCheck,
+} from 'lucide-react'
 import SignatureCanvas from 'react-signature-canvas'
 import { toast } from 'sonner'
 import { uploadDocument } from '../../lib/integrations/storage'
 import { isIntegrationEnabled } from '../../config/integrations'
 
+const DEFAULT_CHECKLIST = [
+  { categoria: 'seguridad', item: 'EPP completo y colocado', estado: 'na' },
+  { categoria: 'operación', item: 'Zona de trabajo segura y señalizada', estado: 'na' },
+  { categoria: 'diagnóstico', item: 'Diagnóstico confirmado', estado: 'na' },
+  { categoria: 'niveles', item: 'Nivel de aceite / fluido verificado', estado: 'na' },
+  { categoria: 'niveles', item: 'Nivel de refrigerante / fluido térmico verificado', estado: 'na' },
+  { categoria: 'fugas', item: 'Inspección visual de fugas realizada', estado: 'na' },
+  { categoria: 'prueba', item: 'Prueba operativa posterior realizada', estado: 'na' },
+  { categoria: 'limpieza', item: 'Zona de trabajo limpia post-servicio', estado: 'na' },
+]
+
 export default function OTMobileDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { taxonomia } = useRubro()
   const { isOffline } = useOutletContext()
-  
+
+  const activoSingular = taxonomia?.activoSingular || 'Activo'
+  const ordenTrabajo = taxonomia?.ordenTrabajo || 'Orden de trabajo'
+  const repuestoPlural = taxonomia?.repuestoPlural || 'Repuestos / Insumos'
+  const tecnicoLabel = taxonomia?.tecnico || 'Técnico'
+  const medidor = taxonomia?.medidor || 'Uso'
+  const medidorUnidad = taxonomia?.medidorUnidad || 'hs'
+
   const [ot, setOt] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('reloj') // reloj, checklist, evidencia, firma, repuestos
+  const [activeTab, setActiveTab] = useState('reloj')
 
-  // Estados Checklist
   const [checklists, setChecklists] = useState([])
-  
-  // Estados Firma
-  const sigCanvasCliente = useRef({})
-  const sigCanvasTecnico = useRef({})
   const [firmaClienteName, setFirmaClienteName] = useState('')
+  const [observacionesCampo, setObservacionesCampo] = useState('')
+  const [evidenciaDescripcion, setEvidenciaDescripcion] = useState('')
+  const [evidenciaPendiente, setEvidenciaPendiente] = useState(false)
+  const [repuestosPendientes, setRepuestosPendientes] = useState([])
+
+  const sigCanvasCliente = useRef(null)
+  const sigCanvasTecnico = useRef(null)
 
   useEffect(() => {
     loadOtData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  const activoNombre = useMemo(() => {
+    return (
+      ot?.maquinas?.nombre_unidad ||
+      ot?.activo?.nombre_unidad ||
+      ot?.activo_nombre ||
+      'Activo sin identificar'
+    )
+  }, [ot])
+
+  const clienteNombre = useMemo(() => {
+    return (
+      ot?.clientes?.razon_social ||
+      ot?.cliente?.razon_social ||
+      ot?.cliente_nombre ||
+      'Cliente no informado'
+    )
+  }, [ot])
+
+  const checklistCompleto = useMemo(() => {
+    if (!checklists.length) return false
+    return checklists.every((check) => ['ok', 'na'].includes(check.estado))
+  }, [checklists])
+
+  const tieneFirmaTecnico = () => {
+    return sigCanvasTecnico.current && !sigCanvasTecnico.current.isEmpty()
+  }
+
+  const tieneFirmaCliente = () => {
+    return sigCanvasCliente.current && !sigCanvasCliente.current.isEmpty() && firmaClienteName.trim()
+  }
 
   const loadOtData = async () => {
     setLoading(true)
+
     try {
-      const localOts = await getCache('my_ots') || []
-      const foundOt = localOts.find(o => o.id === id)
+      const localOts = (await getCache('my_ots')) || []
+      const foundOt = localOts.find((item) => String(item.id) === String(id))
+
       if (foundOt) {
         setOt(foundOt)
       } else {
-        toast.error('OT no encontrada en caché')
+        toast.error(`${ordenTrabajo} no encontrada en caché`)
         navigate('/campo')
       }
 
-      const localChecks = await getCache('ot_checklists') || []
-      const otChecks = localChecks.filter(c => c.orden_trabajo_id === id)
+      const localChecks = (await getCache('ot_checklists')) || []
+      const otChecks = localChecks.filter((check) => String(check.orden_trabajo_id) === String(id))
+
       if (otChecks.length > 0) {
         setChecklists(otChecks)
       } else {
-        // Inicializar checklist por defecto
-        const defaultChecks = [
-          { categoria: 'seguridad', item: 'EPP completo y colocado', estado: 'na' },
-          { categoria: 'niveles', item: 'Nivel aceite motor', estado: 'na' },
-          { categoria: 'niveles', item: 'Nivel refrigerante', estado: 'na' },
-          { categoria: 'fugas', item: 'Inspección visual de fugas hidráulicas', estado: 'na' },
-          { categoria: 'limpieza', item: 'Limpieza de zona de trabajo post-servicio', estado: 'na' }
-        ]
-        setChecklists(defaultChecks)
+        setChecklists(DEFAULT_CHECKLIST)
       }
 
+      const localEvidencias = (await getCache('ot_evidencias_campo')) || []
+      const evidenciaOT = localEvidencias.find((ev) => String(ev.orden_trabajo_id) === String(id))
+
+      if (evidenciaOT) {
+        setObservacionesCampo(evidenciaOT.observaciones || '')
+        setEvidenciaDescripcion(evidenciaOT.descripcion || '')
+        setEvidenciaPendiente(true)
+      }
+
+      const localRepuestos = (await getCache('ot_repuestos_campo')) || []
+      setRepuestosPendientes(localRepuestos.filter((rep) => String(rep.orden_trabajo_id) === String(id)))
     } catch (error) {
       console.error(error)
+      toast.error('Error cargando datos locales')
     } finally {
       setLoading(false)
     }
   }
 
-  // ==== FUNCIONES GEOLOCALIZACIÓN ====
   const getGPSCoords = () => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
         resolve({ lat: null, lng: null })
         return
       }
+
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (pos) =>
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          }),
         () => resolve({ lat: null, lng: null }),
         { timeout: 5000 }
       )
     })
   }
 
-  // ==== ACCIONES DE RELOJ ====
+  const updateLocalOT = async (updatedOt) => {
+    setOt(updatedOt)
+
+    const localOts = (await getCache('my_ots')) || []
+    const newOts = localOts.map((item) => (String(item.id) === String(id) ? updatedOt : item))
+
+    await setCache('my_ots', newOts)
+  }
+
   const handleClockAction = async (action, newStatus) => {
     const coords = await getGPSCoords()
-    
-    // 1. Guardar evento de tiempo
+
     await queueMutation({
       type: 'INSERT',
       table: 'ot_tiempos',
       payload: {
         orden_trabajo_id: ot.id,
-        tecnico_id: user.id,
+        tecnico_id: user?.id,
         accion: action,
         latitud: coords.lat,
-        longitud: coords.lng
-      }
+        longitud: coords.lng,
+        created_at: new Date().toISOString(),
+        iso_evento: {
+          accion: `campo_${action}`,
+          entidad: 'orden_trabajo',
+          entidad_id: ot.id,
+          usuario_id: user?.id || null,
+          estado_anterior: ot.estado || null,
+          estado_nuevo: newStatus,
+          fecha_hora: new Date().toISOString(),
+          latitud: coords.lat,
+          longitud: coords.lng,
+          origen: 'src/pages/campo/OTMobileDetail.jsx',
+        },
+      },
     })
 
-    // 2. Actualizar estado OT
-    const otPayload = { estado: newStatus }
     await queueMutation({
       type: 'UPDATE',
       table: 'ordenes_trabajo',
       pk: 'id',
-      payload: { id: ot.id, ...otPayload }
+      payload: {
+        id: ot.id,
+        estado: newStatus,
+      },
     })
 
-    // Update local state and cache
-    const updatedOt = { ...ot, estado: newStatus }
-    setOt(updatedOt)
-    
-    const localOts = await getCache('my_ots') || []
-    const newOts = localOts.map(o => o.id === id ? updatedOt : o)
-    await setCache('my_ots', newOts)
+    await updateLocalOT({
+      ...ot,
+      estado: newStatus,
+    })
 
-    toast.success(`OT marcada como ${newStatus}`)
-    if (newStatus === 'completada') {
-      navigate('/campo')
-    }
+    toast.success(`${ordenTrabajo} marcada como ${String(newStatus).replace('_', ' ')}`)
   }
 
-  // ==== ACCIONES CHECKLIST ====
   const handleChecklistChange = (index, status) => {
     const newChecks = [...checklists]
     newChecks[index].estado = status
@@ -128,31 +222,71 @@ export default function OTMobileDetail() {
   }
 
   const saveChecklist = async () => {
-    // Si la db local no tiene IDs, son nuevos. Simplificaremos asumiendo INSERT
     for (const check of checklists) {
-      if (check.id) {
-        // UPDATE (No implementado en el mock para simplificar)
-      } else {
-        await queueMutation({
-          type: 'INSERT',
-          table: 'ot_checklists',
-          payload: {
-            orden_trabajo_id: ot.id,
-            categoria: check.categoria,
-            item: check.item,
-            estado: check.estado
-          }
-        })
-      }
+      await queueMutation({
+        type: check.id ? 'UPDATE' : 'INSERT',
+        table: 'ot_checklists',
+        pk: check.id ? 'id' : undefined,
+        payload: {
+          ...(check.id ? { id: check.id } : {}),
+          orden_trabajo_id: ot.id,
+          categoria: check.categoria,
+          item: check.item,
+          estado: check.estado,
+          updated_at: new Date().toISOString(),
+        },
+      })
     }
-    toast.success('Checklist guardado en cola (Offline)')
+
+    const localChecks = (await getCache('ot_checklists')) || []
+    const withoutCurrent = localChecks.filter((check) => String(check.orden_trabajo_id) !== String(ot.id))
+
+    await setCache('ot_checklists', [
+      ...withoutCurrent,
+      ...checklists.map((check) => ({
+        ...check,
+        orden_trabajo_id: ot.id,
+        updated_at: new Date().toISOString(),
+      })),
+    ])
+
+    toast.success('Checklist guardado en cola offline')
   }
 
-  // ==== ACCIONES FIRMA ====
+  const saveEvidence = async () => {
+    const coords = await getGPSCoords()
+
+    const payload = {
+      orden_trabajo_id: ot.id,
+      tecnico_id: user?.id || null,
+      descripcion: evidenciaDescripcion,
+      observaciones: observacionesCampo,
+      latitud: coords.lat,
+      longitud: coords.lng,
+      created_at: new Date().toISOString(),
+      origen: 'campo_mobile',
+      estado_sync: navigator.onLine ? 'pendiente_upload' : 'offline_pendiente',
+    }
+
+    await queueMutation({
+      type: 'INSERT',
+      table: 'ot_evidencias',
+      payload,
+    })
+
+    const localEvidencias = (await getCache('ot_evidencias_campo')) || []
+    const withoutCurrent = localEvidencias.filter((ev) => String(ev.orden_trabajo_id) !== String(ot.id))
+
+    await setCache('ot_evidencias_campo', [...withoutCurrent, payload])
+
+    setEvidenciaPendiente(true)
+    toast.success('Evidencia guardada localmente')
+  }
+
   const saveSignatures = async () => {
     const coords = await getGPSCoords()
-    
-    if (!sigCanvasCliente.current.isEmpty() && firmaClienteName) {
+
+    if (sigCanvasCliente.current && !sigCanvasCliente.current.isEmpty() && firmaClienteName.trim()) {
       const firmaCliente = sigCanvasCliente.current.getTrimmedCanvas().toDataURL('image/png')
       let firmaUrlOrBase64 = firmaCliente
 
@@ -168,20 +302,21 @@ export default function OTMobileDetail() {
         payload: {
           orden_trabajo_id: ot.id,
           tipo: 'cliente',
-          nombre_firmante: firmaClienteName,
+          nombre_firmante: firmaClienteName.trim(),
           firma_base64: firmaUrlOrBase64,
           latitud: coords.lat,
-          longitud: coords.lng
-        }
+          longitud: coords.lng,
+          created_at: new Date().toISOString(),
+        },
       })
     }
 
-    if (!sigCanvasTecnico.current.isEmpty()) {
+    if (sigCanvasTecnico.current && !sigCanvasTecnico.current.isEmpty()) {
       const firmaTecnico = sigCanvasTecnico.current.getTrimmedCanvas().toDataURL('image/png')
       let firmaUrlOrBase64 = firmaTecnico
 
       if (navigator.onLine && isIntegrationEnabled('storage')) {
-        toast.info('Subiendo firma de técnico...')
+        toast.info(`Subiendo firma de ${tecnicoLabel.toLowerCase()}...`)
         const res = await uploadDocument(firmaTecnico, `firmas/ot-${ot.id}-tecnico.png`)
         if (res.success) firmaUrlOrBase64 = res.url
       }
@@ -192,46 +327,132 @@ export default function OTMobileDetail() {
         payload: {
           orden_trabajo_id: ot.id,
           tipo: 'tecnico',
-          nombre_firmante: ot.operativo_id, // idealmente nombre del tecnico
+          nombre_firmante: user?.email || tecnicoLabel,
           firma_base64: firmaUrlOrBase64,
           latitud: coords.lat,
-          longitud: coords.lng
-        }
+          longitud: coords.lng,
+          created_at: new Date().toISOString(),
+        },
       })
     }
+
     toast.success('Firmas guardadas localmente')
   }
 
-  if (loading || !ot) return <div className="p-4 text-white">Cargando...</div>
+  const handleCloseOT = async () => {
+    if (!checklistCompleto) {
+      toast.error('No podés cerrar: completá el checklist operativo.')
+      setActiveTab('checklist')
+      return
+    }
+
+    if (!evidenciaDescripcion.trim() && !observacionesCampo.trim()) {
+      toast.error('No podés cerrar: cargá una evidencia u observación de campo.')
+      setActiveTab('evidencia')
+      return
+    }
+
+    if (!tieneFirmaTecnico()) {
+      toast.error(`No podés cerrar: falta firma del ${tecnicoLabel.toLowerCase()}.`)
+      setActiveTab('firma')
+      return
+    }
+
+    const coords = await getGPSCoords()
+
+    await queueMutation({
+      type: 'UPDATE',
+      table: 'ordenes_trabajo',
+      pk: 'id',
+      payload: {
+        id: ot.id,
+        estado: 'completada',
+        iso_cierre_campo: {
+          accion: 'cerrar_ot_campo',
+          entidad: 'orden_trabajo',
+          entidad_id: ot.id,
+          numero_ot: ot.numero_ot,
+          usuario_id: user?.id || null,
+          responsable: user?.email || null,
+          estado_anterior: ot.estado || null,
+          estado_nuevo: 'completada',
+          fecha_hora: new Date().toISOString(),
+          latitud: coords.lat,
+          longitud: coords.lng,
+          checklist_completo: checklistCompleto,
+          evidencia_cargada: Boolean(evidenciaDescripcion.trim() || observacionesCampo.trim()),
+          firma_tecnico: true,
+          firma_cliente: Boolean(tieneFirmaCliente()),
+          origen: 'src/pages/campo/OTMobileDetail.jsx',
+        },
+      },
+    })
+
+    await updateLocalOT({
+      ...ot,
+      estado: 'completada',
+      iso_cierre_campo: {
+        checklist_completo: checklistCompleto,
+        evidencia_cargada: true,
+        firma_tecnico: true,
+        firma_cliente: Boolean(tieneFirmaCliente()),
+        fecha_hora: new Date().toISOString(),
+      },
+    })
+
+    toast.success(`${ordenTrabajo} cerrada y enviada a cola de sincronización`)
+    navigate('/campo')
+  }
+
+  if (loading || !ot) {
+    return <div className="p-4 text-white">Cargando...</div>
+  }
 
   return (
     <div className="flex flex-col h-full bg-neutral-900 pb-20">
-      {/* HEADER SECUNDARIO */}
       <div className="bg-neutral-950 p-4 border-b border-white/5 flex items-center gap-3">
-        <button onClick={() => navigate('/campo')} className="p-2 -ml-2 rounded-full text-neutral-400 hover:text-white hover:bg-white/10">
+        <button
+          onClick={() => navigate('/campo')}
+          className="p-2 -ml-2 rounded-full text-neutral-400 hover:text-white hover:bg-white/10"
+        >
           <ChevronLeft className="w-6 h-6" />
         </button>
-        <div>
-          <h2 className="text-white font-semibold text-lg leading-tight">OT #{ot.numero_ot}</h2>
-          <p className="text-neutral-400 text-sm truncate">{ot.maquinas?.nombre_unidad}</p>
+
+        <div className="min-w-0 flex-1">
+          <h2 className="text-white font-semibold text-lg leading-tight">
+            {ordenTrabajo} #{ot.numero_ot}
+          </h2>
+          <p className="text-neutral-400 text-sm truncate">
+            {activoNombre} · {clienteNombre}
+          </p>
+        </div>
+
+        <div
+          className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold uppercase ${
+            isOffline
+              ? 'bg-red-500/10 text-red-400 border-red-500/30'
+              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+          }`}
+        >
+          {isOffline ? <WifiOff className="w-3 h-3" /> : <Wifi className="w-3 h-3" />}
+          {isOffline ? 'Offline' : 'Online'}
         </div>
       </div>
 
-      {/* TABS */}
       <div className="flex overflow-x-auto no-scrollbar border-b border-white/10 bg-neutral-950 px-2">
         {[
           { id: 'reloj', label: 'Reloj', icon: Clock },
           { id: 'checklist', label: 'Checklist', icon: CheckSquare },
           { id: 'evidencia', label: 'Evidencia', icon: Camera },
           { id: 'firma', label: 'Firma', icon: PenTool },
-          { id: 'repuestos', label: 'Partes', icon: Wrench },
-        ].map(tab => (
+          { id: 'repuestos', label: repuestoPlural, icon: Wrench },
+        ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-3 border-b-2 text-sm font-medium transition-colors whitespace-nowrap ${
-              activeTab === tab.id 
-                ? 'border-orange-500 text-orange-500' 
+              activeTab === tab.id
+                ? 'border-orange-500 text-orange-500'
                 : 'border-transparent text-neutral-400 hover:text-white'
             }`}
           >
@@ -241,20 +462,18 @@ export default function OTMobileDetail() {
         ))}
       </div>
 
-      {/* CONTENIDO TABS */}
       <div className="p-4 flex-1 overflow-y-auto">
-        
-        {/* TAB: RELOJ */}
         {activeTab === 'reloj' && (
           <div className="space-y-6">
             <div className="bg-neutral-950 border border-white/10 rounded-2xl p-6 text-center shadow-lg">
-              <h3 className="text-neutral-400 text-sm mb-2 font-medium">Estado Actual</h3>
+              <h3 className="text-neutral-400 text-sm mb-2 font-medium">Estado actual</h3>
+
               <div className="text-3xl font-bold text-white mb-6 uppercase tracking-wider">
-                {ot.estado.replace('_', ' ')}
+                {String(ot.estado || 'pendiente').replace('_', ' ')}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <button 
+                <button
                   onClick={() => handleClockAction('iniciar', 'en_progreso')}
                   disabled={ot.estado === 'en_progreso' || ot.estado === 'completada'}
                   className="flex flex-col items-center justify-center gap-2 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed p-4 rounded-xl border border-emerald-500/20 transition-colors"
@@ -262,8 +481,8 @@ export default function OTMobileDetail() {
                   <Play className="w-8 h-8" />
                   <span className="font-semibold text-sm">Iniciar</span>
                 </button>
-                
-                <button 
+
+                <button
                   onClick={() => handleClockAction('pausar', 'pausada')}
                   disabled={ot.estado !== 'en_progreso'}
                   className="flex flex-col items-center justify-center gap-2 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 disabled:opacity-50 disabled:cursor-not-allowed p-4 rounded-xl border border-yellow-500/20 transition-colors"
@@ -273,31 +492,33 @@ export default function OTMobileDetail() {
                 </button>
               </div>
 
-              <button 
-                onClick={() => {
-                  if(window.confirm('¿Estás seguro de finalizar la OT?')) {
-                    handleClockAction('cerrar', 'completada')
-                  }
-                }}
+              <button
+                onClick={handleCloseOT}
                 disabled={ot.estado === 'completada'}
                 className="w-full mt-3 flex items-center justify-center gap-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed p-4 rounded-xl border border-red-500/20 transition-colors font-semibold"
               >
                 <Square className="w-6 h-6" />
-                Finalizar Servicio
+                Cerrar {ordenTrabajo}
               </button>
             </div>
-            
-            <p className="text-xs text-neutral-500 text-center flex items-center justify-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Las acciones registran posición GPS local.
-            </p>
+
+            <div className="bg-neutral-950 border border-white/10 rounded-2xl p-4">
+              <div className="flex items-center gap-2 text-xs text-neutral-400">
+                <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                Cierre protegido por checklist, evidencia y firma técnica.
+              </div>
+              <div className="mt-2 text-xs text-neutral-500 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                Las acciones registran GPS y quedan en cola offline si no hay conexión.
+              </div>
+            </div>
           </div>
         )}
 
-        {/* TAB: CHECKLIST */}
         {activeTab === 'checklist' && (
           <div className="space-y-4">
             {checklists.map((check, idx) => (
-              <div key={idx} className="bg-neutral-950 border border-white/5 rounded-xl p-4">
+              <div key={`${check.categoria}-${check.item}-${idx}`} className="bg-neutral-950 border border-white/5 rounded-xl p-4">
                 <div className="flex justify-between items-start mb-3">
                   <div className="pr-4">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-orange-500 mb-1 block">
@@ -306,30 +527,30 @@ export default function OTMobileDetail() {
                     <p className="text-sm font-medium text-white">{check.item}</p>
                   </div>
                 </div>
+
                 <div className="flex bg-neutral-900 rounded-lg p-1 border border-white/5 overflow-hidden">
-                  <button 
-                    onClick={() => handleChecklistChange(idx, 'ok')}
-                    className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${check.estado === 'ok' ? 'bg-emerald-500/20 text-emerald-400' : 'text-neutral-500'}`}
-                  >
-                    OK
-                  </button>
-                  <button 
-                    onClick={() => handleChecklistChange(idx, 'falla')}
-                    className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${check.estado === 'falla' ? 'bg-red-500/20 text-red-400' : 'text-neutral-500'}`}
-                  >
-                    FALLA
-                  </button>
-                  <button 
-                    onClick={() => handleChecklistChange(idx, 'na')}
-                    className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${check.estado === 'na' ? 'bg-neutral-700 text-neutral-300' : 'text-neutral-500'}`}
-                  >
-                    N/A
-                  </button>
+                  {['ok', 'falla', 'na'].map((estado) => (
+                    <button
+                      key={estado}
+                      onClick={() => handleChecklistChange(idx, estado)}
+                      className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${
+                        check.estado === estado
+                          ? estado === 'ok'
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : estado === 'falla'
+                              ? 'bg-red-500/20 text-red-400'
+                              : 'bg-neutral-700 text-neutral-300'
+                          : 'text-neutral-500'
+                      }`}
+                    >
+                      {estado === 'na' ? 'N/A' : estado.toUpperCase()}
+                    </button>
+                  ))}
                 </div>
               </div>
             ))}
-            
-            <button 
+
+            <button
               onClick={saveChecklist}
               className="w-full bg-orange-600 hover:bg-orange-500 text-white font-medium py-3.5 rounded-xl shadow-lg transition-colors flex justify-center items-center gap-2 mt-4"
             >
@@ -339,73 +560,107 @@ export default function OTMobileDetail() {
           </div>
         )}
 
-        {/* TAB: EVIDENCIA (Mock, requiere inputs file nativos o capacitor) */}
         {activeTab === 'evidencia' && (
           <div className="space-y-4">
             <div className="bg-neutral-950 border border-white/10 rounded-2xl p-6 text-center">
               <div className="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4 text-neutral-400">
                 <Camera className="w-8 h-8" />
               </div>
-              <h3 className="text-white font-medium mb-2">Tomar Fotografía</h3>
-              <p className="text-xs text-neutral-500 mb-6">La evidencia se subirá al conectarse a la red.</p>
-              
+
+              <h3 className="text-white font-medium mb-2">Evidencia de campo</h3>
+              <p className="text-xs text-neutral-500 mb-6">
+                La evidencia se guarda localmente y se sincroniza cuando vuelve la conexión.
+              </p>
+
               <label className="w-full flex items-center justify-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white p-4 rounded-xl border border-white/10 transition-colors font-medium cursor-pointer">
                 <input type="file" accept="image/*" capture="environment" className="hidden" />
                 <Camera className="w-5 h-5" />
-                Abrir Cámara
+                Abrir cámara
               </label>
+
+              {evidenciaPendiente && (
+                <div className="mt-3 text-xs text-emerald-400">
+                  Evidencia registrada localmente.
+                </div>
+              )}
             </div>
-            
+
             <div>
-              <label className="block text-sm font-medium text-neutral-400 mb-2">Observaciones Generales</label>
-              <textarea 
-                className="w-full bg-neutral-950 border border-white/10 rounded-xl p-3 text-white placeholder-neutral-600 focus:outline-none focus:border-orange-500 h-32"
-                placeholder="Notas de campo..."
-              ></textarea>
+              <label className="block text-sm font-medium text-neutral-400 mb-2">
+                Descripción de evidencia
+              </label>
+              <textarea
+                value={evidenciaDescripcion}
+                onChange={(e) => setEvidenciaDescripcion(e.target.value)}
+                className="w-full bg-neutral-950 border border-white/10 rounded-xl p-3 text-white placeholder-neutral-600 focus:outline-none focus:border-orange-500 h-24"
+                placeholder="Fotos tomadas, estado inicial/final, lecturas, daños, ubicación..."
+              />
             </div>
-            
-            <button className="w-full bg-white/10 text-white font-medium py-3.5 rounded-xl hover:bg-white/20 transition-colors flex justify-center items-center gap-2">
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-400 mb-2">
+                Observaciones de campo
+              </label>
+              <textarea
+                value={observacionesCampo}
+                onChange={(e) => setObservacionesCampo(e.target.value)}
+                className="w-full bg-neutral-950 border border-white/10 rounded-xl p-3 text-white placeholder-neutral-600 focus:outline-none focus:border-orange-500 h-32"
+                placeholder="Notas técnicas, condiciones del activo, pendientes o recomendaciones..."
+              />
+            </div>
+
+            <button
+              onClick={saveEvidence}
+              className="w-full bg-white/10 text-white font-medium py-3.5 rounded-xl hover:bg-white/20 transition-colors flex justify-center items-center gap-2"
+            >
               <Save className="w-5 h-5" />
               Guardar Evidencia
             </button>
           </div>
         )}
 
-        {/* TAB: FIRMA */}
         {activeTab === 'firma' && (
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-white mb-2">Firma del Cliente</label>
-              <input 
-                type="text" 
-                placeholder="Aclaración (Nombre Completo)"
+              <label className="block text-sm font-medium text-white mb-2">
+                Firma del cliente / responsable
+              </label>
+              <input
+                type="text"
+                placeholder="Aclaración / nombre completo"
                 value={firmaClienteName}
-                onChange={e => setFirmaClienteName(e.target.value)}
+                onChange={(e) => setFirmaClienteName(e.target.value)}
                 className="w-full bg-neutral-950 border border-white/10 rounded-xl p-3 mb-2 text-white placeholder-neutral-600 focus:outline-none focus:border-orange-500"
               />
               <div className="bg-white rounded-xl overflow-hidden border-2 border-white/10 touch-none">
-                <SignatureCanvas 
-                  ref={sigCanvasCliente} 
+                <SignatureCanvas
+                  ref={sigCanvasCliente}
                   penColor="black"
-                  canvasProps={{ className: 'w-full h-40 bg-neutral-200' }} 
+                  canvasProps={{ className: 'w-full h-40 bg-neutral-200' }}
                 />
               </div>
-              <button onClick={() => sigCanvasCliente.current.clear()} className="text-xs text-orange-500 mt-1">Limpiar Firma Cliente</button>
+              <button onClick={() => sigCanvasCliente.current?.clear()} className="text-xs text-orange-500 mt-1">
+                Limpiar firma cliente
+              </button>
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-white mb-2">Firma del Técnico</label>
+              <label className="block text-sm font-medium text-white mb-2">
+                Firma del {tecnicoLabel.toLowerCase()}
+              </label>
               <div className="bg-white rounded-xl overflow-hidden border-2 border-white/10 touch-none">
-                <SignatureCanvas 
-                  ref={sigCanvasTecnico} 
+                <SignatureCanvas
+                  ref={sigCanvasTecnico}
                   penColor="blue"
-                  canvasProps={{ className: 'w-full h-40 bg-neutral-200' }} 
+                  canvasProps={{ className: 'w-full h-40 bg-neutral-200' }}
                 />
               </div>
-              <button onClick={() => sigCanvasTecnico.current.clear()} className="text-xs text-orange-500 mt-1">Limpiar Firma Técnico</button>
+              <button onClick={() => sigCanvasTecnico.current?.clear()} className="text-xs text-orange-500 mt-1">
+                Limpiar firma {tecnicoLabel.toLowerCase()}
+              </button>
             </div>
 
-            <button 
+            <button
               onClick={saveSignatures}
               className="w-full bg-orange-600 hover:bg-orange-500 text-white font-medium py-3.5 rounded-xl shadow-lg transition-colors flex justify-center items-center gap-2"
             >
@@ -415,23 +670,35 @@ export default function OTMobileDetail() {
           </div>
         )}
 
-        {/* TAB: REPUESTOS (Mock simple) */}
         {activeTab === 'repuestos' && (
           <div className="space-y-4">
             <div className="bg-neutral-950 border border-orange-500/30 rounded-xl p-5 text-center">
               <Wrench className="w-8 h-8 text-orange-500 mx-auto mb-3" />
-              <h3 className="text-white font-medium mb-1">Agregar Repuestos</h3>
-              <p className="text-xs text-neutral-500 mb-4">Selecciona repuestos desde el catálogo offline.</p>
-              
+              <h3 className="text-white font-medium mb-1">
+                {repuestoPlural}
+              </h3>
+              <p className="text-xs text-neutral-500 mb-4">
+                Base preparada para seleccionar consumos desde catálogo offline.
+              </p>
+
               <button className="w-full bg-neutral-800 hover:bg-neutral-700 text-white font-medium py-3 rounded-lg transition-colors border border-white/5">
-                + Buscar en Catálogo
+                + Buscar en catálogo
               </button>
             </div>
-            
-            <p className="text-xs text-neutral-500 text-center">No hay repuestos registrados en esta OT.</p>
+
+            {repuestosPendientes.length === 0 ? (
+              <p className="text-xs text-neutral-500 text-center">
+                No hay consumos registrados en esta {ordenTrabajo.toLowerCase()}.
+              </p>
+            ) : (
+              repuestosPendientes.map((rep, index) => (
+                <div key={index} className="bg-neutral-950 border border-white/5 rounded-xl p-4 text-sm text-white">
+                  {rep.nombre || 'Consumo sin descripción'}
+                </div>
+              ))
+            )}
           </div>
         )}
-
       </div>
     </div>
   )
