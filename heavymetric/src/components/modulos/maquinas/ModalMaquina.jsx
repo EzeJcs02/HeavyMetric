@@ -5,13 +5,20 @@ import Button from '../../ui/Button'
 import { useRubro } from '../../../context/RubroContext'
 
 const TIPOS_ACTIVO = [
-  'maquinaria pesada',
-  'maquinaria compacta',
+  'activo operativo',
+  'vehículo',
   'camión',
   'camioneta',
+  'auto',
+  'maquinaria pesada',
+  'maquinaria compacta',
+  'grupo electrógeno',
+  'compresor',
+  'bomba',
   'autoelevador',
   'implemento',
   'herramienta',
+  'equipo técnico',
   'equipo menor',
   'otro',
 ]
@@ -27,7 +34,7 @@ const ESTADOS_OPERATIVOS = [
 
 const EMPTY = {
   nombre_unidad: '',
-  tipo: 'maquinaria pesada',
+  tipo: 'activo operativo',
   estado_operativo: 'Operativo',
   marca: '',
   modelo: '',
@@ -57,7 +64,8 @@ export default function ModalMaquina({
 
   const { taxonomia, hasCapability } = useRubro()
 
-  const activoSingular = taxonomia?.activoSingular || 'Activo'
+  const activoSingular = 'Activo'
+  const activoPlural = 'Activos'
   const medidor = taxonomia?.medidor || 'Horómetro'
   const medidorUnidad = taxonomia?.medidorUnidad || 'hrs'
   const permiteAlquileres = hasCapability?.('alquileres') === true
@@ -69,7 +77,7 @@ export default function ModalMaquina({
 
       setForm({
         nombre_unidad: maquina.nombre_unidad || '',
-        tipo: maquina.tipo || 'maquinaria pesada',
+        tipo: maquina.tipo || 'activo operativo',
         estado_operativo: maquina.estado_operativo || 'Operativo',
         marca: maquina.marca || '',
         modelo: maquina.modelo || '',
@@ -83,12 +91,14 @@ export default function ModalMaquina({
         cliente_id: maquina.cliente_id || '',
         ubicacion: maquina.ubicacion || '',
         notas: maquina.notas || '',
-        propiedad_activo: tieneCliente ? 'cliente' : 'propio',
-        destino_operativo: esRental
-          ? 'rental'
-          : tieneCliente
-            ? 'servicio_tecnico'
-            : 'uso_interno',
+        propiedad_activo: maquina.propiedad_activo || (tieneCliente ? 'cliente' : 'propio'),
+        destino_operativo: maquina.destino_operativo || (
+          esRental
+            ? 'rental'
+            : tieneCliente
+              ? 'servicio_tecnico'
+              : 'uso_interno'
+        ),
       })
     } else {
       setForm(EMPTY)
@@ -106,6 +116,7 @@ export default function ModalMaquina({
   }, [permiteAlquileres, form.destino_operativo])
 
   const mostrarClientePropietario = form.propiedad_activo === 'cliente'
+
   const mostrarRental =
     permiteAlquileres &&
     form.propiedad_activo === 'propio' &&
@@ -117,33 +128,33 @@ export default function ModalMaquina({
 
   const ayudaTitularidad = useMemo(() => {
     if (form.propiedad_activo === 'propio') {
-      return 'Activo propio de la empresa. Puede usarse internamente o, si el rubro lo permite, destinarse a alquiler.'
+      return 'Activo propio de la empresa. Puede usarse internamente o, si el rubro lo permite, destinarse a rental.'
     }
 
     if (form.propiedad_activo === 'cliente') {
-      return 'Activo perteneciente a un cliente. Se vincula a Cliente360 y se gestiona principalmente desde OT360.'
+      return 'Activo perteneciente a un cliente o empresa externa. Se vincula a Cliente360 y se gestiona principalmente desde OT360.'
     }
 
     return 'Definí la titularidad operativa antes de cargar datos comerciales o técnicos.'
   }, [form.propiedad_activo])
 
-  const set = (key, val) => {
+  const set = (key, value) => {
     setForm((prev) => {
-      const next = { ...prev, [key]: val }
+      const next = { ...prev, [key]: value }
 
       if (key === 'propiedad_activo') {
-        if (val === 'propio') {
+        if (value === 'propio') {
           next.cliente_id = ''
           next.destino_operativo = 'uso_interno'
         }
 
-        if (val === 'cliente') {
+        if (value === 'cliente') {
           next.destino_operativo = 'servicio_tecnico'
           next.tarifa_diaria_usd = 0
         }
       }
 
-      if (key === 'destino_operativo' && val !== 'rental') {
+      if (key === 'destino_operativo' && value !== 'rental') {
         next.tarifa_diaria_usd = 0
       }
 
@@ -151,8 +162,8 @@ export default function ModalMaquina({
     })
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async (event) => {
+    event.preventDefault()
     setLoading(true)
 
     try {
@@ -174,6 +185,8 @@ export default function ModalMaquina({
         cliente_id: mostrarClientePropietario ? form.cliente_id || null : null,
         ubicacion: form.ubicacion || null,
         notas: form.notas || null,
+        propiedad_activo: form.propiedad_activo,
+        destino_operativo: form.destino_operativo,
         en_alquiler: esRental,
       })
     } finally {
@@ -194,14 +207,16 @@ export default function ModalMaquina({
               <label className="text-xs font-mono text-hm-muted tracking-wider uppercase">
                 ¿A quién pertenece este {activoSingular.toLowerCase()}?
               </label>
+
               <select
                 value={form.propiedad_activo}
-                onChange={(e) => set('propiedad_activo', e.target.value)}
+                onChange={(event) => set('propiedad_activo', event.target.value)}
                 className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors"
               >
                 <option value="propio">Propio / de la empresa</option>
                 <option value="cliente">De un cliente / empresa externa</option>
               </select>
+
               <span className="text-[10px] text-hm-muted leading-relaxed">
                 {ayudaTitularidad}
               </span>
@@ -211,20 +226,22 @@ export default function ModalMaquina({
               <label className="text-xs font-mono text-hm-muted tracking-wider uppercase">
                 Destino operativo
               </label>
+
               <select
                 value={form.destino_operativo}
-                onChange={(e) => set('destino_operativo', e.target.value)}
+                onChange={(event) => set('destino_operativo', event.target.value)}
                 className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors"
               >
-                <option value="uso_interno">Uso interno / flota propia</option>
+                <option value="uso_interno">Uso interno / operación propia</option>
                 <option value="servicio_tecnico">Servicio técnico / OT360</option>
 
                 {permiteAlquileres && form.propiedad_activo === 'propio' && (
                   <option value="rental">Rental / disponible para alquiler</option>
                 )}
               </select>
+
               <span className="text-[10px] text-hm-muted leading-relaxed">
-                La tarifa de alquiler solo aparece si el activo es propio y está destinado a rental.
+                La tarifa de alquiler solo aparece si el {activoSingular.toLowerCase()} es propio y está destinado a rental.
               </span>
             </div>
           </div>
@@ -234,13 +251,15 @@ export default function ModalMaquina({
               <label className="text-xs font-mono text-hm-muted tracking-wider uppercase">
                 Cliente propietario
               </label>
+
               <select
                 value={form.cliente_id}
-                onChange={(e) => set('cliente_id', e.target.value)}
+                onChange={(event) => set('cliente_id', event.target.value)}
                 required={mostrarClientePropietario}
                 className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
               >
                 <option value="">Seleccionar cliente...</option>
+
                 {clientes.map((cliente) => (
                   <option key={cliente.id} value={cliente.id}>
                     {cliente.razon_social}
@@ -255,14 +274,14 @@ export default function ModalMaquina({
           <Input
             label={`Nombre / código del ${activoSingular.toLowerCase()} *`}
             value={form.nombre_unidad}
-            onChange={(e) => set('nombre_unidad', e.target.value)}
+            onChange={(event) => set('nombre_unidad', event.target.value)}
             required
           />
 
           <Input
             label="Identificación / interno / serie / patente"
             value={form.patente}
-            onChange={(e) => set('patente', e.target.value)}
+            onChange={(event) => set('patente', event.target.value)}
             placeholder="Opcional. Ej: interno 04, dominio, serie, inventario..."
           />
         </div>
@@ -272,9 +291,10 @@ export default function ModalMaquina({
             <label className="text-xs font-mono text-hm-muted tracking-wider uppercase">
               Tipo de {activoSingular.toLowerCase()}
             </label>
+
             <select
               value={form.tipo}
-              onChange={(e) => set('tipo', e.target.value)}
+              onChange={(event) => set('tipo', event.target.value)}
               className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors"
             >
               {TIPOS_ACTIVO.map((tipo) => (
@@ -289,9 +309,10 @@ export default function ModalMaquina({
             <label className="text-xs font-mono text-hm-muted tracking-wider uppercase">
               Estado operativo
             </label>
+
             <select
               value={form.estado_operativo}
-              onChange={(e) => set('estado_operativo', e.target.value)}
+              onChange={(event) => set('estado_operativo', event.target.value)}
               className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors"
             >
               {ESTADOS_OPERATIVOS.map((estado) => (
@@ -307,27 +328,27 @@ export default function ModalMaquina({
           <Input
             label="Marca"
             value={form.marca}
-            onChange={(e) => set('marca', e.target.value)}
+            onChange={(event) => set('marca', event.target.value)}
           />
 
           <Input
             label="Modelo"
             value={form.modelo}
-            onChange={(e) => set('modelo', e.target.value)}
+            onChange={(event) => set('modelo', event.target.value)}
           />
 
           <Input
             label="Año"
             type="number"
             value={form.anio}
-            onChange={(e) => set('anio', e.target.value)}
+            onChange={(event) => set('anio', event.target.value)}
           />
         </div>
 
         <Input
           label="Número de serie / chasis"
           value={form.numero_serie}
-          onChange={(e) => set('numero_serie', e.target.value)}
+          onChange={(event) => set('numero_serie', event.target.value)}
           placeholder="Opcional"
         />
 
@@ -346,21 +367,21 @@ export default function ModalMaquina({
                 label={`${medidor} actual (${medidorUnidad})`}
                 type="number"
                 value={form.horometro_actual}
-                onChange={(e) => set('horometro_actual', e.target.value)}
+                onChange={(event) => set('horometro_actual', event.target.value)}
               />
 
               <Input
                 label={`Último service (${medidorUnidad})`}
                 type="number"
                 value={form.ultimo_service_horas}
-                onChange={(e) => set('ultimo_service_horas', e.target.value)}
+                onChange={(event) => set('ultimo_service_horas', event.target.value)}
               />
 
               <Input
                 label={`Frecuencia de service (${medidorUnidad})`}
                 type="number"
                 value={form.frecuencia_service}
-                onChange={(e) => set('frecuencia_service', e.target.value)}
+                onChange={(event) => set('frecuencia_service', event.target.value)}
               />
             </div>
           </div>
@@ -376,11 +397,11 @@ export default function ModalMaquina({
                 type="number"
                 step="0.01"
                 value={form.tarifa_diaria_usd}
-                onChange={(e) => set('tarifa_diaria_usd', e.target.value)}
+                onChange={(event) => set('tarifa_diaria_usd', event.target.value)}
               />
 
               <div className="mt-3 text-[10px] text-hm-muted leading-relaxed border border-blue-500/20 bg-blue-500/5 rounded-lg p-3">
-                Esta sección se activa únicamente para activos propios destinados a rental.
+                Esta sección se activa únicamente para {activoPlural.toLowerCase()} propios destinados a rental.
                 No aparece para activos de clientes ni rubros sin capacidad de alquiler.
               </div>
             </div>
@@ -390,17 +411,18 @@ export default function ModalMaquina({
         <Input
           label="Ubicación"
           value={form.ubicacion}
-          onChange={(e) => set('ubicacion', e.target.value)}
-          placeholder="Ej: Base operativa, depósito, obra, cliente..."
+          onChange={(event) => set('ubicacion', event.target.value)}
+          placeholder="Ej: base operativa, depósito, obra, cliente..."
         />
 
         <div>
           <label className="block text-xs font-mono text-hm-muted mb-1 uppercase tracking-wider">
             Notas internas
           </label>
+
           <textarea
             value={form.notas}
-            onChange={(e) => set('notas', e.target.value)}
+            onChange={(event) => set('notas', event.target.value)}
             rows={2}
             className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text text-sm focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors resize-none"
             placeholder="Observaciones técnicas, titularidad, historial relevante..."
