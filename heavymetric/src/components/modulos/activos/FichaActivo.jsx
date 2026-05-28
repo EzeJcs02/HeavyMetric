@@ -9,6 +9,7 @@ import ActivoServicePanel from './ActivoServicePanel'
 import ActivoCostPanel from './ActivoCostPanel'
 import ActivoTimelinePanel from './ActivoTimelinePanel'
 import ActivoDocumentsPanel from './ActivoDocumentsPanel'
+import ActivoChecklistPanel from './ActivoChecklistPanel'
 
 export default function FichaActivo({
   isOpen,
@@ -22,7 +23,9 @@ export default function FichaActivo({
   const healthScore = useMemo(() => {
     if (!activo) return 100
 
-    let score = Number(activo?.score_disponibilidad || 100)
+    let score = Number(
+      activo?.score_disponibilidad || 100
+    )
 
     if (activo?.estado_operativo === 'Fuera de servicio') score -= 30
     if (activo?.estado_operativo === 'En taller') score -= 15
@@ -62,6 +65,11 @@ export default function FichaActivo({
             <ActivoDocumentsPanel
               activo={activo}
               documentos={activo?.documentos || []}
+            />
+
+            <ActivoChecklistPanel
+              activo={activo}
+              checklist={activo?.checklist || []}
             />
           </div>
 
