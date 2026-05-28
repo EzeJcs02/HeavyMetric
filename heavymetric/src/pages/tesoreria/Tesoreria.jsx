@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Button from '../../components/ui/Button'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { syncEcheqs } from '../../lib/integrations/bancos'
@@ -9,12 +9,22 @@ import {
   ArrowUpRight,
   Banknote,
   CalendarDays,
+  ClipboardCheck,
   CreditCard,
   FileCheck2,
+  FileText,
   Plus,
+  ReceiptText,
   RefreshCw,
+  ShieldCheck,
   X,
 } from 'lucide-react'
+import {
+  createPlan,
+  getPlanes,
+  getCuotas,
+  updateEstadoCuota,
+} from '../../services/tesoreriaService'
 
 const FORMAS = [
   'Contado',
@@ -34,7 +44,7 @@ const BANCOS = [
 
 const MOCK_PLANES_INICIALES = [
   {
-    id: 'plan-001',
+    id: 'plan-demo-001',
     tipo: 'cobro',
     tercero: 'DUX',
     cuit: '',
@@ -50,7 +60,7 @@ const MOCK_PLANES_INICIALES = [
     estado: 'programado',
   },
   {
-    id: 'plan-002',
+    id: 'plan-demo-002',
     tipo: 'pago',
     tercero: 'Turbodisel S.A.',
     cuit: '',
@@ -110,6 +120,7 @@ function formatCurrency(value, moneda = 'ARS') {
 
 function formatDate(value) {
   if (!value) return 'Sin fecha'
+
   return new Date(`${value}T00:00:00`).toLocaleDateString('es-AR', {
     day: '2-digit',
     month: 'short',
@@ -118,6 +129,8 @@ function formatDate(value) {
 }
 
 function daysTo(value) {
+  if (!value) return 999
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
@@ -125,26 +138,48 @@ function daysTo(value) {
   return Math.ceil((target - today) / (1000 * 60 * 60 * 24))
 }
 
-function generateCuotas(plan) {
-  const importeCuota = Number(plan.importeTotal || 0) / Number(plan.cuotas || 1)
+function normalizePlan(plan) {
+  return {
+    id: plan.id,
+    tipo: plan.tipo,
+    tercero: plan.tercero,
+    cuit: plan.cuit || '',
+    concepto: plan.concepto,
+    importeTotal: Number(plan.importeTotal ?? plan.importe_total ?? 0),
+    moneda: plan.moneda || 'ARS',
+    cuotas: Number(plan.cuotas || 1),
+    fechaInicio: plan.fechaInicio || plan.fecha_inicio,
+    frecuencia: plan.frecuencia || 'mensual',
+    forma: plan.forma || 'A definir',
+    banco: plan.banco || 'Sin asignar',
+    referencia: plan.referencia || '',
+    observaciones: plan.observaciones || '',
+    estado: plan.estado || 'programado',
+  }
+}
 
-  return Array.from({ length: Number(plan.cuotas || 1) }, (_, index) => {
-    const vencimiento = addPeriod(plan.fechaInicio, index, plan.frecuencia)
+function generateCuotas(plan) {
+  const normalized = normalizePlan(plan)
+  const importeCuota = Number(normalized.importeTotal || 0) / Number(normalized.cuotas || 1)
+
+  return Array.from({ length: Number(normalized.cuotas || 1) }, (_, index) => {
+    const vencimiento = addPeriod(normalized.fechaInicio, index, normalized.frecuencia)
 
     return {
-      id: `${plan.id}-${index + 1}`,
-      planId: plan.id,
-      tipo: plan.tipo,
-      tercero: plan.tercero,
-      concepto: plan.concepto,
-      cuota: `${index + 1}/${plan.cuotas}`,
+      id: `${normalized.id}-${index + 1}`,
+      planId: normalized.id,
+      tipo: normalized.tipo,
+      tercero: normalized.tercero,
+      concepto: normalized.concepto,
+      cuota: `${index + 1}/${normalized.cuotas}`,
       importe: importeCuota,
-      moneda: plan.moneda,
+      moneda: normalized.moneda,
       vencimiento,
-      forma: plan.forma,
-      banco: plan.banco,
-      referencia: plan.referencia,
+      forma: normalized.forma,
+      banco: normalized.banco,
+      referencia: normalized.referencia,
       estado: daysTo(vencimiento) < 0 ? 'vencido' : 'pendiente',
+      origen: 'BASE PREPARADA',
     }
   })
 }
@@ -158,6 +193,8 @@ function Badge({ children, tone = 'neutral' }) {
     ok: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300',
     warning: 'border-amber-400/20 bg-amber-400/10 text-amber-300',
     danger: 'border-red-400/20 bg-red-400/10 text-red-300',
+    iso: 'border-violet-400/20 bg-violet-400/10 text-violet-300',
+    arca: 'border-sky-400/20 bg-sky-400/10 text-sky-300',
     neutral: 'border-white/[0.06] bg-white/[0.03] text-neutral-400',
   }
 
@@ -185,7 +222,10 @@ export default function Tesoreria() {
   const [syncing, setSyncing] = useState(false)
   const [showPlanModal, setShowPlanModal] = useState(false)
   const [filterTipo, setFilterTipo] = useState('todos')
-  const [planes, setPlanes] = useState(MOCK_PLANES_INICIALES)
+  const [planes, setPlanes] = useState([])
+  const [cuotasDb, setCuotasDb] = useState([])
+  const [loadingPlanes, setLoadingPlanes] = useState(true)
+  const [supabaseReady, setSupabaseReady] = useState(false)
 
   const [form, setForm] = useState({
     tipo: 'cobro',
@@ -203,9 +243,56 @@ export default function Tesoreria() {
     observaciones: '',
   })
 
+  const loadTesoreria = async () => {
+    try {
+      setLoadingPlanes(true)
+
+      const planesData = await getPlanes()
+      const cuotasData = await getCuotas()
+
+      setPlanes(planesData || [])
+      setCuotasDb(cuotasData || [])
+      setSupabaseReady(true)
+    } catch (error) {
+      console.error(error)
+      setPlanes(MOCK_PLANES_INICIALES)
+      setCuotasDb([])
+      setSupabaseReady(false)
+      toast.error('No se pudo cargar Supabase. Se muestra base preparada.')
+    } finally {
+      setLoadingPlanes(false)
+    }
+  }
+
+  useEffect(() => {
+    loadTesoreria()
+  }, [])
+
+  const planesOperativos = planes.length > 0 ? planes.map(normalizePlan) : MOCK_PLANES_INICIALES
+
   const cuotasGeneradas = useMemo(() => {
-    return planes.flatMap(generateCuotas).sort((a, b) => a.vencimiento.localeCompare(b.vencimiento))
-  }, [planes])
+    if (cuotasDb.length > 0) {
+      return cuotasDb
+        .map((cuota) => ({
+          id: cuota.id,
+          planId: cuota.plan_id,
+          tipo: cuota.tipo,
+          tercero: cuota.tercero,
+          concepto: cuota.concepto,
+          cuota: cuota.cuota,
+          importe: Number(cuota.importe || 0),
+          moneda: cuota.moneda || 'ARS',
+          vencimiento: cuota.vencimiento,
+          forma: cuota.forma,
+          banco: cuota.banco,
+          estado: cuota.estado || 'pendiente',
+          origen: 'REAL',
+        }))
+        .sort((a, b) => a.vencimiento.localeCompare(b.vencimiento))
+    }
+
+    return planesOperativos.flatMap(generateCuotas).sort((a, b) => a.vencimiento.localeCompare(b.vencimiento))
+  }, [cuotasDb, planesOperativos])
 
   const vencimientos = useMemo(() => {
     const realesCobros = transacciones
@@ -257,15 +344,15 @@ export default function Tesoreria() {
   const totalBancosUsd = BANCOS.filter((b) => b.moneda === 'USD').reduce((s, b) => s + b.saldo, 0)
 
   const totalACobrar = vencimientos
-    .filter((v) => v.tipo === 'cobro' && v.moneda === 'ARS')
+    .filter((v) => v.tipo === 'cobro' && v.moneda === 'ARS' && v.estado !== 'pagado')
     .reduce((s, v) => s + v.importe, 0)
 
   const totalAPagar = vencimientos
-    .filter((v) => v.tipo === 'pago' && v.moneda === 'ARS')
+    .filter((v) => v.tipo === 'pago' && v.moneda === 'ARS' && v.estado !== 'pagado')
     .reduce((s, v) => s + v.importe, 0)
 
-  const vencidos = vencimientos.filter((v) => daysTo(v.vencimiento) < 0).length
-  const proximos15 = vencimientos.filter((v) => daysTo(v.vencimiento) >= 0 && daysTo(v.vencimiento) <= 15).length
+  const vencidos = vencimientos.filter((v) => daysTo(v.vencimiento) < 0 && v.estado !== 'pagado').length
+  const proximos15 = vencimientos.filter((v) => daysTo(v.vencimiento) >= 0 && daysTo(v.vencimiento) <= 15 && v.estado !== 'pagado').length
   const posicionNeta = totalBancosArs + totalACobrar - totalAPagar
 
   const flujoMensual = useMemo(() => {
@@ -276,10 +363,9 @@ export default function Tesoreria() {
       base.setMonth(base.getMonth() + i)
 
       const key = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`
-
       const label = base.toLocaleDateString('es-AR', { month: 'short' })
 
-      const delMes = vencimientos.filter((v) => v.vencimiento?.startsWith(key))
+      const delMes = vencimientos.filter((v) => v.vencimiento?.startsWith(key) && v.estado !== 'pagado')
       const cobros = delMes.filter((v) => v.tipo === 'cobro').reduce((s, v) => s + v.importe, 0)
       const pagos = delMes.filter((v) => v.tipo === 'pago').reduce((s, v) => s + v.importe, 0)
 
@@ -309,7 +395,7 @@ export default function Tesoreria() {
     }
   }
 
-  const handleCreatePlan = (event) => {
+  const handleCreatePlan = async (event) => {
     event.preventDefault()
 
     if (!form.tercero || !form.concepto || !form.importeTotal || !form.fechaInicio) {
@@ -325,25 +411,52 @@ export default function Tesoreria() {
       estado: 'programado',
     }
 
-    setPlanes((prev) => [newPlan, ...prev])
-    setShowPlanModal(false)
-    toast.success(`Plan de ${form.tipo === 'cobro' ? 'cobro' : 'pago'} creado correctamente`)
+    try {
+      if (supabaseReady) {
+        await createPlan(newPlan)
+        await loadTesoreria()
+      } else {
+        setPlanes((prev) => [newPlan, ...prev])
+      }
 
-    setForm({
-      tipo: 'cobro',
-      tercero: '',
-      cuit: '',
-      concepto: '',
-      importeTotal: '',
-      cuotas: 6,
-      fechaInicio: '',
-      frecuencia: 'mensual',
-      forma: 'ECHEQ',
-      moneda: 'ARS',
-      banco: 'Banco Nación',
-      referencia: '',
-      observaciones: '',
-    })
+      setShowPlanModal(false)
+      toast.success(`Plan de ${form.tipo === 'cobro' ? 'cobro' : 'pago'} creado correctamente`)
+
+      setForm({
+        tipo: 'cobro',
+        tercero: '',
+        cuit: '',
+        concepto: '',
+        importeTotal: '',
+        cuotas: 6,
+        fechaInicio: '',
+        frecuencia: 'mensual',
+        forma: 'ECHEQ',
+        moneda: 'ARS',
+        banco: 'Banco Nación',
+        referencia: '',
+        observaciones: '',
+      })
+    } catch (error) {
+      console.error(error)
+      toast.error('No se pudo crear el plan financiero')
+    }
+  }
+
+  const handleEstadoCuota = async (id, estado) => {
+    try {
+      if (!supabaseReady || String(id).startsWith('plan-demo')) {
+        toast.info('Base preparada: conectá Supabase para actualizar estados reales.')
+        return
+      }
+
+      await updateEstadoCuota(id, estado)
+      await loadTesoreria()
+      toast.success('Estado actualizado con trazabilidad')
+    } catch (error) {
+      console.error(error)
+      toast.error('Error actualizando cuota')
+    }
   }
 
   const previewCuotas = useMemo(() => {
@@ -363,6 +476,8 @@ export default function Tesoreria() {
     ['planes', 'Planes'],
     ['bancos', 'Caja y bancos'],
     ['echeqs', 'ECHEQ'],
+    ['facturacion', 'Facturación / ARCA'],
+    ['cumplimiento', 'Cumplimiento ISO'],
   ]
 
   return (
@@ -375,7 +490,7 @@ export default function Tesoreria() {
           </div>
           <h1 className="text-2xl font-black tracking-tight text-white">Pagos, cobros y flujo proyectado</h1>
           <p className="mt-1 text-sm text-neutral-500">
-            Planificá cuotas, ECHEQ, vencimientos y caja futura con lectura financiera real.
+            Planificá cuotas, ECHEQ, vencimientos, caja futura, facturación y trazabilidad financiera.
           </p>
         </div>
 
@@ -392,8 +507,14 @@ export default function Tesoreria() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/5 px-4 py-3 font-mono text-[11px] uppercase tracking-[0.12em] text-cyan-300">
-        BASE PREPARADA — La lógica de planes, cuotas y vencimientos ya está operativa en frontend. Próxima etapa: persistencia SQL/Supabase.
+      <div className={`rounded-xl border px-4 py-3 font-mono text-[11px] uppercase tracking-[0.12em] ${
+        supabaseReady
+          ? 'border-emerald-300/20 bg-emerald-300/5 text-emerald-300'
+          : 'border-cyan-300/20 bg-cyan-300/5 text-cyan-300'
+      }`}>
+        {supabaseReady
+          ? 'REAL — Planes y cuotas conectados a Supabase. Preparado para trazabilidad, auditoría e integración contable.'
+          : 'BASE PREPARADA — La lógica de planes, cuotas y vencimientos está operativa. Próxima etapa: persistencia SQL/Supabase.'}
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -528,7 +649,7 @@ export default function Tesoreria() {
                   <FileCheck2 className="mt-0.5 h-4 w-4 text-cyan-300" />
                   <div>
                     <div className="text-sm font-bold text-white">Planes activos</div>
-                    <div className="mt-1 text-xs text-neutral-500">{planes.length} planes programados de pagos/cobros.</div>
+                    <div className="mt-1 text-xs text-neutral-500">{planesOperativos.length} planes programados de pagos/cobros.</div>
                   </div>
                 </div>
               </div>
@@ -568,10 +689,10 @@ export default function Tesoreria() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] text-left">
+            <table className="w-full min-w-[1060px] text-left">
               <thead className="border-b border-white/[0.06] bg-black/20">
                 <tr>
-                  {['Vencimiento', 'Tipo', 'Tercero', 'Concepto', 'Cuota', 'Forma', 'Banco', 'Importe', 'Estado'].map((h) => (
+                  {['Vencimiento', 'Tipo', 'Tercero', 'Concepto', 'Cuota', 'Forma', 'Banco', 'Importe', 'Estado', 'Acciones'].map((h) => (
                     <th key={h} className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-600">
                       {h}
                     </th>
@@ -582,15 +703,16 @@ export default function Tesoreria() {
               <tbody>
                 {vencimientosFiltrados.map((v) => {
                   const dias = daysTo(v.vencimiento)
+                  const pagado = v.estado === 'pagado'
 
                   return (
                     <tr key={v.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
                       <td className="px-4 py-3">
-                        <div className={`font-mono text-xs font-bold ${dias < 0 ? 'text-red-300' : dias <= 7 ? 'text-amber-300' : 'text-neutral-300'}`}>
+                        <div className={`font-mono text-xs font-bold ${dias < 0 && !pagado ? 'text-red-300' : dias <= 7 && !pagado ? 'text-amber-300' : 'text-neutral-300'}`}>
                           {formatDate(v.vencimiento)}
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-neutral-600">
-                          {dias < 0 ? `Vencido hace ${Math.abs(dias)} d` : dias === 0 ? 'Hoy' : `En ${dias} d`}
+                          {pagado ? 'Pagado' : dias < 0 ? `Vencido hace ${Math.abs(dias)} d` : dias === 0 ? 'Hoy' : `En ${dias} d`}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -609,9 +731,28 @@ export default function Tesoreria() {
                         {v.tipo === 'cobro' ? '+' : '-'} {formatCurrency(v.importe, v.moneda)}
                       </td>
                       <td className="px-4 py-3">
-                        <Badge tone={dias < 0 ? 'danger' : dias <= 7 ? 'warning' : 'ok'}>
-                          {dias < 0 ? 'Vencido' : 'Pendiente'}
+                        <Badge tone={pagado ? 'ok' : dias < 0 ? 'danger' : dias <= 7 ? 'warning' : 'neutral'}>
+                          {pagado ? 'Pagado' : dias < 0 ? 'Vencido' : 'Pendiente'}
                         </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleEstadoCuota(v.id, 'pagado')}
+                            disabled={pagado}
+                            className="rounded border border-emerald-300/20 bg-emerald-300/10 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Pagado
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toast.info('Reprogramación preparada para próxima etapa')}
+                            className="rounded border border-white/[0.08] bg-black/20 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-neutral-400 hover:text-white"
+                          >
+                            Reprogramar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -624,7 +765,7 @@ export default function Tesoreria() {
 
       {tab === 'planes' && (
         <div className="grid gap-4 lg:grid-cols-2">
-          {planes.map((plan) => {
+          {planesOperativos.map((plan) => {
             const cuotas = generateCuotas(plan)
             const vencidas = cuotas.filter((c) => daysTo(c.vencimiento) < 0).length
             const avance = Math.min(100, (vencidas / cuotas.length) * 100)
@@ -732,6 +873,157 @@ export default function Tesoreria() {
             ))}
           </div>
         </Panel>
+      )}
+
+      {tab === 'facturacion' && (
+        <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
+          <Panel className="overflow-hidden">
+            <div className="border-b border-white/[0.06] px-5 py-4">
+              <h2 className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
+                Ventas, facturación y preparación ARCA
+              </h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                Base preparada para vincular operaciones comerciales, comprobantes, cobros, CAE y conciliación.
+              </p>
+            </div>
+
+            <div className="grid gap-3 p-5 md:grid-cols-3">
+              <div className="rounded-2xl border border-white/[0.06] bg-black/20 p-4">
+                <ReceiptText className="mb-3 h-5 w-5 text-cyan-300" />
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+                  Facturas emitidas
+                </div>
+                <div className="mt-2 font-mono text-2xl font-black text-cyan-300">PREP</div>
+                <div className="mt-1 text-xs text-neutral-500">
+                  Próxima conexión: ventas / ARCA
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/[0.06] bg-black/20 p-4">
+                <FileText className="mb-3 h-5 w-5 text-emerald-300" />
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+                  Cobros vinculados
+                </div>
+                <div className="mt-2 font-mono text-2xl font-black text-emerald-300">
+                  {vencimientos.filter((v) => v.tipo === 'cobro').length}
+                </div>
+                <div className="mt-1 text-xs text-neutral-500">
+                  Planes y cuotas de cobro
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/[0.06] bg-black/20 p-4">
+                <AlertTriangle className="mb-3 h-5 w-5 text-amber-300" />
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+                  Pendientes fiscales
+                </div>
+                <div className="mt-2 font-mono text-2xl font-black text-amber-300">PREP</div>
+                <div className="mt-1 text-xs text-neutral-500">
+                  CAE, comprobantes, notas y conciliación
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-white/[0.06] p-5">
+              <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/5 p-4">
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-cyan-300">
+                  Flujo futuro ARCA / Contabilidad
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-5">
+                  {['Venta', 'Factura', 'CAE', 'Cobro', 'Conciliación'].map((step, index) => (
+                    <div key={step} className="rounded-xl border border-white/[0.06] bg-black/20 p-3">
+                      <div className="font-mono text-[10px] text-neutral-600">0{index + 1}</div>
+                      <div className="mt-1 text-sm font-bold text-white">{step}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel className="p-5">
+            <div className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
+              Integraciones previstas
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {[
+                ['ARCA / AFIP', 'Facturación electrónica, CAE, comprobantes y notas.'],
+                ['Ventas', 'Vincular operación comercial con factura y cobro.'],
+                ['Cliente360', 'Ver deuda, comprobantes, promesas y cobranzas.'],
+                ['Contabilidad', 'Base futura para asientos, IVA, ingresos y reportes.'],
+              ].map(([title, desc]) => (
+                <div key={title} className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-bold text-white">{title}</div>
+                    <Badge tone="arca">PREP</Badge>
+                  </div>
+                  <div className="mt-1 text-xs text-neutral-500">{desc}</div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
+      )}
+
+      {tab === 'cumplimiento' && (
+        <div className="grid gap-4 xl:grid-cols-[0.8fr_1fr]">
+          <Panel className="p-5">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-5 w-5 text-emerald-300" />
+              <div>
+                <h2 className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
+                  Trazabilidad y cumplimiento ISO
+                </h2>
+                <p className="mt-1 text-sm text-neutral-500">
+                  Base operativa para auditoría, evidencia, seguridad de datos y control documental.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {[
+                ['ISO 9001', 'Trazabilidad de procesos, registros, responsables y mejora continua.'],
+                ['ISO 27001', 'Control de acceso, registros, seguridad y protección de información.'],
+                ['ISO 14001', 'Base futura para impactos ambientales, residuos y evidencias operativas.'],
+                ['ISO 45001', 'Base futura para seguridad operacional, tareas críticas y permisos de trabajo.'],
+              ].map(([iso, desc]) => (
+                <div key={iso} className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="font-mono text-sm font-black text-cyan-300">{iso}</div>
+                    <Badge tone="iso">Base preparada</Badge>
+                  </div>
+                  <div className="mt-2 text-xs text-neutral-500">{desc}</div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel className="p-5">
+            <div className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
+              Controles aplicados en Tesorería
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {[
+                ['Usuario responsable', 'Cada plan, cuota o cambio debe quedar asociado al usuario que lo ejecutó.'],
+                ['Fecha y hora', 'Toda acción relevante debe guardar timestamp de creación y modificación.'],
+                ['Estado documentado', 'Pendiente, pagado, vencido, reprogramado o cancelado.'],
+                ['Evidencia documental', 'Preparado para adjuntar comprobantes, recibos, ECHEQ o respaldos.'],
+                ['Trazabilidad financiera', 'Relación entre venta, factura, cobro, pago, banco y conciliación.'],
+                ['Control de cambios', 'Base futura para historial auditable de reprogramaciones y anulaciones.'],
+              ].map(([title, desc]) => (
+                <div key={title} className="flex gap-3 rounded-xl border border-white/[0.06] bg-black/20 p-4">
+                  <ClipboardCheck className="mt-0.5 h-4 w-4 text-emerald-300" />
+                  <div>
+                    <div className="text-sm font-bold text-white">{title}</div>
+                    <div className="mt-1 text-xs text-neutral-500">{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
       )}
 
       {showPlanModal && (
@@ -875,7 +1167,7 @@ export default function Tesoreria() {
                 <input
                   value={form.referencia}
                   onChange={(e) => setForm({ ...form, referencia: e.target.value })}
-                  placeholder="Factura, operación, máquina, OT, acuerdo, etc."
+                  placeholder="Factura, operación, máquina, OT, acuerdo, comprobante, etc."
                   className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
                 />
               </label>
