@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../../lib/supabase'
 import { isValidCuit, formatCuit } from '../../lib/cuitValidator'
-import { generateOCPDF } from '../../lib/pdfGenerator'
 import { evaluateProviderRisk } from '../../lib/aiEngines'
 import { SilentBadge } from '../../components/ai/SilentBadge'
 import { useProveedores, fetchComprasProveedor, fetchRepuestosProveedor, crearCompra, recibirCompra, fetchActivosProveedor, vincularActivo, desvincularActivo, calcRiskScore, riskLabel, fetchCentrosCosto } from '../../hooks/useProveedores'
@@ -193,6 +192,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
   const [compraNota, setCompraNota] = useState('')
   const [compraCategoria, setCompraCategoria] = useState('repuesto')
   const [savingCompra, setSavingCompra] = useState(false)
+  const [generandoPdfId, setGenerandoPdfId] = useState(null)
 
   // Vincular activo
   const [showVincular, setShowVincular] = useState(false)
@@ -232,6 +232,20 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
 
     loadMaquinas()
   }, [tab, maquinasDisp.length])
+
+  const handleGenerarOCPDF = async (compra) => {
+    setGenerandoPdfId(compra.id)
+
+    try {
+      const { generateOCPDF } = await import('../../lib/pdfGenerator')
+      generateOCPDF(compra)
+    } catch (err) {
+      console.error('Error generando PDF de orden de compra:', err)
+      toast.error('No se pudo generar la Orden de Compra')
+    } finally {
+      setGenerandoPdfId(null)
+    }
+  }
 
   const handleCrearCompra = async () => {
     const items = compraItems.filter(i => i.descripcion.trim())
@@ -449,9 +463,12 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
                   <div className="flex items-center gap-3">
                     <span className="font-mono text-sm font-bold">{formatUSD(c.total_usd)}</span>
                     <Badge variant={ESTADO_COMPRA_COLOR[c.estado] || 'default'}>{c.estado}</Badge>
-                    <button onClick={() => generateOCPDF(c)}
-                      className="text-[9px] font-mono font-bold border border-blue-700/50 text-blue-400/80 rounded px-2 py-1 hover:border-blue-500 hover:text-blue-400 transition-colors">
-                      OC PDF
+                    <button
+                      onClick={() => handleGenerarOCPDF(c)}
+                      disabled={generandoPdfId === c.id}
+                      className="text-[9px] font-mono font-bold border border-blue-700/50 text-blue-400/80 rounded px-2 py-1 hover:border-blue-500 hover:text-blue-400 transition-colors disabled:opacity-50"
+                    >
+                      {generandoPdfId === c.id ? '...' : 'OC PDF'}
                     </button>
                     {c.estado === 'pendiente' && (
                       <button onClick={() => handleRecibir(c.id)}
