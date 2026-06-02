@@ -10,7 +10,6 @@ import { useDolar } from '../../context/DolarContext'
 import { useRubro } from '../../context/RubroContext'
 import { detectFallasRepetidas, detectOTNoRentable } from '../../lib/aiEngines'
 import { SilentBadge } from '../../components/ai/SilentBadge'
-import { generateOTPDF, generateServicioPDF } from '../../lib/pdfGenerator'
 import MaquinaRow from '../../components/modulos/MaquinaRow'
 import ModalFinalizarOT from '../../components/modulos/taller/ModalFinalizarOT'
 import ModalNuevaOT from '../../components/modulos/taller/ModalNuevaOT'
@@ -30,21 +29,11 @@ const ESTADOS_OT_CERRADOS = ['completada', 'facturada', 'cerrada', 'cancelada']
 
 const SkeletonRow = () => (
   <tr className="border-b border-hm-border">
-    <td className="p-4">
-      <div className="h-4 bg-hm-surface2 rounded animate-pulse w-3/4"></div>
-    </td>
-    <td className="p-4">
-      <div className="h-4 bg-hm-surface2 rounded animate-pulse w-1/2"></div>
-    </td>
-    <td className="p-4">
-      <div className="h-4 bg-hm-surface2 rounded animate-pulse w-1/2"></div>
-    </td>
-    <td className="p-4">
-      <div className="h-4 bg-hm-surface2 rounded animate-pulse w-3/4"></div>
-    </td>
-    <td className="p-4">
-      <div className="h-4 bg-hm-surface2 rounded animate-pulse w-full"></div>
-    </td>
+    <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-3/4"></div></td>
+    <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-1/2"></div></td>
+    <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-1/2"></div></td>
+    <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-3/4"></div></td>
+    <td className="p-4"><div className="h-4 bg-hm-surface2 rounded animate-pulse w-full"></div></td>
     <td className="p-4"></td>
   </tr>
 )
@@ -75,7 +64,6 @@ export default function Taller() {
   const [facturandoOT, setFacturandoOT] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isNuevaOTOpen, setIsNuevaOTOpen] = useState(false)
-
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('todos')
   const [isFichaOpen, setIsFichaOpen] = useState(false)
@@ -86,6 +74,7 @@ export default function Taller() {
   const [otToView, setOtToView] = useState(null)
   const [pageMaq, setPageMaq] = useState(1)
   const [pageOT, setPageOT] = useState(1)
+  const [generandoPdf, setGenerandoPdf] = useState(null)
 
   const { formatUSD } = useDolar()
   const { taxonomia, hasCapability } = useRubro()
@@ -281,6 +270,34 @@ export default function Taller() {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setSelectedOT(null)
+  }
+
+  const handleGenerarOTPDF = async (ot) => {
+    setGenerandoPdf(`ot-${ot.id}`)
+
+    try {
+      const { generateOTPDF } = await import('../../lib/pdfGenerator')
+      generateOTPDF(ot)
+    } catch (err) {
+      console.error(`Error generando PDF de ${ordenTrabajo}:`, err)
+      toast.error(`No se pudo generar el PDF de ${ordenTrabajo}`)
+    } finally {
+      setGenerandoPdf(null)
+    }
+  }
+
+  const handleGenerarServicioPDF = async (ot) => {
+    setGenerandoPdf(`servicio-${ot.id}`)
+
+    try {
+      const { generateServicioPDF } = await import('../../lib/pdfGenerator')
+      generateServicioPDF(ot)
+    } catch (err) {
+      console.error('Error generando parte de servicio:', err)
+      toast.error('No se pudo generar el parte de servicio')
+    } finally {
+      setGenerandoPdf(null)
+    }
   }
 
   const handleConfirmFinalizar = async (payload) => {
@@ -816,8 +833,9 @@ export default function Taller() {
                       onClick={(event) => event.stopPropagation()}
                     >
                       <button
-                        onClick={() => generateOTPDF(ot)}
-                        className="p-2 hover:bg-hm-surface2 rounded text-hm-accent transition-colors"
+                        onClick={() => handleGenerarOTPDF(ot)}
+                        disabled={generandoPdf === `ot-${ot.id}`}
+                        className="p-2 hover:bg-hm-surface2 rounded text-hm-accent transition-colors disabled:opacity-50"
                         title={`PDF ${ordenTrabajo} interno`}
                       >
                         <svg
@@ -837,11 +855,12 @@ export default function Taller() {
 
                       {(ot.estado === 'completada' || ot.estado === 'facturada') && (
                         <button
-                          onClick={() => generateServicioPDF(ot)}
-                          className="px-3 py-1 text-xs font-mono font-bold border border-blue-800/50 text-blue-400/80 rounded hover:border-blue-500 hover:text-blue-400 transition-colors"
+                          onClick={() => handleGenerarServicioPDF(ot)}
+                          disabled={generandoPdf === `servicio-${ot.id}`}
+                          className="px-3 py-1 text-xs font-mono font-bold border border-blue-800/50 text-blue-400/80 rounded hover:border-blue-500 hover:text-blue-400 disabled:opacity-50 transition-colors"
                           title="Parte de servicio para firma del cliente"
                         >
-                          PARTE ↓
+                          {generandoPdf === `servicio-${ot.id}` ? '...' : 'PARTE ↓'}
                         </button>
                       )}
 
