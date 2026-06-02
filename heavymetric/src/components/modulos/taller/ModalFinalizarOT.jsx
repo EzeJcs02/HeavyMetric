@@ -48,6 +48,11 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
     evidencia_descripcion: '',
     estado: 'completada',
     nps_score: null,
+    criticidad_cierre: ot?.criticidad || 'media',
+    causa_raiz: '',
+    accion_correctiva: '',
+    accion_preventiva: '',
+    horas_fuera_servicio: 0,
   })
 
   useEffect(() => {
@@ -60,6 +65,7 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
       precio_hora_usd: ot?.precio_hora_usd || prev.precio_hora_usd || 45,
       notas_internas: ot?.notas_internas || '',
       responsable_cierre: perfil?.nombre || user?.email || prev.responsable_cierre || '',
+      criticidad_cierre: ot?.criticidad || prev.criticidad_cierre || 'media',
     }))
 
     setChecklist(
@@ -93,11 +99,24 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
           }
         })
     }
-  }, [isOpen, ot?.id, ot?.maquina?.horometro_actual, ot?.horas_mano_obra, ot?.precio_hora_usd, ot?.notas_internas, perfil?.nombre, user?.email])
+  }, [
+    isOpen,
+    ot?.id,
+    ot?.maquina?.horometro_actual,
+    ot?.horas_mano_obra,
+    ot?.precio_hora_usd,
+    ot?.notas_internas,
+    ot?.criticidad,
+    perfil?.nombre,
+    user?.email,
+  ])
 
   const checklistCompleto = useMemo(() => {
     return CHECKLIST_BASE.every((item) => checklist[item.key])
   }, [checklist])
+
+  const requiereEvidenciaObligatoria =
+    ['alta', 'critica'].includes(formData.criticidad_cierre)
 
   const totalManoObra =
     Number(formData.horas_mano_obra || 0) * Number(formData.precio_hora_usd || 0)
@@ -172,6 +191,21 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
       return
     }
 
+    if (!formData.causa_raiz.trim()) {
+      toast.error('Indicá la causa raíz del trabajo.')
+      return
+    }
+
+    if (!formData.accion_correctiva.trim()) {
+      toast.error('Indicá la acción correctiva realizada.')
+      return
+    }
+
+    if (requiereEvidenciaObligatoria && !formData.evidencia_descripcion.trim()) {
+      toast.error('Para criticidad alta o crítica, la evidencia es obligatoria.')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -198,6 +232,7 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
         horometro_final: Number(formData.horometro_final || 0),
         horas_mano_obra: Number(formData.horas_mano_obra || 0),
         precio_hora_usd: Number(formData.precio_hora_usd || 0),
+        horas_fuera_servicio: Number(formData.horas_fuera_servicio || 0),
         total_mano_obra_usd: totalManoObra,
         total_repuestos_usd: totalRepuestos,
         total_usd: totalOT,
@@ -219,6 +254,11 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
           fecha_hora: new Date().toISOString(),
           activo_id: ot?.maquina_id || ot?.activo_id || null,
           cliente_id: ot?.cliente_id || ot?.cliente?.id || null,
+          criticidad_cierre: formData.criticidad_cierre,
+          horas_fuera_servicio: Number(formData.horas_fuera_servicio || 0),
+          causa_raiz: formData.causa_raiz,
+          accion_correctiva: formData.accion_correctiva,
+          accion_preventiva: formData.accion_preventiva,
           checklist,
           evidencias,
           observaciones: {
@@ -303,6 +343,85 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
 
           <div className="mt-4 text-xs text-hm-muted">
             El cierre genera estructura auditable con responsable, fecha/hora, estado anterior/nuevo, checklist, evidencias y observaciones.
+          </div>
+        </div>
+
+        <div className="bg-hm-surface2/30 p-4 border border-hm-border rounded-xl">
+          <h3 className="font-mono text-hm-accent mb-4 tracking-widest text-sm">
+            ANÁLISIS TÉCNICO E IMPACTO OPERATIVO
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-mono text-hm-muted tracking-wider uppercase">
+                Criticidad de cierre
+              </label>
+
+              <select
+                name="criticidad_cierre"
+                value={formData.criticidad_cierre}
+                onChange={handleChange}
+                className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent"
+              >
+                <option value="baja">Baja</option>
+                <option value="media">Media</option>
+                <option value="alta">Alta</option>
+                <option value="critica">Crítica</option>
+              </select>
+            </div>
+
+            <Input
+              label="Horas fuera de servicio"
+              name="horas_fuera_servicio"
+              type="number"
+              step="0.5"
+              value={formData.horas_fuera_servicio}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <label className="block text-xs font-mono text-hm-muted mb-1 uppercase tracking-wider">
+                Causa raíz *
+              </label>
+
+              <textarea
+                name="causa_raiz"
+                value={formData.causa_raiz}
+                onChange={handleChange}
+                className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text focus:outline-none focus:border-hm-accent min-h-[80px]"
+                placeholder="Ej: desgaste, falta de mantenimiento, mala operación, falla de componente, condición externa..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-mono text-hm-muted mb-1 uppercase tracking-wider">
+                Acción correctiva realizada *
+              </label>
+
+              <textarea
+                name="accion_correctiva"
+                value={formData.accion_correctiva}
+                onChange={handleChange}
+                className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text focus:outline-none focus:border-hm-accent min-h-[80px]"
+                placeholder="Qué se hizo concretamente para resolver el problema."
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-mono text-hm-muted mb-1 uppercase tracking-wider">
+                Acción preventiva / recomendación
+              </label>
+
+              <textarea
+                name="accion_preventiva"
+                value={formData.accion_preventiva}
+                onChange={handleChange}
+                className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text focus:outline-none focus:border-hm-accent min-h-[80px]"
+                placeholder="Qué se recomienda para evitar recurrencia: mantenimiento, capacitación, inspección, cambio de hábito operativo..."
+              />
+            </div>
           </div>
         </div>
 
@@ -524,7 +643,7 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
 
         <div>
           <label className="block text-xs font-mono text-hm-muted mb-1 uppercase tracking-wider">
-            Evidencias / fotos / documentos
+            Evidencias / fotos / documentos {requiereEvidenciaObligatoria ? '*' : ''}
           </label>
 
           <textarea
@@ -532,7 +651,11 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
             value={formData.evidencia_descripcion}
             onChange={handleChange}
             className="w-full bg-hm-surface2 border border-hm-border rounded-lg p-3 text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors min-h-[80px]"
-            placeholder="Descripción de evidencias tomadas. Base preparada para adjuntar fotos/documentos desde App Campo."
+            placeholder={
+              requiereEvidenciaObligatoria
+                ? 'Obligatorio para cierres de criticidad alta o crítica.'
+                : 'Descripción de evidencias tomadas. Base preparada para adjuntar fotos/documentos desde App Campo.'
+            }
           />
         </div>
 
@@ -605,6 +728,9 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
               Total mano de obra: {formatUSD(totalManoObra)}
             </span>
             <span className="text-xs font-mono text-hm-muted uppercase">
+              Horas fuera de servicio: {Number(formData.horas_fuera_servicio || 0)}
+            </span>
+            <span className="text-xs font-mono text-hm-muted uppercase">
               Checklist: {checklistCompleto ? 'Completo' : 'Pendiente'}
             </span>
           </div>
@@ -627,12 +753,8 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
               onChange={handleChange}
               className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
             >
-              <option value="completada">
-                Marcar como completada
-              </option>
-              <option value="facturada">
-                Marcar y pasar a facturada
-              </option>
+              <option value="completada">Marcar como completada</option>
+              <option value="facturada">Marcar y pasar a facturada</option>
             </select>
           </div>
 
