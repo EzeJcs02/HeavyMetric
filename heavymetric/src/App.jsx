@@ -42,39 +42,40 @@ const NotFound = lazy(() => import('./pages/NotFound'))
 
 const PAGE_TITLES = {
   '/': 'Bienvenido',
-  '/app': 'Centro de Operaciones',
+  '/app': 'Inicio',
   '/app/mi-jornada': 'Mi Jornada',
-  '/app/dashboard': 'Dashboard',
-  '/app/taller': 'Taller',
+  '/app/dashboard': 'Panel operativo',
+  '/app/taller': 'Taller y Servicio',
   '/app/alquileres': 'Rental',
-  '/app/ventas': 'Ventas / Inventario',
+  '/app/ventas': 'Ventas',
   '/app/clientes': 'Clientes',
   '/app/precios': 'Precios',
   '/app/facturacion': 'Facturación',
   '/login': 'Iniciar sesión',
   '/app/usuarios': 'Usuarios',
   '/app/reportes': 'Reportes',
-  '/app/leads': 'Leads CRM',
+  '/app/leads': 'CRM',
   '/app/cotizaciones': 'Cotizaciones',
   '/setup': 'Configuración inicial',
-  '/app/repuestos': 'Repuestos / Stock',
+  '/app/repuestos': 'Inventario',
   '/app/proveedores': 'Proveedores',
   '/app/tesoreria': 'Tesorería',
-  '/app/ceo': 'CEO Dashboard',
+  '/app/ceo': 'Gerencia',
   '/app/configuracion': 'Configuración',
   '/app/perfil': 'Mi Perfil',
-  '/app/activo360': 'Activo 360',
+  '/app/activo360': 'Activos',
+  '/app/activos': 'Activos',
   '/app/postventa': 'Postventa',
-  '/app/stock': 'Stock',
+  '/app/stock': 'Inventario',
   '/app/documentacion': 'Documentación',
-  '/app/mantenimiento': 'Mantenimiento',
+  '/app/mantenimiento': 'Planes de mantenimiento',
   '/app/cobranzas': 'Cobranzas',
   '/app/estado-resultados': 'Estado de Resultados',
   '/app/rentabilidad': 'Rentabilidad',
   '/app/riesgos': 'Riesgos',
   '/app/alertas': 'Alertas',
-  '/app/ia-silenciosa': 'IA Silenciosa',
-  '/app/roles': 'Roles',
+  '/app/ia-silenciosa': 'Automatización operativa',
+  '/app/roles': 'Roles y permisos',
   '/app/remitos': 'Remitos',
   '/app/integraciones': 'Integraciones',
 }
@@ -180,18 +181,143 @@ export default function App() {
                   <Route path="activo360" element={<Guard soloSupervisor><Activo360 /></Guard>} />
                   <Route path="activos" element={<Navigate to="/app/activo360" replace />} />
 
-                  <Route path="postventa" element={<Guard soloSupervisor><Placeholder title="Postventa y Reclamos" description="Gestión de tickets de postventa, garantías y atención al cliente." /></Guard>} />
-                  <Route path="stock" element={<Guard soloSupervisor><Placeholder title="Control de Stock" description="Administración avanzada de inventario inmovilizado y rotación." /></Guard>} />
-                  <Route path="documentacion" element={<Guard soloSupervisor><Placeholder title="Documentación Técnica" description="Repositorio de manuales, seguros y habilitaciones de activos." /></Guard>} />
-                  <Route path="mantenimiento" element={<Guard soloSupervisor><Placeholder title="Planes de Mantenimiento" description="Configuración de preventivos periódicos por horas/kms." /></Guard>} />
-                  <Route path="cobranzas" element={<Guard soloSupervisor><Placeholder title="Gestión de Cobranzas" description="Seguimiento de mora, promesas de pago y reclamos financieros." /></Guard>} />
-                  <Route path="estado-resultados" element={<Guard soloSupervisor><Placeholder title="Estado de Resultados" description="Análisis financiero detallado de ingresos vs egresos operativos." /></Guard>} />
+                  <Route
+                    path="postventa"
+                    element={
+                      <Guard soloSupervisor>
+                        <Placeholder
+                          title="Postventa"
+                          description="Seguimiento de servicios, garantías, oportunidades y atención posterior a la venta."
+                        />
+                      </Guard>
+                    }
+                  />
 
-                  <Route path="rentabilidad" element={<Guard soloOwner><Placeholder title="Análisis de Rentabilidad" description="Métricas de retorno de inversión por activo, cliente o proyecto." isOwnerOnly /></Guard>} />
-                  <Route path="riesgos" element={<Guard soloOwner><Placeholder title="Matriz de Riesgos" description="Visibilidad de riesgos operativos, comerciales y financieros." isOwnerOnly /></Guard>} />
-                  <Route path="alertas" element={<Guard soloOwner><Placeholder title="Centro de Alertas" description="Configuración de notificaciones críticas del sistema." isOwnerOnly /></Guard>} />
-                  <Route path="ia-silenciosa" element={<Guard soloOwner><Placeholder title="Motor de IA Silenciosa" description="Reglas heurísticas y analítica predictiva sobre operaciones." isOwnerOnly /></Guard>} />
-                  <Route path="roles" element={<Guard soloOwner><Placeholder title="Roles y Permisos" description="Configuración de control de acceso avanzado." isOwnerOnly /></Guard>} />
+                  <Route
+                    path="stock"
+                    element={
+                      <Guard soloSupervisor>
+                        <Placeholder
+                          title="Inventario"
+                          description="Control avanzado de stock, rotación, mínimos, reservas y reposición."
+                        />
+                      </Guard>
+                    }
+                  />
+
+                  <Route
+                    path="documentacion"
+                    element={
+                      <Guard soloSupervisor>
+                        <Placeholder
+                          title="Documentación"
+                          description="Repositorio de documentos operativos, técnicos, comerciales y administrativos."
+                        />
+                      </Guard>
+                    }
+                  />
+
+                  <Route
+                    path="mantenimiento"
+                    element={
+                      <Guard soloSupervisor>
+                        <Placeholder
+                          title="Planes de mantenimiento"
+                          description="Configuración de servicios preventivos por horas, kilómetros o tiempo."
+                        />
+                      </Guard>
+                    }
+                  />
+
+                  <Route
+                    path="cobranzas"
+                    element={
+                      <Guard soloSupervisor>
+                        <Placeholder
+                          title="Cobranzas"
+                          description="Seguimiento de mora, promesas de pago y reclamos financieros."
+                        />
+                      </Guard>
+                    }
+                  />
+
+                  <Route
+                    path="estado-resultados"
+                    element={
+                      <Guard soloSupervisor>
+                        <Placeholder
+                          title="Estado de Resultados"
+                          description="Análisis financiero detallado de ingresos, egresos y resultado operativo."
+                        />
+                      </Guard>
+                    }
+                  />
+
+                  <Route
+                    path="rentabilidad"
+                    element={
+                      <Guard soloOwner>
+                        <Placeholder
+                          title="Rentabilidad"
+                          description="Métricas de retorno por activo, cliente, trabajo, venta o proyecto."
+                          isOwnerOnly
+                        />
+                      </Guard>
+                    }
+                  />
+
+                  <Route
+                    path="riesgos"
+                    element={
+                      <Guard soloOwner>
+                        <Placeholder
+                          title="Riesgos"
+                          description="Visibilidad de riesgos operativos, comerciales y financieros."
+                          isOwnerOnly
+                        />
+                      </Guard>
+                    }
+                  />
+
+                  <Route
+                    path="alertas"
+                    element={
+                      <Guard soloOwner>
+                        <Placeholder
+                          title="Alertas"
+                          description="Configuración de eventos críticos, notificaciones y reglas preventivas."
+                          isOwnerOnly
+                        />
+                      </Guard>
+                    }
+                  />
+
+                  <Route
+                    path="ia-silenciosa"
+                    element={
+                      <Guard soloOwner>
+                        <Placeholder
+                          title="Automatización operativa"
+                          description="Reglas inteligentes, alertas y análisis preventivo sobre la operación."
+                          isOwnerOnly
+                        />
+                      </Guard>
+                    }
+                  />
+
+                  <Route
+                    path="roles"
+                    element={
+                      <Guard soloOwner>
+                        <Placeholder
+                          title="Roles y permisos"
+                          description="Configuración jerárquica de accesos, perfiles y autorizaciones."
+                          isOwnerOnly
+                        />
+                      </Guard>
+                    }
+                  />
+
                   <Route path="integraciones" element={<Guard soloOwner><Integraciones /></Guard>} />
                 </Route>
 
