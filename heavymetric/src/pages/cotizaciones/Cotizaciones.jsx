@@ -18,7 +18,7 @@ import Pagination from '../../components/ui/Pagination'
 const PER_PAGE = 10
 
 const ESTADOS = ['Borrador', 'Enviada', 'Aprobada', 'Rechazada', 'Vencida', 'Convertida']
-const TIPOS = ['Maquina', 'Implemento', 'Repuesto', 'Servicio', 'Otro']
+const TIPOS = ['Maquina', 'Implemento', 'Repuesto', 'Servicio', 'Alquiler', 'Combo', 'Otro']
 
 const ESTADO_VARIANT = {
   Borrador: 'default',
@@ -42,6 +42,11 @@ function calcTotales(items) {
   const iva = items.reduce((s, i) => s + Number(i.cantidad) * Number(i.precio_usd) * Number(i.tasa_iva), 0)
 
   return { subtotal, iva, total: subtotal + iva }
+}
+
+function esCotizacionServicio(cotizacion) {
+  const items = cotizacion?.items || []
+  return items.some((item) => String(item.tipo_item || '').toLowerCase() === 'servicio')
 }
 
 function ModalCotizacion({ isOpen, onClose, cotizacion, clientes, leads, onConfirm }) {
@@ -164,7 +169,7 @@ function ModalCotizacion({ isOpen, onClose, cotizacion, clientes, leads, onConfi
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="label-mono">Lead (opcional)</label>
+            <label className="label-mono">Lead / oportunidad</label>
             <select
               value={form.lead_id}
               onChange={(e) => setF('lead_id', e.target.value)}
@@ -194,13 +199,13 @@ function ModalCotizacion({ isOpen, onClose, cotizacion, clientes, leads, onConfi
             label="Condiciones comerciales"
             value={form.condiciones}
             onChange={(e) => setF('condiciones', e.target.value)}
-            placeholder="Ej: 30 días, sin interés..."
+            placeholder="Ej: contado, anticipo, cuotas, entrega..."
           />
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="label-mono">Ítems</label>
+            <label className="label-mono">Ítems cotizados</label>
 
             <button
               type="button"
@@ -301,7 +306,11 @@ function ModalCotizacion({ isOpen, onClose, cotizacion, clientes, leads, onConfi
           </div>
         </div>
 
-        <Input label="Notas" value={form.notas} onChange={(e) => setF('notas', e.target.value)} />
+        <Input
+          label="Notas internas / aclaraciones"
+          value={form.notas}
+          onChange={(e) => setF('notas', e.target.value)}
+        />
 
         <div className="flex justify-end gap-3 pt-4 border-t border-hm-border">
           <Button variant="outline" type="button" onClick={onClose} disabled={saving}>
@@ -330,48 +339,70 @@ export default function Cotizaciones() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editando, setEditando] = useState(null)
   const [cambiandoEstado, setCambiandoEstado] = useState(null)
-  const [creandoOT, setCreandoOT] = useState(null)
-  const [maquinaOT, setMaquinaOT] = useState('')
-  const [savingOT, setSavingOT] = useState(false)
+  const [creandoTrabajo, setCreandoTrabajo] = useState(null)
+  const [preparandoVenta, setPreparandoVenta] = useState(null)
+  const [maquinaTrabajo, setMaquinaTrabajo] = useState('')
+  const [savingTrabajo, setSavingTrabajo] = useState(false)
+  const [savingVenta, setSavingVenta] = useState(false)
   const [generandoPdf, setGenerandoPdf] = useState(null)
 
   const { maquinas } = useMaquinas()
 
-  const handleCrearOT = async () => {
-    if (!maquinaOT) {
-      toast.error('Seleccioná una máquina')
+  const nombreCotizacion = (c) => c.cliente?.razon_social || c.lead?.empresa || c.lead?.nombre || '—'
+
+  const handleCrearTrabajo = async () => {
+    if (!maquinaTrabajo) {
+      toast.error('Seleccioná un activo')
       return
     }
 
-    setSavingOT(true)
+    setSavingTrabajo(true)
 
     try {
       const descripcion =
-        creandoOT.items?.map((i) => i.descripcion).filter(Boolean).join(' / ') ||
-        creandoOT.titulo ||
+        creandoTrabajo.items?.map((i) => i.descripcion).filter(Boolean).join(' / ') ||
+        creandoTrabajo.titulo ||
         'Trabajo según cotización'
 
-      const { error } = await supabase.from('ordenes_trabajo').insert([
+      const { error: insertError } = await supabase.from('ordenes_trabajo').insert([
         {
           organization_id: perfil?.organization_id,
-          maquina_id: maquinaOT,
-          cliente_id: creandoOT.cliente_id,
+          maquina_id: maquinaTrabajo,
+          cliente_id: creandoTrabajo.cliente_id,
           descripcion_trabajo: descripcion,
           fecha_ingreso: new Date().toISOString().slice(0, 10),
           estado: 'en_progreso',
-          notas_internas: `Generada desde Cotización #${creandoOT.numero_cotizacion}`,
+          notas_internas: `Generada desde Cotización #${creandoTrabajo.numero_cotizacion}`,
         },
       ])
 
-      if (error) throw error
+      if (insertError) throw insertError
 
-      toast.success(`OT creada desde Cotización #${creandoOT.numero_cotizacion}`)
-      setCreandoOT(null)
-      setMaquinaOT('')
+      await actualizarEstado(creandoTrabajo.id, 'Convertida')
+
+      toast.success(`Trabajo creado desde Cotización #${creandoTrabajo.numero_cotizacion}`)
+      setCreandoTrabajo(null)
+      setMaquinaTrabajo('')
     } catch (err) {
       toast.error(err.message)
     } finally {
-      setSavingOT(false)
+      setSavingTrabajo(false)
+    }
+  }
+
+  const handlePrepararVenta = async () => {
+    if (!preparandoVenta) return
+
+    setSavingVenta(true)
+
+    try {
+      await actualizarEstado(preparandoVenta.id, 'Convertida')
+      toast.success(`Cotización #${preparandoVenta.numero_cotizacion} preparada para venta`)
+      setPreparandoVenta(null)
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setSavingVenta(false)
     }
   }
 
@@ -459,8 +490,6 @@ export default function Cotizaciones() {
     }
   }
 
-  const nombreCotizacion = (c) => c.cliente?.razon_social || c.lead?.empresa || c.lead?.nombre || '—'
-
   if (error) {
     return (
       <div className="p-6">
@@ -476,7 +505,9 @@ export default function Cotizaciones() {
       <div className="flex items-center justify-between border-b border-hm-border pb-4">
         <div>
           <h1 className="text-2xl font-bold">Cotizaciones</h1>
-          <p className="text-sm text-hm-muted mt-1">{cotizaciones.length} cotizaciones registradas</p>
+          <p className="text-sm text-hm-muted mt-1">
+            Presupuestos comerciales, servicios, repuestos, maquinaria e implementos.
+          </p>
         </div>
 
         {canEdit && (
@@ -494,22 +525,30 @@ export default function Cotizaciones() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-4 border-l-4 border-l-hm-accent bg-hm-surface2/30">
-          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Monto total</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">
+            Monto cotizado
+          </div>
           <div className="text-2xl font-bold text-hm-accent">{formatUSD(totalMonto)}</div>
         </Card>
 
         <Card className="p-4 border-l-4 border-l-green-500 bg-hm-surface2/30">
-          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Monto aceptado</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">
+            Monto aceptado
+          </div>
           <div className="text-2xl font-bold text-green-400">{formatUSD(montoAceptado)}</div>
         </Card>
 
         <Card className="p-4 border-l-4 border-l-blue-500 bg-hm-surface2/30">
-          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Pendientes</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">
+            En gestión
+          </div>
           <div className="text-3xl font-bold text-blue-400">{pendientes}</div>
         </Card>
 
         <Card className="p-4 border-l-4 border-l-green-500 bg-hm-surface2/30">
-          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Aceptadas</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">
+            Aceptadas / convertidas
+          </div>
           <div className="text-3xl font-bold text-green-400">{aceptadas}</div>
         </Card>
       </div>
@@ -539,17 +578,17 @@ export default function Cotizaciones() {
             TODOS
           </button>
 
-          {ESTADOS.map((e) => (
+          {ESTADOS.map((estado) => (
             <button
-              key={e}
-              onClick={() => setFiltroEstado(filtroEstado === e ? 'todos' : e)}
+              key={estado}
+              onClick={() => setFiltroEstado(filtroEstado === estado ? 'todos' : estado)}
               className={`px-3 py-2 rounded text-[10px] font-bold tracking-widest border transition-all ${
-                filtroEstado === e
+                filtroEstado === estado
                   ? 'bg-hm-accent border-hm-accent text-white'
                   : 'bg-hm-surface border-hm-border text-hm-muted hover:border-hm-accent/50'
               }`}
             >
-              {e.toUpperCase()}
+              {estado.toUpperCase()}
             </button>
           ))}
         </div>
@@ -593,19 +632,33 @@ export default function Cotizaciones() {
               paginadas.map((cot) => {
                 const vence = cot.fecha_vencimiento ? new Date(cot.fecha_vencimiento) : null
                 const vencida = vence && vence < new Date()
+                const puedeCrearTrabajo = esCotizacionServicio(cot)
 
                 return (
-                  <tr key={cot.id} className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors group">
-                    <td className="p-4 font-mono text-sm text-hm-accent">#{cot.numero_cotizacion}</td>
+                  <tr
+                    key={cot.id}
+                    className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors group"
+                  >
+                    <td className="p-4 font-mono text-sm text-hm-accent">
+                      #{cot.numero_cotizacion}
+                    </td>
 
                     <td className="p-4">
                       <div className="font-medium text-sm">{nombreCotizacion(cot)}</div>
-                      {cot.lead_id && <div className="text-xs text-hm-muted font-mono">via Lead</div>}
+                      {cot.lead_id && <div className="text-xs text-hm-muted font-mono">vía CRM</div>}
                     </td>
 
-                    <td className="p-4 text-center font-mono text-sm">{cot.items?.length ?? 0}</td>
-                    <td className="p-4 text-right font-mono text-sm text-hm-muted">{formatUSD(cot.subtotal_usd)}</td>
-                    <td className="p-4 text-right font-mono text-sm font-bold">{formatUSD(cot.total_usd)}</td>
+                    <td className="p-4 text-center font-mono text-sm">
+                      {cot.items?.length ?? 0}
+                    </td>
+
+                    <td className="p-4 text-right font-mono text-sm text-hm-muted">
+                      {formatUSD(cot.subtotal_usd)}
+                    </td>
+
+                    <td className="p-4 text-right font-mono text-sm font-bold">
+                      {formatUSD(cot.total_usd)}
+                    </td>
 
                     <td className="p-4">
                       <Badge variant={ESTADO_VARIANT[cot.estado]}>{cot.estado}</Badge>
@@ -682,24 +735,24 @@ export default function Cotizaciones() {
                           </>
                         )}
 
-                        {canEdit && cot.estado === 'Aprobada' && (
+                        {canEdit && cot.estado === 'Aprobada' && puedeCrearTrabajo && (
                           <button
                             onClick={() => {
-                              setCreandoOT(cot)
-                              setMaquinaOT('')
+                              setCreandoTrabajo(cot)
+                              setMaquinaTrabajo('')
                             }}
                             className="px-2 py-1 text-[10px] font-mono font-bold border border-hm-accent/40 text-hm-accent rounded hover:bg-hm-accent/10 transition-colors"
                           >
-                            CREAR OT
+                            CREAR TRABAJO
                           </button>
                         )}
 
                         {canEdit && cot.estado === 'Aprobada' && (
                           <button
-                            onClick={() => setCambiandoEstado({ cot, estado: 'Convertida' })}
+                            onClick={() => setPreparandoVenta(cot)}
                             className="px-2 py-1 text-[10px] font-mono font-bold border border-green-500/40 text-green-400 rounded hover:bg-green-500/10 transition-colors"
                           >
-                            CONVERTIR
+                            PREPARAR VENTA
                           </button>
                         )}
                       </div>
@@ -726,25 +779,25 @@ export default function Cotizaciones() {
         onConfirm={handleConfirm}
       />
 
-      {creandoOT && (
+      {creandoTrabajo && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-hm-surface border border-hm-border rounded-xl p-6 w-full max-w-sm shadow-2xl">
-            <h2 className="font-semibold text-base mb-1">Crear Orden de Trabajo</h2>
+            <h2 className="font-semibold text-base mb-1">Crear trabajo / servicio</h2>
 
             <p className="text-sm text-hm-muted mb-1">
-              Cotización #{creandoOT.numero_cotizacion} — {nombreCotizacion(creandoOT)}
+              Cotización #{creandoTrabajo.numero_cotizacion} — {nombreCotizacion(creandoTrabajo)}
             </p>
 
             <p className="text-xs text-hm-muted mb-4">
-              Seleccioná la máquina que ingresa al taller.
+              Seleccioná el activo asociado al trabajo.
             </p>
 
             <select
-              value={maquinaOT}
-              onChange={(e) => setMaquinaOT(e.target.value)}
+              value={maquinaTrabajo}
+              onChange={(e) => setMaquinaTrabajo(e.target.value)}
               className="w-full bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent mb-4"
             >
-              <option value="">— Seleccionar máquina —</option>
+              <option value="">— Seleccionar activo —</option>
               {maquinas.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.nombre_unidad} — {m.marca} {m.modelo}
@@ -753,17 +806,28 @@ export default function Cotizaciones() {
             </select>
 
             <div className="flex gap-3 justify-end">
-              <Button variant="ghost" onClick={() => setCreandoOT(null)} disabled={savingOT}>
+              <Button variant="ghost" onClick={() => setCreandoTrabajo(null)} disabled={savingTrabajo}>
                 Cancelar
               </Button>
 
-              <Button variant="primary" onClick={handleCrearOT} disabled={savingOT || !maquinaOT}>
-                {savingOT ? 'Creando...' : 'Crear OT'}
+              <Button variant="primary" onClick={handleCrearTrabajo} disabled={savingTrabajo || !maquinaTrabajo}>
+                {savingTrabajo ? 'Creando...' : 'Crear trabajo'}
               </Button>
             </div>
           </div>
         </div>
       )}
+
+      <ModalConfirm
+        isOpen={!!preparandoVenta}
+        onClose={() => setPreparandoVenta(null)}
+        onConfirm={handlePrepararVenta}
+        loading={savingVenta}
+        title="Preparar venta"
+        message={`¿Confirmás preparar la cotización #${preparandoVenta?.numero_cotizacion} para venta? En esta fase quedará como convertida. Luego se conectará con Orden de Venta, firma, facturación y cobranza.`}
+        confirmLabel="Preparar venta"
+        variant="primary"
+      />
 
       <ModalConfirm
         isOpen={!!cambiandoEstado}
