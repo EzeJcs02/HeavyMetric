@@ -195,8 +195,8 @@ export default function Facturacion() {
       const worksheet = XLSX.utils.json_to_sheet(dataToExport)
       const workbook = XLSX.utils.book_new()
 
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Facturacion')
-      XLSX.writeFile(workbook, `Reporte_Facturacion_${periodo}.xlsx`)
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Documentos_y_Cobranzas')
+      XLSX.writeFile(workbook, `Documentos_Cobranzas_${periodo}.xlsx`)
 
       toast.success('Reporte Excel generado correctamente')
     } catch (err) {
@@ -252,7 +252,7 @@ export default function Facturacion() {
     return (
       <div className="p-6">
         <Card className="p-6 border-red-800 bg-red-900/20 text-red-400">
-          <h2 className="font-bold mb-2">Error cargando Módulo</h2>
+          <h2 className="font-bold mb-2">Error cargando módulo</h2>
           <p className="font-mono text-sm">{error}</p>
         </Card>
       </div>
@@ -262,7 +262,12 @@ export default function Facturacion() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between border-b border-hm-border pb-4">
-        <h1 className="text-2xl font-bold">Facturación y Cobranzas</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Documentos y Cobranzas</h1>
+          <p className="text-sm text-hm-muted mt-1">
+            Facturas, recibos, remitos, cobros registrados y documentos pendientes de seguimiento.
+          </p>
+        </div>
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -303,7 +308,7 @@ export default function Facturacion() {
             onClick={handleExportExcel}
             disabled={transaccionesFiltradas.length === 0 || exportandoExcel}
           >
-            {exportandoExcel ? 'GENERANDO...' : 'EXPORTAR REPORTE EXCEL'}
+            {exportandoExcel ? 'GENERANDO...' : 'EXPORTAR EXCEL'}
           </Button>
         </div>
       </div>
@@ -347,12 +352,12 @@ export default function Facturacion() {
       <div className="flex flex-col md:flex-row gap-4 items-end bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50">
         <div className="flex-1 w-full">
           <label className="text-[10px] font-mono text-hm-muted mb-1 block uppercase tracking-widest">
-            Buscar por Razón Social o Nro. Comprobante
+            Buscar por cliente o comprobante
           </label>
 
           <Input
             type="text"
-            placeholder="Cliente o número de comprobante..."
+            placeholder="Cliente, razón social o número de comprobante..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -382,7 +387,7 @@ export default function Facturacion() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-4 border-l-4 border-l-hm-accent bg-hm-surface2/30">
           <div className="text-sm font-mono text-hm-muted mb-1">
-            FACTURADO ({periodo.replace('_', ' ').toUpperCase()})
+            EMITIDO ({periodo.replace('_', ' ').toUpperCase()})
           </div>
           <div className="text-2xl font-bold">
             {formatUSD(transaccionesFiltradas.reduce((acc, tx) => acc + Number(tx.monto_total_usd), 0))}
@@ -422,9 +427,9 @@ export default function Facturacion() {
             <thead className="bg-hm-surface2/50 border-b border-hm-border">
               <tr>
                 <th className="p-4 font-mono text-xs text-hm-muted">FECHA</th>
-                <th className="p-4 font-mono text-xs text-hm-muted">COMPROBANTE</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">DOCUMENTO</th>
                 <th className="p-4 font-mono text-xs text-hm-muted">CLIENTE</th>
-                <th className="p-4 font-mono text-xs text-hm-muted">REFERENCIA</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">ORIGEN</th>
                 <th className="p-4 font-mono text-xs text-hm-muted text-right">MONTO USD</th>
                 <th className="p-4 font-mono text-xs text-hm-muted text-right">EQ. ARS</th>
                 <th className="p-4 font-mono text-xs text-hm-muted text-center">ESTADO</th>
@@ -442,7 +447,7 @@ export default function Facturacion() {
               ) : transaccionesFiltradas.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="p-8 text-center text-hm-muted font-mono text-sm">
-                    No se encontraron resultados para los filtros aplicados.
+                    No se encontraron documentos con los filtros aplicados.
                   </td>
                 </tr>
               ) : (
@@ -462,8 +467,12 @@ export default function Facturacion() {
                     <td className="p-4">
                       <Badge variant="default" className="text-[10px]">
                         {tx.origen_tipo === 'taller'
-                          ? `OT #${tx.ot?.numero_ot}`
-                          : `ALQ #${tx.contrato?.numero_contrato}`}
+                          ? `Trabajo #${tx.ot?.numero_ot}`
+                          : tx.origen_tipo === 'venta'
+                            ? 'Venta'
+                            : tx.contrato?.numero_contrato
+                              ? `Rental #${tx.contrato?.numero_contrato}`
+                              : 'Operación'}
                       </Badge>
                     </td>
 
@@ -518,6 +527,22 @@ export default function Facturacion() {
                           {generandoPdf === `remito-${tx.id}` ? '...' : 'REM PDF'}
                         </Button>
 
+                        <Button
+                          variant="outline"
+                          className="px-2 py-1 text-[10px] font-mono border-hm-border hover:border-hm-accent hover:text-hm-accent"
+                          onClick={() => handleSendEmail(tx)}
+                        >
+                          EMAIL
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          className="px-2 py-1 text-[10px] font-mono border-hm-border hover:border-green-400 hover:text-green-400"
+                          onClick={() => handleSendWA(tx)}
+                        >
+                          WPP
+                        </Button>
+
                         {tx.estado_pago === 'pendiente' && (
                           <>
                             <Button
@@ -563,8 +588,8 @@ export default function Facturacion() {
 
       <ModalConfirm
         isOpen={!!txAAnular}
-        titulo="Anular Comprobante"
-        mensaje={`¿Anular el comprobante ${txAAnular?.tipo_documento} #${
+        titulo="Anular documento"
+        mensaje={`¿Anular el documento ${txAAnular?.tipo_documento} #${
           txAAnular?.numero_comprobante || txAAnular?.id?.split('-')[0]
         } de ${txAAnular?.cliente?.razon_social}? Esta acción no puede deshacerse.`}
         confirmLabel="Anular"
