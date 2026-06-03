@@ -1,187 +1,201 @@
 import { Link } from 'react-router-dom'
 import {
-  Activity,
   AlertTriangle,
   Banknote,
   Boxes,
+  CalendarClock,
   CheckCircle2,
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
-  Factory,
-  Gauge,
-  Layers3,
-  MapPinned,
-  ShieldCheck,
-  Sparkles,
+  Clock,
   Truck,
+  UserRound,
   Wrench,
 } from 'lucide-react'
 
-const kpis = [
+const attentionItems = [
   {
-    label: 'Estado operativo',
-    value: 'ONLINE',
-    detail: 'Sistema activo y sincronizado',
-    tone: 'text-emerald-300',
-    icon: Activity,
+    priority: 'Crítico',
+    title: 'Equipo detenido esperando repuesto',
+    detail: 'OT #2847 · filtro hidráulico pendiente · cliente PROCON',
+    route: '/app/taller',
+    tone: 'border-red-400/25 bg-red-500/10 text-red-300',
+    icon: Wrench,
   },
   {
-    label: 'OT críticas',
-    value: '3',
-    detail: 'Requieren seguimiento hoy',
-    tone: 'text-amber-300',
+    priority: 'Hoy',
+    title: 'Cobro pendiente por vencer',
+    detail: 'Factura pendiente · revisar seguimiento de cobranza',
+    route: '/app/facturacion',
+    tone: 'border-amber-400/25 bg-amber-500/10 text-amber-300',
+    icon: CircleDollarSign,
+  },
+  {
+    priority: 'Stock',
+    title: 'Repuestos bajo mínimo',
+    detail: '4 ítems requieren reposición o revisión de compra',
+    route: '/app/repuestos',
+    tone: 'border-orange-400/25 bg-orange-500/10 text-orange-300',
+    icon: Boxes,
+  },
+  {
+    priority: 'Service',
+    title: 'Mantenimiento próximo',
+    detail: 'Activo con service próximo por horas de uso',
+    route: '/app/activo360',
+    tone: 'border-cyan-400/25 bg-cyan-500/10 text-cyan-300',
+    icon: Truck,
+  },
+]
+
+const workSummary = [
+  {
+    label: 'Trabajos abiertos',
+    value: '7',
+    detail: 'Taller y servicio',
+    route: '/app/taller',
     icon: ClipboardList,
+  },
+  {
+    label: 'Activos con alerta',
+    value: '3',
+    detail: 'Revisión operativa',
+    route: '/app/activo360',
+    icon: Truck,
   },
   {
     label: 'Stock crítico',
     value: '4',
-    detail: 'Ítems bajo mínimo',
-    tone: 'text-red-300',
+    detail: 'Reposición sugerida',
+    route: '/app/repuestos',
     icon: Boxes,
   },
   {
-    label: 'Caja operativa',
-    value: '$ 12.4M',
-    detail: 'Flujo proyectado 7 días',
-    tone: 'text-cyan-300',
+    label: 'Caja 7 días',
+    value: '$12.4M',
+    detail: 'Flujo proyectado',
+    route: '/app/tesoreria',
     icon: Banknote,
   },
 ]
 
-const commandItems = [
+const quickActions = [
   {
-    title: 'Cliente 360',
-    description: 'Historial comercial, deuda, activos, OTs y oportunidades.',
-    route: '/app/clientes',
-    icon: Layers3,
-    status: 'Base preparada',
-  },
-  {
-    title: 'Activo 360',
-    description: 'Máquinas, horómetros, disponibilidad y continuidad operativa.',
-    route: '/app/activo360',
-    icon: Truck,
-    status: 'Operativo',
-  },
-  {
-    title: 'OT 360',
-    description: 'Taller, técnicos, repuestos, garantías y estados de servicio.',
+    title: 'Crear trabajo',
+    detail: 'Abrir una orden de taller o servicio.',
     route: '/app/taller',
     icon: Wrench,
-    status: 'Operativo',
   },
   {
-    title: 'Tesorería',
-    description: 'Caja, bancos, pagos, cobranzas, mora y flujo proyectado.',
-    route: '/app/tesoreria',
-    icon: CircleDollarSign,
-    status: 'En control',
+    title: 'Ver clientes',
+    detail: 'Consultar historial, deuda y actividad.',
+    route: '/app/clientes',
+    icon: UserRound,
   },
   {
-    title: 'Stock Inteligente',
-    description: 'Mínimos, rotación, inmovilizado y alertas de reposición.',
+    title: 'Revisar inventario',
+    detail: 'Stock, movimientos y reposición.',
     route: '/app/repuestos',
     icon: Boxes,
-    status: 'Alertas activas',
   },
   {
-    title: 'App Campo',
-    description: 'Operación offline-first, partes, fotos, GPS y firma.',
-    route: '/campo',
-    icon: MapPinned,
-    status: 'Base preparada',
+    title: 'Ver cobranzas',
+    detail: 'Facturación, pendientes y recibos.',
+    route: '/app/facturacion',
+    icon: CircleDollarSign,
   },
 ]
 
-const alerts = [
-  {
-    title: 'Filtro aceite bajo mínimo',
-    detail: 'Stock actual: 2 u. · mínimo sugerido: 5 u.',
-    tone: 'border-amber-300/30 text-amber-300',
-  },
-  {
-    title: 'OT #2847 en proceso',
-    detail: 'Cambio de filtros + aceite motor · técnico asignado.',
-    tone: 'border-cyan-300/30 text-cyan-300',
-  },
-  {
-    title: 'Activo con mantenimiento próximo',
-    detail: '179 horas restantes para próximo servicio.',
-    tone: 'border-emerald-300/30 text-emerald-300',
-  },
+const recentActivity = [
+  ['OT #2847', 'Cambio de filtros y aceite motor', 'Hace 24 min'],
+  ['Inventario', 'Movimiento de salida registrado', 'Hace 1 h'],
+  ['Cliente', 'Actualización de datos comerciales', 'Hoy'],
+  ['Tesorería', 'Cobro registrado en facturación', 'Hoy'],
 ]
 
-const operations = [
-  ['Activos monitoreados', '24', 'text-cyan-300'],
-  ['OT abiertas hoy', '7', 'text-emerald-300'],
-  ['Alertas de stock', '4', 'text-amber-300'],
-  ['Riesgos críticos', '1', 'text-red-300'],
-]
-
-function StatusDot({ className = 'bg-emerald-300' }) {
-  return <span className={`h-2 w-2 rounded-full ${className} shadow-[0_0_14px_currentColor]`} />
-}
-
-function SectionTitle({ eyebrow, title, description }) {
+function SectionHeader({ eyebrow, title, description }) {
   return (
     <div>
-      <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-cyan-300/70">
-        <span className="h-px w-8 bg-cyan-300/40" />
+      <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-neutral-600">
         {eyebrow}
       </div>
-      <h2 className="text-xl font-black tracking-tight text-white">{title}</h2>
+      <h2 className="text-lg font-black tracking-tight text-white">{title}</h2>
       {description && <p className="mt-1 text-sm text-neutral-500">{description}</p>}
     </div>
   )
 }
 
-function KpiCard({ item }) {
-  const Icon = item.icon
-
-  return (
-    <div className="group rounded-2xl border border-white/5 bg-[#0d1016]/90 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/25 hover:bg-[#11151c]">
-      <div className="mb-5 flex items-center justify-between">
-        <div className="rounded-xl border border-white/5 bg-black/30 p-2 text-neutral-500 group-hover:text-cyan-300">
-          <Icon className="h-4 w-4" />
-        </div>
-        <StatusDot className={item.tone.replace('text-', 'bg-')} />
-      </div>
-
-      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-600">
-        {item.label}
-      </div>
-      <div className={`mt-2 font-mono text-3xl font-black ${item.tone}`}>
-        {item.value}
-      </div>
-      <p className="mt-2 text-sm text-neutral-500">{item.detail}</p>
-    </div>
-  )
-}
-
-function CommandModule({ item }) {
+function AttentionCard({ item }) {
   const Icon = item.icon
 
   return (
     <Link
       to={item.route}
-      className="group rounded-2xl border border-white/5 bg-[#0d1016]/85 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/25 hover:bg-[#11151c]"
+      className={`group block rounded-2xl border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:bg-opacity-20 ${item.tone}`}
     >
-      <div className="mb-5 flex items-center justify-between">
-        <div className="rounded-xl border border-white/5 bg-black/30 p-2 text-cyan-300/70">
+      <div className="flex items-start gap-3">
+        <div className="rounded-xl border border-current/20 bg-black/20 p-2">
+          <Icon className="h-4 w-4" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] opacity-80">
+            {item.priority}
+          </div>
+          <h3 className="text-sm font-bold text-white">{item.title}</h3>
+          <p className="mt-1 text-xs leading-relaxed text-neutral-400">{item.detail}</p>
+        </div>
+
+        <ChevronRight className="mt-1 h-4 w-4 shrink-0 opacity-40 transition-transform group-hover:translate-x-1 group-hover:opacity-100" />
+      </div>
+    </Link>
+  )
+}
+
+function SummaryCard({ item }) {
+  const Icon = item.icon
+
+  return (
+    <Link
+      to={item.route}
+      className="group rounded-2xl border border-white/5 bg-[#0d1016]/85 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-300/20 hover:bg-[#11151c]"
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div className="rounded-xl border border-white/5 bg-black/25 p-2 text-neutral-500 group-hover:text-cyan-300">
           <Icon className="h-4 w-4" />
         </div>
         <ChevronRight className="h-4 w-4 text-neutral-700 transition-transform group-hover:translate-x-1 group-hover:text-cyan-300" />
       </div>
 
-      <h3 className="text-base font-black text-white">{item.title}</h3>
-      <p className="mt-2 min-h-[44px] text-sm leading-relaxed text-neutral-500">
-        {item.description}
-      </p>
-
-      <div className="mt-5 inline-flex rounded-full border border-white/5 bg-black/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-        {item.status}
+      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-600">
+        {item.label}
       </div>
+      <div className="mt-2 font-mono text-2xl font-black text-white">{item.value}</div>
+      <p className="mt-1 text-xs text-neutral-500">{item.detail}</p>
+    </Link>
+  )
+}
+
+function QuickAction({ item }) {
+  const Icon = item.icon
+
+  return (
+    <Link
+      to={item.route}
+      className="group flex items-center justify-between rounded-2xl border border-white/5 bg-black/20 p-4 transition-all duration-200 hover:border-cyan-300/20 hover:bg-white/[0.03]"
+    >
+      <div className="flex items-center gap-3">
+        <div className="rounded-xl border border-white/5 bg-[#0d1016] p-2 text-neutral-500 group-hover:text-cyan-300">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-white">{item.title}</h3>
+          <p className="mt-0.5 text-xs text-neutral-500">{item.detail}</p>
+        </div>
+      </div>
+
+      <ChevronRight className="h-4 w-4 text-neutral-700 transition-transform group-hover:translate-x-1 group-hover:text-cyan-300" />
     </Link>
   )
 }
@@ -189,154 +203,171 @@ function CommandModule({ item }) {
 export default function Home() {
   return (
     <div className="relative min-h-full overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_10%,rgba(0,212,255,0.08),transparent_30%),radial-gradient(circle_at_85%_20%,rgba(0,245,160,0.045),transparent_30%)]" />
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_10%,rgba(0,212,255,0.07),transparent_30%),radial-gradient(circle_at_85%_20%,rgba(0,245,160,0.035),transparent_30%)]" />
 
-      <div className="space-y-8">
-        <section className="relative overflow-hidden rounded-[28px] border border-white/5 bg-[#07090d] p-6 shadow-[0_0_90px_rgba(0,212,255,0.05)] md:p-8">
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(0,212,255,0.022)_1px,transparent_1px),linear-gradient(90deg,rgba(0,212,255,0.022)_1px,transparent_1px)] bg-[size:48px_48px] opacity-40" />
+      <div className="space-y-7">
+        <section className="relative overflow-hidden rounded-[28px] border border-white/5 bg-[#07090d] p-6 shadow-[0_0_90px_rgba(0,212,255,0.04)] md:p-8">
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(0,212,255,0.018)_1px,transparent_1px),linear-gradient(90deg,rgba(0,212,255,0.018)_1px,transparent_1px)] bg-[size:48px_48px] opacity-35" />
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_50%,rgba(0,0,0,0.68)_100%)]" />
 
-          <div className="relative z-10 grid gap-8 lg:grid-cols-[1fr_0.9fr] lg:items-center">
+          <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="mb-5 flex flex-wrap items-center gap-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-300">
-                  <StatusDot />
-                  Live System
-                </div>
-
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/5 bg-black/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500">
-                  <ShieldCheck className="h-3 w-3" />
-                  Centro de Operaciones
-                </div>
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+                Sistema activo
               </div>
 
               <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-tight text-white md:text-5xl">
-                Control operativo para decisiones reales.
+                Qué requiere atención hoy.
               </h1>
 
               <p className="mt-5 max-w-2xl text-base leading-relaxed text-neutral-500">
-                Seguimiento ejecutivo de activos, taller, stock, tesorería y continuidad operativa.
-                Diseñado para detectar riesgos, priorizar trabajo y sostener la operación diaria.
+                Vista diaria para priorizar trabajos, activos, clientes, stock, cobros y pagos sin perder tiempo buscando en cada módulo.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-white/5 bg-black/25 p-5">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-neutral-500">
-                  Operational Pulse
+            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/5 bg-black/25 p-4 md:min-w-[360px]">
+              <div className="rounded-xl border border-white/5 bg-[#0d1016] p-4">
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-600">
+                  Pendientes hoy
                 </div>
-                <Sparkles className="h-4 w-4 text-cyan-300/70" />
+                <div className="mt-2 font-mono text-2xl font-black text-amber-300">8</div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {operations.map(([label, value, color]) => (
-                  <div key={label} className="rounded-xl border border-white/5 bg-[#0d1016] p-4">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-600">
-                      {label}
-                    </div>
-                    <div className={`mt-2 font-mono text-2xl font-black ${color}`}>
-                      {value}
-                    </div>
-                  </div>
-                ))}
+              <div className="rounded-xl border border-white/5 bg-[#0d1016] p-4">
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-600">
+                  Riesgos críticos
+                </div>
+                <div className="mt-2 font-mono text-2xl font-black text-red-300">1</div>
               </div>
             </div>
           </div>
-        </section>
-
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {kpis.map((item) => (
-            <KpiCard key={item.label} item={item} />
-          ))}
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1fr_0.72fr]">
           <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
             <div className="mb-6 flex items-start justify-between gap-4">
-              <SectionTitle
-                eyebrow="Módulos críticos"
-                title="Mapa operativo"
-                description="Accesos principales para ejecutar y controlar la operación."
+              <SectionHeader
+                eyebrow="Prioridad"
+                title="Atención requerida"
+                description="Situaciones que conviene resolver o revisar primero."
               />
-              <div className="hidden rounded-full border border-white/5 bg-black/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-600 md:block">
-                Real / Base preparada / Demo
+
+              <div className="hidden items-center gap-2 rounded-full border border-white/5 bg-black/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-600 md:flex">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                4 eventos
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {commandItems.map((item) => (
-                <CommandModule key={item.title} item={item} />
+            <div className="grid gap-3">
+              {attentionItems.map((item) => (
+                <AttentionCard key={item.title} item={item} />
               ))}
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
-              <SectionTitle
-                eyebrow="Riesgo operativo"
-                title="Alertas prioritarias"
-                description="Eventos que requieren acción o seguimiento."
-              />
+          <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
+            <SectionHeader
+              eyebrow="Actividad"
+              title="Últimos movimientos"
+              description="Registro reciente de operación."
+            />
 
-              <div className="mt-6 space-y-3">
-                {alerts.map((alert) => (
-                  <div
-                    key={alert.title}
-                    className={`rounded-2xl border bg-black/20 p-4 ${alert.tone}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="mt-0.5 h-4 w-4" />
-                      <div>
-                        <h3 className="text-sm font-bold text-white">{alert.title}</h3>
-                        <p className="mt-1 text-xs leading-relaxed text-neutral-500">
-                          {alert.detail}
-                        </p>
+            <div className="mt-6 space-y-3">
+              {recentActivity.map(([module, detail, time]) => (
+                <div
+                  key={`${module}-${detail}`}
+                  className="rounded-2xl border border-white/5 bg-black/20 p-4"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-lg border border-white/5 bg-[#0d1016] p-2 text-neutral-500">
+                      <Clock className="h-3.5 w-3.5" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-bold text-white">{module}</h3>
+                        <span className="shrink-0 font-mono text-[10px] text-neutral-600">{time}</span>
                       </div>
+                      <p className="mt-1 text-xs leading-relaxed text-neutral-500">{detail}</p>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
+          </div>
+        </section>
 
-            <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
-              <SectionTitle
-                eyebrow="Continuidad"
-                title="Estado de la operación"
-                description="Resumen rápido del frente operativo."
-              />
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {workSummary.map((item) => (
+            <SummaryCard key={item.label} item={item} />
+          ))}
+        </section>
 
-              <div className="mt-6 space-y-4">
-                {[
-                  ['Taller', '72%', 'bg-cyan-300'],
-                  ['Stock disponible', '84%', 'bg-emerald-300'],
-                  ['Cobranza semanal', '61%', 'bg-amber-300'],
-                ].map(([label, value, color]) => (
-                  <div key={label}>
-                    <div className="mb-2 flex items-center justify-between font-mono text-xs">
-                      <span className="text-neutral-500">{label}</span>
-                      <span className="text-neutral-300">{value}</span>
+        <section className="grid gap-6 xl:grid-cols-[0.82fr_1fr]">
+          <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
+            <SectionHeader
+              eyebrow="Acciones"
+              title="Accesos rápidos"
+              description="Atajos para operar sin pasar por todo el menú."
+            />
+
+            <div className="mt-6 grid gap-3">
+              {quickActions.map((item) => (
+                <QuickAction key={item.title} item={item} />
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
+            <SectionHeader
+              eyebrow="Semana"
+              title="Frentes a seguir"
+              description="Indicadores simples para revisar durante la jornada."
+            />
+
+            <div className="mt-6 space-y-4">
+              {[
+                ['Taller y servicio', '72%', 'Trabajos en curso y pendientes de cierre'],
+                ['Inventario disponible', '84%', 'Stock útil frente a mínimos definidos'],
+                ['Cobranza semanal', '61%', 'Cobros previstos vs registrados'],
+              ].map(([label, value, detail]) => (
+                <div key={label}>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-bold text-white">{label}</div>
+                      <div className="mt-0.5 text-xs text-neutral-500">{detail}</div>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
-                      <div className={`h-full rounded-full ${color}`} style={{ width: value }} />
-                    </div>
+                    <span className="font-mono text-xs font-bold text-neutral-300">{value}</span>
                   </div>
-                ))}
-              </div>
+
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
+                    <div className="h-full rounded-full bg-cyan-300" style={{ width: value }} />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
         <section className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <SectionTitle
-              eyebrow="Próxima fase"
-              title="IA silenciosa y continuidad operativa"
-              description="La plataforma debe anticipar riesgos sin saturar al usuario."
-            />
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-2 text-emerald-300">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+
+              <div>
+                <h2 className="text-base font-black text-white">Operación preparada para escalar</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-neutral-500">
+                  La estructura actual ya permite avanzar hacia aprobaciones, órdenes de venta, órdenes de compra y home por rol.
+                </p>
+              </div>
+            </div>
 
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-cyan-300">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Roadmap activo
+              <CalendarClock className="h-3.5 w-3.5" />
+              Próxima fase
             </div>
           </div>
         </section>
