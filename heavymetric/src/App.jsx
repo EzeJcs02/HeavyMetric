@@ -50,15 +50,15 @@ const PAGE_TITLES = {
   '/app/ventas': 'Ventas',
   '/app/clientes': 'Clientes',
   '/app/precios': 'Precios',
-  '/app/facturacion': 'Facturación',
+  '/app/facturacion': 'Documentos y Cobranzas',
   '/login': 'Iniciar sesión',
-  '/app/usuarios': 'Usuarios',
+  '/app/usuarios': 'Usuarios y accesos',
   '/app/reportes': 'Reportes',
   '/app/leads': 'CRM',
   '/app/cotizaciones': 'Cotizaciones',
   '/setup': 'Configuración inicial',
   '/app/repuestos': 'Inventario',
-  '/app/proveedores': 'Proveedores',
+  '/app/proveedores': 'Gestión de Proveedores',
   '/app/tesoreria': 'Tesorería',
   '/app/ceo': 'Gerencia',
   '/app/configuracion': 'Configuración',
@@ -131,10 +131,10 @@ function Guard({ children, soloOwner, soloSupervisor, soloCliente, module }) {
   }
 
   if (soloOwner && !isOwner) return <Navigate to="/app" replace />
-  if (soloSupervisor && !canEdit) return <Navigate to="/app" replace />
+  if (soloSupervisor && !canEdit && !isOwner) return <Navigate to="/app" replace />
   if (soloCliente && !isCliente) return <Navigate to="/app" replace />
 
-  if (module && !hasModule(module)) return <Navigate to="/app" replace />
+  if (module && !isOwner && !hasModule(module)) return <Navigate to="/app" replace />
 
   return children
 }
@@ -163,7 +163,7 @@ export default function App() {
                   <Route path="cotizaciones" element={<Guard soloSupervisor module="crm"><Cotizaciones /></Guard>} />
                   <Route path="taller" element={<Guard module="taller"><Taller /></Guard>} />
                   <Route path="alquileres" element={<Guard soloSupervisor module="alquileres"><Alquileres /></Guard>} />
-                  <Route path="ventas" element={<Guard module="ventas"><Ventas /></Guard>} />
+                  <Route path="ventas" element={<Guard soloSupervisor module="ventas"><Ventas /></Guard>} />
                   <Route path="repuestos" element={<Guard soloSupervisor module="inventario"><Repuestos /></Guard>} />
                   <Route path="proveedores" element={<Guard soloSupervisor module="tesoreria"><Proveedores /></Guard>} />
                   <Route path="ceo" element={<Guard soloOwner><CEODashboard /></Guard>} />
