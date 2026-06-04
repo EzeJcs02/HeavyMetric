@@ -51,6 +51,9 @@ export default function Sidebar({ onNavigate }) {
   const activoPlural = taxonomia?.activoPlural || 'Activos'
   const permiteAlquileres = hasCapability?.('alquileres') === true
 
+  const canManage = isOwner || canEdit
+  const moduleEnabled = (moduleName) => isOwner || hasModule?.(moduleName)
+
   const groups = [
     {
       label: null,
@@ -63,44 +66,44 @@ export default function Sidebar({ onNavigate }) {
       label: 'Operaciones',
       items: [
         { to: '/app/activo360', label: activoPlural },
-        hasModule('taller') ? { to: '/app/taller', label: 'Taller y Servicio' } : null,
-        hasModule('inventario') ? { to: '/app/repuestos', label: 'Inventario' } : null,
+        moduleEnabled('taller') ? { to: '/app/taller', label: 'Taller y Servicio' } : null,
+        moduleEnabled('inventario') ? { to: '/app/repuestos', label: 'Inventario' } : null,
         { to: '/app/postventa', label: 'Postventa', prep: true },
-        hasModule('alquileres') && permiteAlquileres ? { to: '/app/alquileres', label: 'Rental' } : null,
+        moduleEnabled('alquileres') && permiteAlquileres ? { to: '/app/alquileres', label: 'Rental' } : null,
       ].filter(Boolean),
     },
     {
       label: 'Comercial',
-      hide: !canEdit,
+      hide: !canManage,
       items: [
-        hasModule('crm') ? { to: '/app/leads', label: 'CRM' } : null,
+        moduleEnabled('crm') ? { to: '/app/leads', label: 'CRM' } : null,
         { to: '/app/clientes', label: 'Clientes' },
-        hasModule('crm') ? { to: '/app/cotizaciones', label: 'Cotizaciones' } : null,
-        hasModule('ventas') ? { to: '/app/ventas', label: 'Ventas' } : null,
+        moduleEnabled('crm') ? { to: '/app/cotizaciones', label: 'Cotizaciones' } : null,
+        moduleEnabled('ventas') ? { to: '/app/ventas', label: 'Ventas' } : null,
       ].filter(Boolean),
     },
     {
       label: 'Administración',
-      hide: !canEdit,
+      hide: !canManage,
       items: [
-        { to: '/app/facturacion', label: 'Facturación' },
-        hasModule('tesoreria') ? { to: '/app/tesoreria', label: 'Tesorería' } : null,
-        hasModule('tesoreria') ? { to: '/app/proveedores', label: 'Proveedores' } : null,
-        canEdit ? { to: '/app/aprobaciones', label: 'Aprobaciones' } : null,
+        { to: '/app/facturacion', label: 'Documentos y Cobranzas' },
+        moduleEnabled('tesoreria') ? { to: '/app/tesoreria', label: 'Tesorería' } : null,
+        moduleEnabled('tesoreria') ? { to: '/app/proveedores', label: 'Proveedores' } : null,
+        canManage ? { to: '/app/aprobaciones', label: 'Aprobaciones' } : null,
       ].filter(Boolean),
     },
     {
       label: 'Gerencia',
       hide: !isOwner,
       items: [
-        { to: '/app/ceo', label: 'CEO Dashboard' },
+        { to: '/app/ceo', label: 'Gerencia' },
       ],
     },
     {
       label: 'Sistema',
       hide: !isOwner,
       items: [
-        { to: '/app/usuarios', label: 'Usuarios' },
+        { to: '/app/usuarios', label: 'Usuarios y accesos' },
         { to: '/app/configuracion', label: 'Configuración' },
         { to: '/app/integraciones', label: 'Integraciones' },
       ],
