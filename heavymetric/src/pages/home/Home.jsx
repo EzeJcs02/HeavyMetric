@@ -9,6 +9,8 @@ import {
   CircleDollarSign,
   ClipboardList,
   Clock,
+  FileSignature,
+  ShoppingCart,
   Truck,
   UserRound,
   Wrench,
@@ -16,65 +18,65 @@ import {
 
 const attentionItems = [
   {
-    priority: 'Crítico',
-    title: 'Equipo detenido esperando repuesto',
-    detail: 'OT #2847 · filtro hidráulico pendiente · cliente PROCON',
-    route: '/app/taller',
-    tone: 'border-red-400/25 bg-red-500/10 text-red-300',
-    icon: Wrench,
+    priority: 'Venta',
+    title: 'Órdenes de Venta pendientes de firma',
+    detail: 'Revisar ventas en preparación y confirmar aceptación del cliente.',
+    route: '/app/ventas',
+    tone: 'border-amber-400/25 bg-amber-500/10 text-amber-300',
+    icon: FileSignature,
   },
   {
-    priority: 'Hoy',
-    title: 'Cobro pendiente por vencer',
-    detail: 'Factura pendiente · revisar seguimiento de cobranza',
+    priority: 'Cobranza',
+    title: 'Documentos pendientes de cobro',
+    detail: 'Facturas y recibos con seguimiento financiero abierto.',
     route: '/app/facturacion',
-    tone: 'border-amber-400/25 bg-amber-500/10 text-amber-300',
+    tone: 'border-green-400/25 bg-green-500/10 text-green-300',
     icon: CircleDollarSign,
   },
   {
-    priority: 'Stock',
-    title: 'Repuestos bajo mínimo',
-    detail: '4 ítems requieren reposición o revisión de compra',
+    priority: 'Inventario',
+    title: 'Stock bajo o pendiente de reposición',
+    detail: 'Revisar mínimos, movimientos y necesidades de compra.',
     route: '/app/repuestos',
     tone: 'border-orange-400/25 bg-orange-500/10 text-orange-300',
     icon: Boxes,
   },
   {
-    priority: 'Service',
-    title: 'Mantenimiento próximo',
-    detail: 'Activo con service próximo por horas de uso',
-    route: '/app/activo360',
+    priority: 'Servicio',
+    title: 'Trabajos y servicios en curso',
+    detail: 'Órdenes de trabajo, activos y tareas operativas pendientes.',
+    route: '/app/taller',
     tone: 'border-cyan-400/25 bg-cyan-500/10 text-cyan-300',
-    icon: Truck,
+    icon: Wrench,
   },
 ]
 
 const workSummary = [
   {
+    label: 'Órdenes de Venta',
+    value: 'OV',
+    detail: 'Ventas, firmas y facturación',
+    route: '/app/ventas',
+    icon: ShoppingCart,
+  },
+  {
     label: 'Trabajos abiertos',
-    value: '7',
+    value: 'OT',
     detail: 'Taller y servicio',
     route: '/app/taller',
     icon: ClipboardList,
   },
   {
-    label: 'Activos con alerta',
-    value: '3',
-    detail: 'Revisión operativa',
-    route: '/app/activo360',
-    icon: Truck,
-  },
-  {
-    label: 'Stock crítico',
-    value: '4',
-    detail: 'Reposición sugerida',
+    label: 'Inventario',
+    value: 'STK',
+    detail: 'Stock, mínimos y reposición',
     route: '/app/repuestos',
     icon: Boxes,
   },
   {
-    label: 'Caja 7 días',
-    value: '$12.4M',
-    detail: 'Flujo proyectado',
+    label: 'Tesorería',
+    value: '$',
+    detail: 'Caja, bancos y pagos',
     route: '/app/tesoreria',
     icon: Banknote,
   },
@@ -82,10 +84,16 @@ const workSummary = [
 
 const quickActions = [
   {
-    title: 'Crear trabajo',
-    detail: 'Abrir una orden de taller o servicio.',
-    route: '/app/taller',
-    icon: Wrench,
+    title: 'Crear Orden de Venta',
+    detail: 'Generar una OV comercial.',
+    route: '/app/ventas',
+    icon: ShoppingCart,
+  },
+  {
+    title: 'Cotizaciones',
+    detail: 'Revisar y convertir cotizaciones.',
+    route: '/app/cotizaciones',
+    icon: ClipboardList,
   },
   {
     title: 'Ver clientes',
@@ -100,18 +108,31 @@ const quickActions = [
     icon: Boxes,
   },
   {
-    title: 'Ver cobranzas',
-    detail: 'Facturación, pendientes y recibos.',
+    title: 'Documentos y Cobranzas',
+    detail: 'Facturas, recibos, remitos y cobros.',
     route: '/app/facturacion',
     icon: CircleDollarSign,
+  },
+  {
+    title: 'Tesorería',
+    detail: 'Flujo de fondos, bancos y pagos.',
+    route: '/app/tesoreria',
+    icon: Banknote,
   },
 ]
 
 const recentActivity = [
-  ['OT #2847', 'Cambio de filtros y aceite motor', 'Hace 24 min'],
-  ['Inventario', 'Movimiento de salida registrado', 'Hace 1 h'],
-  ['Cliente', 'Actualización de datos comerciales', 'Hoy'],
-  ['Tesorería', 'Cobro registrado en facturación', 'Hoy'],
+  ['Ventas', 'Base real de Órdenes de Venta habilitada', 'Actualizado'],
+  ['Usuarios', 'Permisos de owner y roles normalizados', 'Actualizado'],
+  ['Proveedores', 'Lenguaje profesional e ISO aplicado', 'Actualizado'],
+  ['Facturación', 'Documentos y Cobranzas consolidado', 'Actualizado'],
+]
+
+const businessFlow = [
+  ['Cotización', 'Presupuesto comercial enviado al cliente'],
+  ['Orden de Venta', 'Condiciones aceptadas y operación confirmada'],
+  ['Firma', 'Evidencia de aceptación del comprador'],
+  ['Factura / Cobranza', 'Documento emitido y seguimiento financiero'],
 ]
 
 function SectionHeader({ eyebrow, title, description }) {
@@ -218,28 +239,28 @@ export default function Home() {
               </div>
 
               <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-tight text-white md:text-5xl">
-                Qué requiere atención hoy.
+                Centro de Operaciones.
               </h1>
 
               <p className="mt-5 max-w-2xl text-base leading-relaxed text-neutral-500">
-                Vista diaria para priorizar trabajos, activos, clientes, stock, cobros y pagos sin perder tiempo buscando en cada módulo.
+                Acceso operativo para ventas, clientes, servicios, inventario, documentos, cobranzas y tesorería.
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/5 bg-black/25 p-4 md:min-w-[360px]">
-              <div className="rounded-xl border border-white/5 bg-[#0d1016] p-4">
+              <Link to="/app/ventas" className="rounded-xl border border-white/5 bg-[#0d1016] p-4 transition-colors hover:border-cyan-300/20">
                 <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-600">
-                  Pendientes hoy
+                  Ventas
                 </div>
-                <div className="mt-2 font-mono text-2xl font-black text-amber-300">8</div>
-              </div>
+                <div className="mt-2 font-mono text-2xl font-black text-cyan-300">OV</div>
+              </Link>
 
-              <div className="rounded-xl border border-white/5 bg-[#0d1016] p-4">
+              <Link to="/app/facturacion" className="rounded-xl border border-white/5 bg-[#0d1016] p-4 transition-colors hover:border-green-300/20">
                 <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-600">
-                  Riesgos críticos
+                  Cobranzas
                 </div>
-                <div className="mt-2 font-mono text-2xl font-black text-red-300">1</div>
-              </div>
+                <div className="mt-2 font-mono text-2xl font-black text-green-300">$</div>
+              </Link>
             </div>
           </div>
         </section>
@@ -250,12 +271,12 @@ export default function Home() {
               <SectionHeader
                 eyebrow="Prioridad"
                 title="Atención requerida"
-                description="Situaciones que conviene resolver o revisar primero."
+                description="Accesos directos a los frentes que conviene revisar primero."
               />
 
               <div className="hidden items-center gap-2 rounded-full border border-white/5 bg-black/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-600 md:flex">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                4 eventos
+                Operación
               </div>
             </div>
 
@@ -269,8 +290,8 @@ export default function Home() {
           <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
             <SectionHeader
               eyebrow="Actividad"
-              title="Últimos movimientos"
-              description="Registro reciente de operación."
+              title="Últimas mejoras"
+              description="Cambios recientes consolidados en el sistema."
             />
 
             <div className="mt-6 space-y-3">
@@ -321,30 +342,29 @@ export default function Home() {
 
           <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
             <SectionHeader
-              eyebrow="Semana"
-              title="Frentes a seguir"
-              description="Indicadores simples para revisar durante la jornada."
+              eyebrow="Flujo comercial"
+              title="Cotización a cobranza"
+              description="Circuito comercial preparado para operación real."
             />
 
-            <div className="mt-6 space-y-4">
-              {[
-                ['Taller y servicio', '72%', 'Trabajos en curso y pendientes de cierre'],
-                ['Inventario disponible', '84%', 'Stock útil frente a mínimos definidos'],
-                ['Cobranza semanal', '61%', 'Cobros previstos vs registrados'],
-              ].map(([label, value, detail]) => (
-                <div key={label}>
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-bold text-white">{label}</div>
-                      <div className="mt-0.5 text-xs text-neutral-500">{detail}</div>
-                    </div>
-                    <span className="font-mono text-xs font-bold text-neutral-300">{value}</span>
+            <div className="mt-6 space-y-3">
+              {businessFlow.map(([title, description], index) => (
+                <Link
+                  key={title}
+                  to={index === 0 ? '/app/cotizaciones' : index === 1 || index === 2 ? '/app/ventas' : '/app/facturacion'}
+                  className="group flex items-center gap-3 rounded-2xl border border-white/5 bg-black/20 p-4 transition-colors hover:border-cyan-300/20 hover:bg-white/[0.03]"
+                >
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-[#0d1016] font-mono text-xs text-neutral-500 group-hover:text-cyan-300">
+                    {index + 1}
                   </div>
 
-                  <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
-                    <div className="h-full rounded-full bg-cyan-300" style={{ width: value }} />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-bold text-white">{title}</h3>
+                    <p className="mt-0.5 text-xs leading-relaxed text-neutral-500">{description}</p>
                   </div>
-                </div>
+
+                  <ChevronRight className="h-4 w-4 text-neutral-700 transition-transform group-hover:translate-x-1 group-hover:text-cyan-300" />
+                </Link>
               ))}
             </div>
           </div>
@@ -358,17 +378,20 @@ export default function Home() {
               </div>
 
               <div>
-                <h2 className="text-base font-black text-white">Operación preparada para escalar</h2>
+                <h2 className="text-base font-black text-white">Base operativa consolidada</h2>
                 <p className="mt-1 max-w-2xl text-sm leading-relaxed text-neutral-500">
-                  La estructura actual ya permite avanzar hacia aprobaciones, órdenes de venta, órdenes de compra y home por rol.
+                  El sistema ya tiene navegación profesional, roles normalizados, ventas con OV real, gestión de proveedores, inventario y documentos de cobranza.
                 </p>
               </div>
             </div>
 
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-cyan-300">
+            <Link
+              to="/app/ventas"
+              className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-cyan-300 transition-colors hover:bg-cyan-300/15"
+            >
               <CalendarClock className="h-3.5 w-3.5" />
-              Próxima fase
-            </div>
+              Ir a Ventas
+            </Link>
           </div>
         </section>
       </div>
