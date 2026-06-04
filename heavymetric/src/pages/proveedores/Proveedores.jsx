@@ -98,7 +98,7 @@ function ModalProveedor({ isOpen, onClose, proveedor, onConfirm }) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}
-      title={proveedor ? `Editar — ${proveedor.empresa}` : 'Nuevo Proveedor'}
+      title={proveedor ? `Editar — ${proveedor.empresa}` : 'Nuevo proveedor'}
       maxWidth="max-w-xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-4">
@@ -353,8 +353,8 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[
-          ['Compras totales', compras.length, ''],
-          ['Repuestos vinculados', repuestos.length, ''],
+          ['Compras / OC', compras.length, ''],
+          ['Inventario vinculado', repuestos.length, ''],
           ['Total gastado', formatUSD(totalGastado), totalGastado > 0 ? 'text-hm-accent' : ''],
         ].map(([label, val, cls]) => (
           <div key={label} className="bg-hm-surface2/30 border border-hm-border/50 rounded-lg p-3">
@@ -366,7 +366,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-hm-border mb-4 overflow-x-auto no-scrollbar scroll-smooth">
-        {[['info','INFORMACIÓN'],['compras','COMPRAS'],['pagos','CUENTAS A PAGAR'],['repuestos','REPUESTOS'],['activos','ACTIVOS'],['riesgo','RIESGO & SCORE']].map(([k,l]) => (
+        {[['info','INFORMACIÓN GENERAL'],['compras','COMPRAS Y OC'],['pagos','PAGOS'],['repuestos','INVENTARIO VINCULADO'],['activos','ACTIVOS VINCULADOS'],['riesgo','EVALUACIÓN']].map(([k,l]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`px-3 py-2 text-[10px] sm:text-xs font-mono font-bold border-b-2 transition-all whitespace-nowrap shrink-0 ${tab===k ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-hm-text'}`}>
             {l}
@@ -402,7 +402,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
         <div className="flex flex-col gap-3">
           <button onClick={() => setShowCompra(v => !v)}
             className="text-xs font-mono font-bold border border-hm-accent/40 text-hm-accent rounded-lg px-4 py-2 hover:bg-hm-accent/10 transition-colors self-start">
-            {showCompra ? '✕ Cancelar' : '+ Nueva compra'}
+            {showCompra ? '✕ Cancelar' : '+ Nueva compra / OC'}
           </button>
 
           {showCompra && (
@@ -443,7 +443,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
                   )}
                 </span>
                 <Button variant="primary" onClick={handleCrearCompra} disabled={savingCompra}>
-                  {savingCompra ? 'GUARDANDO...' : 'REGISTRAR COMPRA'}
+                  {savingCompra ? 'GUARDANDO...' : 'REGISTRAR COMPRA / OC'}
                 </Button>
               </div>
             </div>
@@ -484,7 +484,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
         </div>
       )}
 
-      {/* Tab: PAGOS — Proveedor360 */}
+      {/* Tab: PAGOS — Gestión de Proveedores */}
       {tab === 'pagos' && (() => {
         // Mock Data — TODO: conectar con tabla cheques_emitidos, pagos_proveedores
         const totalDeuda = compras.filter(c => c.estado === 'pendiente' || c.estado === 'recibido_parcial').reduce((s, c) => s + Number(c.total_usd || 0), 0)
@@ -510,7 +510,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
             <div className="flex items-center gap-3 flex-wrap">
               <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold ${riskBadge.cls}`}>
                 <span className="w-2 h-2 rounded-full bg-current" />
-                RIESGO PROVEEDOR: {riskBadge.label}
+                EVALUACIÓN DEL PROVEEDOR: {riskBadge.label}
               </span>
               <span className="text-xs font-mono text-hm-muted">Score: {risk}/100</span>
             </div>
@@ -561,9 +561,9 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
               </div>
             </div>
 
-            {/* B) Cheques emitidos */}
+            {/* B) Cheques / E-Cheqs emitidos */}
             <div>
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">B — Cheques / E-Cheqs Emitidos</div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">B — Cheques / E-Cheqs emitidos</div>
               <div className="flex flex-col gap-2">
                 {MOCK_CHEQUES_EMITIDOS.map(c => {
                   const venc = new Date(c.vencimiento + 'T00:00:00')
@@ -589,7 +589,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
 
             {/* C) Pagos pendientes */}
             <div>
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">C — Pagos Pendientes / Vencidos</div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">C — Pagos pendientes / vencidos</div>
               <div className="flex flex-col gap-2">
                 {compras.filter(c => c.estado === 'pendiente' || c.estado === 'recibido_parcial').map(c => (
                   <div key={c.id} className="flex items-center justify-between bg-red-500/5 border border-red-500/20 rounded-lg p-3">
@@ -610,7 +610,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
 
             {/* D) Historial */}
             <div>
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">D — Historial de Pagos</div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">D — Historial de pagos</div>
               <div className="flex flex-col gap-2">
                 {MOCK_HISTORIAL.map(h => (
                   <div key={h.id} className="flex items-center justify-between bg-hm-surface2/20 border border-hm-border/50 rounded-lg px-4 py-3">
@@ -631,7 +631,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
 
             {/* F) Alertas financieras */}
             <div>
-              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">F — Alertas</div>
+              <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-2">F — Alertas y seguimiento</div>
               <div className="flex flex-col gap-2">
                 {totalDeuda > 0 && (
                   <div className="bg-red-500/10 border-l-4 border-red-500 rounded-r-lg p-3">
@@ -666,17 +666,17 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
         )
       })()}
 
-      {/* Tab: REPUESTOS */}
+      {/* Tab: INVENTARIO VINCULADO */}
       {tab === 'repuestos' && (
         <div className="max-h-[300px] overflow-y-auto">
           {loading ? <div className="h-16 bg-hm-surface2 rounded animate-pulse" />
           : repuestos.length === 0 ? (
-            <div className="text-center text-hm-muted font-mono text-sm py-6">Sin repuestos vinculados.</div>
+            <div className="text-center text-hm-muted font-mono text-sm py-6">Sin inventario vinculado.</div>
           ) : (
             <table className="w-full text-left">
               <thead className="border-b border-hm-border">
                 <tr>
-                  {['Repuesto','SKU','Stock actual','Precio USD','Entrega','Principal'].map(h => (
+                  {['Ítem','SKU','Stock actual','Precio USD','Entrega','Principal'].map(h => (
                     <th key={h} className="pb-2 font-mono text-[9px] text-hm-muted uppercase tracking-widest">{h}</th>
                   ))}
                 </tr>
@@ -760,14 +760,14 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
         </div>
       )}
 
-      {/* Tab: RIESGO */}
+      {/* Tab: EVALUACIÓN */}
       {tab === 'riesgo' && (
         <div className="flex flex-col gap-6">
           <div className={`p-6 rounded-xl border ${risk.bg} ${risk.color} border-current flex items-center gap-6`}>
             <div className="text-5xl font-black">{calcRiskScore(proveedor)}</div>
             <div>
-              <div className="text-xl font-bold">Riesgo {risk.label.toUpperCase()}</div>
-              <p className="text-sm opacity-80 mt-1">Este score se calcula en base a las entregas a tiempo, atrasos registrados e incidencias directas reportadas para este proveedor.</p>
+              <div className="text-xl font-bold">Evaluación {risk.label.toUpperCase()}</div>
+              <p className="text-sm opacity-80 mt-1">Esta evaluación se calcula en base a entregas a tiempo, atrasos registrados e incidencias directas reportadas para este proveedor.</p>
             </div>
           </div>
           
@@ -845,8 +845,8 @@ export default function Proveedores() {
       {/* Header */}
       <div className="flex items-center justify-between border-b border-hm-border pb-4">
         <div>
-          <h1 className="text-2xl font-bold">Proveedores</h1>
-          <p className="text-sm text-hm-muted mt-1">{proveedores.length} proveedores activos</p>
+          <h1 className="text-2xl font-bold">Gestión de Proveedores</h1>
+          <p className="text-sm text-hm-muted mt-1">Control de proveedores, compras, pagos, desempeño, documentación y trazabilidad operativa.</p>
         </div>
         <Button variant="primary" onClick={() => { setEditing(null); setModalOpen(true) }}>
           + NUEVO PROVEEDOR
@@ -857,7 +857,7 @@ export default function Proveedores() {
       <div className="grid grid-cols-3 gap-4">
         <Card className="p-4">
           <div className="text-2xl font-bold">{kpis.total}</div>
-          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mt-0.5">Activos</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mt-0.5">Registrados</div>
         </Card>
         <Card className="p-4 border-l-4 border-l-hm-accent">
           <div className="text-2xl font-bold text-hm-accent">{kpis.preferidos}</div>
@@ -891,7 +891,7 @@ export default function Proveedores() {
         <table className="w-full text-left">
           <thead className="bg-hm-surface2/50 border-b border-hm-border">
             <tr>
-              {['EMPRESA','RUBRO','CONTACTO','ESTADO','RATING','RIESGO','ENTREGA','PAGO',''].map(h => (
+              {['EMPRESA','RUBRO','CONTACTO','ESTADO','RATING','EVALUACIÓN','ENTREGA','PAGO',''].map(h => (
                 <th key={h} className="p-4 font-mono text-xs text-hm-muted">{h}</th>
               ))}
             </tr>
