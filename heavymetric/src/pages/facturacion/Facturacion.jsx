@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
+import { useClientes } from '../../hooks/useClientes'
 import { supabase } from '../../lib/supabase'
 import { sendWhatsAppMessage } from '../../lib/integrations/whatsapp'
 import { sendEmail } from '../../lib/integrations/email'
@@ -12,6 +13,7 @@ import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Input from '../../components/ui/Input'
+import ClienteAutocomplete from '../../components/common/ClienteAutocomplete'
 
 const PER_PAGE = 10
 
@@ -22,21 +24,23 @@ export default function Facturacion() {
   const [anulando, setAnulando] = useState(false)
   const [periodo, setPeriodo] = useState('este_mes')
   const [searchQuery, setSearchQuery] = useState('')
+  const [clienteFiltro, setClienteFiltro] = useState('')
   const [filterStatus, setFilterStatus] = useState('todos')
   const [page, setPage] = useState(1)
   const [generandoPdf, setGenerandoPdf] = useState(null)
   const [exportandoExcel, setExportandoExcel] = useState(false)
 
-  useEffect(() => {
-    setPage(1)
-  }, [searchQuery, filterStatus, periodo])
-
   const { formatUSD, formatARS } = useDolar()
+  const { clientes } = useClientes()
   const { transacciones, tipoCambio, loading, error, registrarCobro, anularTransaccion } = useFinanzas()
 
   const [showTC, setShowTC] = useState(false)
   const [tcForm, setTcForm] = useState({ compra: '', venta: '' })
   const [savingTC, setSavingTC] = useState(false)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, clienteFiltro, filterStatus, periodo])
 
   const handleGuardarTC = async () => {
     if (!tcForm.venta) {
@@ -93,17 +97,24 @@ export default function Facturacion() {
 
       if (!matchPeriodo) return false
 
-      const q = searchQuery.toLowerCase()
+      const matchCliente = !clienteFiltro || tx.cliente_id === clienteFiltro || tx.cliente?.id === clienteFiltro
+      if (!matchCliente) return false
+
+      const q = searchQuery.trim().toLowerCase()
 
       const matchSearch =
+        !q ||
         tx.cliente?.razon_social?.toLowerCase().includes(q) ||
-        (tx.numero_comprobante || '').toLowerCase().includes(q)
+        tx.cliente?.nombre_comercial?.toLowerCase().includes(q) ||
+        tx.cliente?.cuit?.toLowerCase().includes(q) ||
+        (tx.numero_comprobante || '').toLowerCase().includes(q) ||
+        (tx.tipo_documento || '').toLowerCase().includes(q)
 
       const matchStatus = filterStatus === 'todos' || tx.estado_pago === filterStatus
 
       return matchSearch && matchStatus
     })
-  }, [transacciones, periodo, searchQuery, filterStatus])
+  }, [transacciones, periodo, searchQuery, clienteFiltro, filterStatus])
 
   const txPaginadas = useMemo(
     () => transaccionesFiltradas.slice((page - 1) * PER_PAGE, page * PER_PAGE),
@@ -187,7 +198,9 @@ export default function Facturacion() {
         'TIPO DOC': tx.tipo_documento,
         'NRO COMPROBANTE': tx.numero_comprobante || tx.id.split('-')[0],
         'MONTO USD': Number(tx.monto_total_usd),
-        'TC BNA': (Number(tx.monto_total_ars) / Number(tx.monto_total_usd)).toFixed(2),
+        'TC BNA': Number(tx.monto_total_usd)
+          ? (Number(tx.monto_total_ars) / Number(tx.monto_total_usd)).toFixed(2)
+          : 0,
         'MONTO FINAL ARS': Number(tx.monto_total_ars),
         ESTADO: tx.estado_pago.toUpperCase(),
       }))
@@ -261,15 +274,15 @@ export default function Facturacion() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex items-center justify-between border-b border-hm-border pb-4">
+      <div className="flex flex-col gap-4 border-b border-hm-border pb-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Documentos y Cobranzas</h1>
-          <p className="text-sm text-hm-muted mt-1">
+          <p className="mt-1 text-sm text-hm-muted">
             Facturas, recibos, remitos, cobros registrados y documentos pendientes de seguimiento.
           </p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
           <div className="flex items-center gap-2">
             <div className="text-right">
               <div className="text-[10px] font-mono text-hm-muted">TC BNA HOY</div>
@@ -297,10 +310,10 @@ export default function Facturacion() {
             onChange={(e) => setPeriodo(e.target.value)}
             className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30 transition-colors"
           >
-            <option value="este_mes">Este Mes</option>
-            <option value="mes_pasado">Mes Pasado</option>
-            <option value="ano_actual">Año Actual</option>
-            <option value="todos">Histórico Total</option>
+            <option value="este_mes">Este mes</option>
+            <option value="mes_pasado">Mes pasado</option>
+            <option value="ano_actual">Año actual</option>
+            <option value="todos">Histórico total</option>
           </select>
 
           <Button
@@ -314,7 +327,7 @@ export default function Facturacion() {
       </div>
 
       {showTC && (
-        <div className="flex items-center gap-4 bg-hm-accent/5 border border-hm-accent/30 rounded-lg p-4">
+        <div className="flex flex-col gap-4 bg-hm-accent/5 border border-hm-accent/30 rounded-lg p-4 md:flex-row md:items-center">
           <span className="text-xs font-mono text-hm-muted uppercase tracking-widest">TC BNA —</span>
 
           <div className="flex items-center gap-2">
@@ -349,39 +362,87 @@ export default function Facturacion() {
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row gap-4 items-end bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50">
-        <div className="flex-1 w-full">
-          <label className="text-[10px] font-mono text-hm-muted mb-1 block uppercase tracking-widest">
-            Buscar por cliente o comprobante
-          </label>
-
-          <Input
-            type="text"
-            placeholder="Cliente, razón social o número de comprobante..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+      <div className="bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr_auto] xl:items-end">
+          <ClienteAutocomplete
+            label="Filtrar por cliente"
+            clientes={clientes || []}
+            value={clienteFiltro}
+            onChange={(clienteId) => setClienteFiltro(clienteId)}
+            placeholder="Escribí razón social, nombre comercial o CUIT..."
           />
+
+          <div className="w-full">
+            <label className="text-[10px] font-mono text-hm-muted mb-1 block uppercase tracking-widest">
+              Buscar por comprobante, tipo o cliente
+            </label>
+
+            <Input
+              type="text"
+              placeholder="Número de comprobante, factura, recibo..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-2">
+            {[
+              { id: 'todos', label: 'TODOS' },
+              { id: 'pendiente', label: 'PENDIENTES' },
+              { id: 'cobrado', label: 'COBRADOS' },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFilterStatus(f.id)}
+                className={`px-4 py-2 rounded text-[10px] font-bold tracking-widest transition-all border ${
+                  filterStatus === f.id
+                    ? 'bg-hm-accent border-hm-accent text-white shadow-lg shadow-hm-accent/20'
+                    : 'bg-hm-surface border-hm-border text-hm-muted hover:border-hm-accent/50'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex gap-2">
-          {[
-            { id: 'todos', label: 'TODOS' },
-            { id: 'pendiente', label: 'PENDIENTES' },
-            { id: 'cobrado', label: 'COBRADOS' },
-          ].map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilterStatus(f.id)}
-              className={`px-4 py-2 rounded text-[10px] font-bold tracking-widest transition-all border ${
-                filterStatus === f.id
-                  ? 'bg-hm-accent border-hm-accent text-white shadow-lg shadow-hm-accent/20'
-                  : 'bg-hm-surface border-hm-border text-hm-muted hover:border-hm-accent/50'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        {(clienteFiltro || searchQuery || filterStatus !== 'todos') && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-hm-muted">
+              Filtros activos
+            </span>
+
+            {clienteFiltro && (
+              <button
+                type="button"
+                onClick={() => setClienteFiltro('')}
+                className="rounded border border-hm-border px-2 py-1 text-[10px] font-mono text-hm-muted hover:border-red-500 hover:text-red-400"
+              >
+                Limpiar cliente
+              </button>
+            )}
+
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="rounded border border-hm-border px-2 py-1 text-[10px] font-mono text-hm-muted hover:border-red-500 hover:text-red-400"
+              >
+                Limpiar búsqueda
+              </button>
+            )}
+
+            {filterStatus !== 'todos' && (
+              <button
+                type="button"
+                onClick={() => setFilterStatus('todos')}
+                className="rounded border border-hm-border px-2 py-1 text-[10px] font-mono text-hm-muted hover:border-red-500 hover:text-red-400"
+              >
+                Limpiar estado
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -462,7 +523,7 @@ export default function Facturacion() {
                       </div>
                     </td>
 
-                    <td className="p-4 text-sm">{tx.cliente?.razon_social}</td>
+                    <td className="p-4 text-sm">{tx.cliente?.razon_social || tx.cliente?.nombre_comercial || '—'}</td>
 
                     <td className="p-4">
                       <Badge variant="default" className="text-[10px]">
