@@ -3,14 +3,11 @@ import { Link } from 'react-router-dom'
 import {
   CheckCircle2,
   ChevronRight,
-  ClipboardList,
   Clock,
   FileSignature,
   FileText,
-  PackageCheck,
   Plus,
   ShoppingCart,
-  Truck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '../../lib/supabase'
@@ -23,6 +20,7 @@ import Badge from '../../components/ui/Badge'
 import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
 import ModalConfirm from '../../components/ui/ModalConfirm'
+import ClienteAutocomplete from '../../components/common/ClienteAutocomplete'
 
 const EMPTY_ITEM = {
   tipo_item: 'servicio',
@@ -230,22 +228,13 @@ function ModalOrdenVenta({ isOpen, onClose, onConfirm, clientes, orden }) {
             required
           />
 
-          <div className="flex flex-col gap-1">
-            <label className="label-mono">Cliente *</label>
-            <select
-              value={form.cliente_id}
-              onChange={(event) => setF('cliente_id', event.target.value)}
-              className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors"
-              required
-            >
-              <option value="">— Seleccionar cliente —</option>
-              {clientes.map((cliente) => (
-                <option key={cliente.id} value={cliente.id}>
-                  {cliente.razon_social}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ClienteAutocomplete
+            label="Cliente"
+            clientes={clientes}
+            value={form.cliente_id}
+            onChange={(clienteId) => setF('cliente_id', clienteId)}
+            required
+          />
 
           <div className="flex flex-col gap-1">
             <label className="label-mono">Tipo de venta</label>
@@ -459,7 +448,7 @@ export default function Ventas() {
           ? supabase.from('sales_order_items').select('*').in('sales_order_id', orderIds)
           : Promise.resolve({ data: [] }),
         clienteIds.length
-          ? supabase.from('clientes').select('id, razon_social, cuit').in('id', clienteIds)
+          ? supabase.from('clientes').select('id, razon_social, nombre_comercial, cuit').in('id', clienteIds)
           : Promise.resolve({ data: [] }),
       ])
 
@@ -496,7 +485,7 @@ export default function Ventas() {
     const q = search.toLowerCase()
 
     return orders.filter((order) => {
-      const cliente = order.cliente?.razon_social || ''
+      const cliente = order.cliente?.razon_social || order.cliente?.nombre_comercial || ''
       const matchQ =
         !q ||
         order.numero_ov?.toLowerCase().includes(q) ||
@@ -513,20 +502,23 @@ export default function Ventas() {
     const total = orders.reduce((sum, order) => sum + Number(order.total_usd || 0), 0)
     const pendientesFirma = orders.filter((order) => order.estado === 'pendiente_firma').length
     const firmadas = orders.filter((order) => order.estado === 'firmada').length
-    const listasFacturar = orders.filter((order) => order.estado === 'firmada').length
 
     return {
       total,
       count: orders.length,
       pendientesFirma,
       firmadas,
-      listasFacturar,
     }
   }, [orders])
 
   const handleSaveOrder = async (form, items, totales) => {
+    if (!perfil?.organization_id) {
+      toast.error('No se encontró organization_id del usuario')
+      return
+    }
+
     const payload = {
-      organization_id: perfil?.organization_id,
+      organization_id: perfil.organization_id,
       cliente_id: form.cliente_id || null,
       numero_ov: form.numero_ov.trim(),
       estado: form.estado,
@@ -543,11 +535,6 @@ export default function Ventas() {
       created_by: perfil?.id || null,
     }
 
-    if (!perfil?.organization_id) {
-      toast.error('No se encontró organization_id del usuario')
-      return
-    }
-
     if (editing) {
       const { error } = await supabase
         .from('sales_orders')
@@ -556,7 +543,12 @@ export default function Ventas() {
 
       if (error) throw error
 
-      await supabase.from('sales_order_items').delete().eq('sales_order_id', editing.id)
+      const { error: deleteError } = await supabase
+        .from('sales_order_items')
+        .delete()
+        .eq('sales_order_id', editing.id)
+
+      if (deleteError) throw deleteError
 
       const itemPayload = items.map((item) => ({
         sales_order_id: editing.id,
@@ -810,7 +802,7 @@ export default function Ventas() {
                   className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors group"
                 >
                   <td className="p-4 font-mono text-sm text-hm-accent">{order.numero_ov}</td>
-                  <td className="p-4 text-sm font-medium">{order.cliente?.razon_social || '—'}</td>
+                  <td className="p-4 text-sm font-medium">{order.cliente?.razon_social || order.cliente?.nombre_comercial || '—'}</td>
                   <td className="p-4 text-sm text-hm-muted uppercase">{order.tipo_venta}</td>
                   <td className="p-4 text-xs font-mono text-hm-muted">{safeDate(order.fecha)}</td>
                   <td className="p-4 text-center font-mono text-sm">{order.items?.length || 0}</td>
