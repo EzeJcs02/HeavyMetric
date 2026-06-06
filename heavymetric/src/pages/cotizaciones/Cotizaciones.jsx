@@ -14,6 +14,7 @@ import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import Pagination from '../../components/ui/Pagination'
+import ClienteAutocomplete from '../../components/common/ClienteAutocomplete'
 
 const PER_PAGE = 10
 
@@ -38,8 +39,11 @@ const EMPTY_ITEM = {
 }
 
 function calcTotales(items) {
-  const subtotal = items.reduce((s, i) => s + Number(i.cantidad) * Number(i.precio_usd), 0)
-  const iva = items.reduce((s, i) => s + Number(i.cantidad) * Number(i.precio_usd) * Number(i.tasa_iva), 0)
+  const subtotal = items.reduce((s, i) => s + Number(i.cantidad || 0) * Number(i.precio_usd || 0), 0)
+  const iva = items.reduce(
+    (s, i) => s + Number(i.cantidad || 0) * Number(i.precio_usd || 0) * Number(i.tasa_iva || 0),
+    0
+  )
 
   return { subtotal, iva, total: subtotal + iva }
 }
@@ -120,7 +124,7 @@ function ModalCotizacion({ isOpen, onClose, cotizacion, clientes, leads, onConfi
       return
     }
 
-    const hasEmptyDesc = items.some((i) => !i.descripcion.trim())
+    const hasEmptyDesc = items.some((i) => !String(i.descripcion || '').trim())
 
     if (hasEmptyDesc) {
       toast.error('Completá la descripción de todos los ítems')
@@ -151,28 +155,25 @@ function ModalCotizacion({ isOpen, onClose, cotizacion, clientes, leads, onConfi
       maxWidth="max-w-3xl"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1">
-            <label className="label-mono">Cliente</label>
-            <select
-              value={form.cliente_id}
-              onChange={(e) => setF('cliente_id', e.target.value)}
-              className="select-hm"
-            >
-              <option value="">— Seleccionar —</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.razon_social}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ClienteAutocomplete
+            label="Cliente"
+            clientes={clientes}
+            value={form.cliente_id}
+            onChange={(clienteId) => {
+              setF('cliente_id', clienteId)
+              if (clienteId) setF('lead_id', '')
+            }}
+          />
 
           <div className="flex flex-col gap-1">
             <label className="label-mono">Lead / oportunidad</label>
             <select
               value={form.lead_id}
-              onChange={(e) => setF('lead_id', e.target.value)}
+              onChange={(e) => {
+                setF('lead_id', e.target.value)
+                if (e.target.value) setF('cliente_id', '')
+              }}
               className="select-hm"
             >
               <option value="">— Ninguno —</option>
@@ -218,8 +219,8 @@ function ModalCotizacion({ isOpen, onClose, cotizacion, clientes, leads, onConfi
 
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-[120px_1fr_70px_90px_80px_28px] gap-2 px-2">
-              {['TIPO', 'DESCRIPCIÓN', 'CANT.', 'PRECIO USD', 'IVA', ''].map((h, i) => (
-                <span key={i} className="text-[9px] font-mono text-hm-muted uppercase tracking-widest">
+              {['TIPO', 'DESCRIPCIÓN', 'CANT.', 'PRECIO USD', 'IVA', ''].map((h) => (
+                <span key={h} className="text-[9px] font-mono text-hm-muted uppercase tracking-widest">
                   {h}
                 </span>
               ))}
@@ -426,13 +427,13 @@ export default function Cotizaciones() {
     return filtradas.slice((page - 1) * PER_PAGE, page * PER_PAGE)
   }, [filtradas, page])
 
-  const totalMonto = cotizaciones.reduce((s, c) => s + Number(c.total_usd), 0)
+  const totalMonto = cotizaciones.reduce((s, c) => s + Number(c.total_usd || 0), 0)
   const aceptadas = cotizaciones.filter((c) => c.estado === 'Aprobada' || c.estado === 'Convertida').length
   const pendientes = cotizaciones.filter((c) => ['Borrador', 'Enviada'].includes(c.estado)).length
 
   const montoAceptado = cotizaciones
     .filter((c) => c.estado === 'Aprobada' || c.estado === 'Convertida')
-    .reduce((s, c) => s + Number(c.total_usd), 0)
+    .reduce((s, c) => s + Number(c.total_usd || 0), 0)
 
   const handleConfirm = async (payload, items) => {
     try {
