@@ -10,6 +10,7 @@ import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import Pagination from '../../components/ui/Pagination'
+import ClienteAutocomplete from '../../components/common/ClienteAutocomplete'
 
 const PER_PAGE = 12
 
@@ -112,18 +113,14 @@ function ModalRemito({ isOpen, onClose, clientes, onConfirm }) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1">
-            <label className="label-mono">Cliente (opcional)</label>
-            <select value={form.cliente_id} onChange={(e) => setF('cliente_id', e.target.value)} className="select-hm">
-              <option value="">— Sin asignar —</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.razon_social}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ClienteAutocomplete
+            label="Cliente (opcional)"
+            clientes={clientes || []}
+            value={form.cliente_id}
+            onChange={(clienteId) => setF('cliente_id', clienteId)}
+            placeholder="Escribí razón social, nombre comercial o CUIT..."
+          />
 
           <Input
             label="Destino / Referencia"
