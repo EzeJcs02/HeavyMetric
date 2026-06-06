@@ -18,7 +18,7 @@ import ClienteDetalle from '../../components/modulos/clientes/ClienteDetalle'
 
 const PER_PAGE = 10
 
-const RUBROS = ['Mineria', 'Agro', 'Vial', 'Construccion', 'Industrial', 'Municipio']
+const RUBROS = ['Minería', 'Agro', 'Vial', 'Construcción', 'Industrial', 'Municipio', 'Servicios', 'Logística', 'Rental', 'Otro']
 
 const EMPTY = {
   razon_social: '',
@@ -65,6 +65,11 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+
+    if (!form.razon_social.trim()) {
+      toast.error('La razón social es obligatoria')
+      return
+    }
 
     if (form.cuit && !isValidCuit(form.cuit)) {
       toast.error('El CUIT ingresado no es válido')
@@ -123,7 +128,7 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={cliente ? `Editar — ${cliente.razon_social || 'Cliente'}` : 'Nuevo Cliente'}
+      title={cliente ? `Editar cliente — ${cliente.razon_social || 'Sin razón social'}` : 'Nuevo cliente'}
       maxWidth="max-w-xl"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -200,7 +205,7 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
         />
 
         <Input
-          label="Nombre de Contacto"
+          label="Contacto principal"
           value={form.contacto_nombre}
           onChange={(event) => set('contacto_nombre', event.target.value)}
         />
@@ -221,7 +226,7 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="label-mono">Propensión de compra</label>
+            <label className="label-mono">Prioridad comercial</label>
             <select
               value={form.propension_compra}
               onChange={(event) => set('propension_compra', event.target.value)}
@@ -276,10 +281,14 @@ export default function Clientes() {
       const razonSocial = cliente.razon_social || ''
       const nombreComercial = cliente.nombre_comercial || ''
       const cuit = cliente.cuit || ''
+      const email = cliente.email || ''
+      const contacto = cliente.contacto_nombre || ''
 
       return (
         razonSocial.toLowerCase().includes(query) ||
         nombreComercial.toLowerCase().includes(query) ||
+        email.toLowerCase().includes(query) ||
+        contacto.toLowerCase().includes(query) ||
         cuit.includes(query)
       )
     })
@@ -289,6 +298,15 @@ export default function Clientes() {
     () => clientesFiltrados.slice((page - 1) * PER_PAGE, page * PER_PAGE),
     [clientesFiltrados, page]
   )
+
+  const kpis = useMemo(() => {
+    return {
+      total: clientesBase.length,
+      alta: clientesBase.filter((cliente) => cliente.propension_compra === 'A').length,
+      conCuit: clientesBase.filter((cliente) => Boolean(cliente.cuit)).length,
+      conContacto: clientesBase.filter((cliente) => Boolean(cliente.email || cliente.telefono || cliente.contacto_nombre)).length,
+    }
+  }, [clientesBase])
 
   const handleArchive = async () => {
     if (!clienteAArchivar?.id) return
@@ -336,7 +354,7 @@ export default function Clientes() {
       CUIT: safeText(cliente.cuit),
       'CONDICIÓN IVA': safeText(cliente.condicion_iva),
       RUBRO: safeText(cliente.rubro),
-      PROPENSIÓN: safeText(cliente.propension_compra),
+      PRIORIDAD: safeText(cliente.propension_compra),
       EMAIL: safeText(cliente.email),
       TELÉFONO: safeText(cliente.telefono),
       CONTACTO: safeText(cliente.contacto_nombre),
@@ -366,8 +384,10 @@ export default function Clientes() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 border-b border-hm-border pb-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Clientes</h1>
-          <p className="text-sm text-hm-muted mt-1">{clientesBase.length} clientes activos registrados</p>
+          <h1 className="text-2xl font-bold">Gestión de Clientes</h1>
+          <p className="text-sm text-hm-muted mt-1">
+            Registro comercial, fiscal y operativo de clientes activos.
+          </p>
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -387,14 +407,44 @@ export default function Clientes() {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="p-4 border-l-4 border-l-hm-accent">
+          <div className="text-2xl font-bold">{kpis.total}</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mt-0.5">
+            Clientes activos
+          </div>
+        </Card>
+
+        <Card className="p-4 border-l-4 border-l-red-500">
+          <div className="text-2xl font-bold text-red-400">{kpis.alta}</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mt-0.5">
+            Alta prioridad
+          </div>
+        </Card>
+
+        <Card className="p-4 border-l-4 border-l-blue-500">
+          <div className="text-2xl font-bold text-blue-400">{kpis.conCuit}</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mt-0.5">
+            Con CUIT
+          </div>
+        </Card>
+
+        <Card className="p-4 border-l-4 border-l-green-500">
+          <div className="text-2xl font-bold text-green-400">{kpis.conContacto}</div>
+          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mt-0.5">
+            Con contacto
+          </div>
+        </Card>
+      </div>
+
       <div className="bg-hm-surface2/20 p-4 rounded-lg border border-hm-border/50">
         <label className="text-[10px] font-mono text-hm-muted mb-1 block uppercase tracking-widest">
-          Buscar por razón social, nombre o CUIT
+          Buscar por razón social, nombre comercial, contacto, email o CUIT
         </label>
 
         <Input
           type="text"
-          placeholder="Escriba para filtrar..."
+          placeholder="Escribí para filtrar clientes..."
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
         />
@@ -405,10 +455,10 @@ export default function Clientes() {
           <table className="w-full min-w-[980px] text-left">
             <thead className="bg-hm-surface2/50 border-b border-hm-border">
               <tr>
-                <th className="p-4 font-mono text-xs text-hm-muted">RAZÓN SOCIAL</th>
+                <th className="p-4 font-mono text-xs text-hm-muted">CLIENTE</th>
                 <th className="p-4 font-mono text-xs text-hm-muted">CUIT</th>
                 <th className="p-4 font-mono text-xs text-hm-muted">RUBRO</th>
-                <th className="p-4 font-mono text-xs text-hm-muted text-center">PROP.</th>
+                <th className="p-4 font-mono text-xs text-hm-muted text-center">PRIORIDAD</th>
                 <th className="p-4 font-mono text-xs text-hm-muted">EMAIL</th>
                 <th className="p-4 font-mono text-xs text-hm-muted">TELÉFONO</th>
                 <th className="p-4 font-mono text-xs text-hm-muted">CONTACTO</th>
