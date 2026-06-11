@@ -52,6 +52,31 @@ const EMPTY = {
   destino_operativo: 'uso_interno',
 }
 
+function DataBadge({ type = 'real' }) {
+  const styles = {
+    real: 'border-green-500/30 bg-green-500/10 text-green-300',
+    prep: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300',
+    empty: 'border-hm-border bg-hm-surface2/40 text-hm-muted',
+  }
+
+  const labels = {
+    real: 'REAL',
+    prep: 'BASE PREPARADA',
+    empty: 'SIN DATOS',
+  }
+
+  return (
+    <span className={`inline-flex items-center rounded border px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest ${styles[type]}`}>
+      {labels[type]}
+    </span>
+  )
+}
+
+const toNumber = (value, fallback = 0) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
 export default function ModalMaquina({
   isOpen,
   onClose,
@@ -64,8 +89,8 @@ export default function ModalMaquina({
 
   const { taxonomia, hasCapability } = useRubro()
 
-  const activoSingular = 'Activo'
-  const activoPlural = 'Activos'
+  const activoSingular = taxonomia?.activoSingular || 'Activo'
+  const activoPlural = taxonomia?.activoPlural || 'Activos'
   const medidor = taxonomia?.medidor || 'Horómetro'
   const medidorUnidad = taxonomia?.medidorUnidad || 'hrs'
   const permiteAlquileres = hasCapability?.('alquileres') === true
@@ -84,10 +109,10 @@ export default function ModalMaquina({
         patente: maquina.patente || '',
         anio: maquina.anio || '',
         numero_serie: maquina.numero_serie || '',
-        horometro_actual: maquina.horometro_actual || 0,
-        ultimo_service_horas: maquina.ultimo_service_horas || 0,
-        frecuencia_service: maquina.frecuencia_service || 250,
-        tarifa_diaria_usd: maquina.tarifa_diaria_usd || 0,
+        horometro_actual: maquina.horometro_actual ?? 0,
+        ultimo_service_horas: maquina.ultimo_service_horas ?? 0,
+        frecuencia_service: maquina.frecuencia_service ?? 250,
+        tarifa_diaria_usd: maquina.tarifa_diaria_usd ?? 0,
         cliente_id: maquina.cliente_id || '',
         ubicacion: maquina.ubicacion || '',
         notas: maquina.notas || '',
@@ -100,7 +125,7 @@ export default function ModalMaquina({
               : 'uso_interno'
         ),
       })
-    } else {
+    } else if (isOpen) {
       setForm(EMPTY)
     }
   }, [maquina, isOpen])
@@ -123,20 +148,32 @@ export default function ModalMaquina({
     form.destino_operativo === 'rental'
 
   const titulo = maquina
-    ? `Editar — ${maquina.nombre_unidad}`
+    ? `Editar — ${maquina.nombre_unidad || activoSingular}`
     : `Nuevo ${activoSingular}`
 
   const ayudaTitularidad = useMemo(() => {
     if (form.propiedad_activo === 'propio') {
-      return 'Activo propio de la empresa. Puede usarse internamente o, si el rubro lo permite, destinarse a rental.'
+      return `Activo propio de la empresa. Puede usarse internamente o, si el rubro lo permite, destinarse a rental.`
     }
 
     if (form.propiedad_activo === 'cliente') {
-      return 'Activo perteneciente a un cliente o empresa externa. Se vincula a Cliente360 y se gestiona principalmente desde OT360.'
+      return `Activo perteneciente a un cliente o empresa externa. Se vincula a Cliente360 y se gestiona principalmente desde OT.`
     }
 
     return 'Definí la titularidad operativa antes de cargar datos comerciales o técnicos.'
   }, [form.propiedad_activo])
+
+  const ayudaDestino = useMemo(() => {
+    if (form.destino_operativo === 'rental') {
+      return `La tarifa de alquiler solo aplica para ${activoPlural.toLowerCase()} propios destinados a rental.`
+    }
+
+    if (form.destino_operativo === 'servicio_tecnico') {
+      return `Uso recomendado para ${activoPlural.toLowerCase()} de clientes que ingresan a servicio técnico, taller u operación de campo.`
+    }
+
+    return `Uso interno de la empresa: operación propia, logística, producción, obra o administración.`
+  }, [form.destino_operativo, activoPlural])
 
   const set = (key, value) => {
     setForm((prev) => {
@@ -154,8 +191,20 @@ export default function ModalMaquina({
         }
       }
 
-      if (key === 'destino_operativo' && value !== 'rental') {
-        next.tarifa_diaria_usd = 0
+      if (key === 'destino_operativo') {
+        if (value === 'rental' && !permiteAlquileres) {
+          next.destino_operativo = 'uso_interno'
+          next.tarifa_diaria_usd = 0
+        }
+
+        if (value !== 'rental') {
+          next.tarifa_diaria_usd = 0
+        }
+
+        if (value === 'rental') {
+          next.cliente_id = ''
+          next.propiedad_activo = 'propio'
+        }
       }
 
       return next
@@ -164,31 +213,37 @@ export default function ModalMaquina({
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+
+    if (!form.nombre_unidad.trim()) return
+    if (mostrarClientePropietario && !form.cliente_id) return
+
     setLoading(true)
 
     try {
       const esRental = mostrarRental
 
-      await onConfirm({
-        nombre_unidad: form.nombre_unidad,
-        tipo: form.tipo,
-        estado_operativo: form.estado_operativo,
-        marca: form.marca,
-        modelo: form.modelo,
-        patente: form.patente || null,
-        anio: form.anio ? Number(form.anio) : null,
-        numero_serie: form.numero_serie || null,
-        horometro_actual: Number(form.horometro_actual || 0),
-        ultimo_service_horas: Number(form.ultimo_service_horas || 0),
-        frecuencia_service: Number(form.frecuencia_service || 0),
-        tarifa_diaria_usd: esRental ? Number(form.tarifa_diaria_usd || 0) : 0,
+      const payload = {
+        nombre_unidad: form.nombre_unidad.trim(),
+        tipo: form.tipo || 'activo operativo',
+        estado_operativo: form.estado_operativo || 'Operativo',
+        marca: form.marca?.trim() || null,
+        modelo: form.modelo?.trim() || null,
+        patente: form.patente?.trim() || null,
+        anio: form.anio ? toNumber(form.anio, null) : null,
+        numero_serie: form.numero_serie?.trim() || null,
+        horometro_actual: toNumber(form.horometro_actual, 0),
+        ultimo_service_horas: toNumber(form.ultimo_service_horas, 0),
+        frecuencia_service: toNumber(form.frecuencia_service, 0),
+        tarifa_diaria_usd: esRental ? toNumber(form.tarifa_diaria_usd, 0) : 0,
         cliente_id: mostrarClientePropietario ? form.cliente_id || null : null,
-        ubicacion: form.ubicacion || null,
-        notas: form.notas || null,
+        ubicacion: form.ubicacion?.trim() || null,
+        notas: form.notas?.trim() || null,
         propiedad_activo: form.propiedad_activo,
-        destino_operativo: form.destino_operativo,
+        destino_operativo: esRental ? 'rental' : form.destino_operativo,
         en_alquiler: esRental,
-      })
+      }
+
+      await onConfirm(payload)
     } finally {
       setLoading(false)
     }
@@ -197,12 +252,15 @@ export default function ModalMaquina({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={titulo} maxWidth="max-w-3xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <div className="bg-hm-surface2/20 border border-hm-border rounded-xl p-4">
-          <p className="font-mono text-hm-accent text-xs tracking-widest mb-3">
-            TITULARIDAD Y DESTINO OPERATIVO
-          </p>
+        <div className="rounded-xl border border-hm-border bg-hm-surface2/20 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="font-mono text-xs tracking-widest text-hm-accent">
+              TITULARIDAD Y DESTINO OPERATIVO
+            </p>
+            <DataBadge type="real" />
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-mono text-hm-muted tracking-wider uppercase">
                 ¿A quién pertenece este {activoSingular.toLowerCase()}?
@@ -233,7 +291,7 @@ export default function ModalMaquina({
                 className="bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text focus:outline-none focus:border-hm-accent transition-colors"
               >
                 <option value="uso_interno">Uso interno / operación propia</option>
-                <option value="servicio_tecnico">Servicio técnico / OT360</option>
+                <option value="servicio_tecnico">Servicio técnico / OT</option>
 
                 {permiteAlquileres && form.propiedad_activo === 'propio' && (
                   <option value="rental">Rental / disponible para alquiler</option>
@@ -241,7 +299,7 @@ export default function ModalMaquina({
               </select>
 
               <span className="text-[10px] text-hm-muted leading-relaxed">
-                La tarifa de alquiler solo aparece si el {activoSingular.toLowerCase()} es propio y está destinado a rental.
+                {ayudaDestino}
               </span>
             </div>
           </div>
@@ -249,7 +307,7 @@ export default function ModalMaquina({
           {mostrarClientePropietario && (
             <div className="mt-4 flex flex-col gap-1">
               <label className="text-xs font-mono text-hm-muted tracking-wider uppercase">
-                Cliente propietario
+                Cliente propietario *
               </label>
 
               <select
@@ -262,15 +320,21 @@ export default function ModalMaquina({
 
                 {clientes.map((cliente) => (
                   <option key={cliente.id} value={cliente.id}>
-                    {cliente.razon_social}
+                    {cliente.razon_social || cliente.nombre_comercial || cliente.nombre || 'Cliente sin nombre'}
                   </option>
                 ))}
               </select>
+
+              {clientes.length === 0 && (
+                <span className="text-[10px] text-yellow-400">
+                  No hay clientes cargados para vincular este {activoSingular.toLowerCase()}.
+                </span>
+              )}
             </div>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Input
             label={`Nombre / código del ${activoSingular.toLowerCase()} *`}
             value={form.nombre_unidad}
@@ -286,7 +350,7 @@ export default function ModalMaquina({
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-mono text-hm-muted tracking-wider uppercase">
               Tipo de {activoSingular.toLowerCase()}
@@ -324,7 +388,7 @@ export default function ModalMaquina({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Input
             label="Marca"
             value={form.marca}
@@ -353,14 +417,17 @@ export default function ModalMaquina({
         />
 
         <div
-          className={`grid gap-4 bg-hm-surface2/20 p-4 border border-hm-border rounded-xl ${
+          className={`grid gap-4 rounded-xl border border-hm-border bg-hm-surface2/20 p-4 ${
             mostrarRental ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'
           }`}
         >
           <div>
-            <p className="font-mono text-hm-accent text-xs tracking-widest mb-3">
-              {medidor.toUpperCase()} Y SERVICE
-            </p>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="font-mono text-xs tracking-widest text-hm-accent">
+                {medidor.toUpperCase()} Y SERVICE
+              </p>
+              <DataBadge type="real" />
+            </div>
 
             <div className="flex flex-col gap-3">
               <Input
@@ -388,9 +455,12 @@ export default function ModalMaquina({
 
           {mostrarRental && (
             <div>
-              <p className="font-mono text-hm-accent text-xs tracking-widest mb-3">
-                TARIFA DE ALQUILER
-              </p>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="font-mono text-xs tracking-widest text-hm-accent">
+                  TARIFA DE ALQUILER
+                </p>
+                <DataBadge type="prep" />
+              </div>
 
               <Input
                 label="Tarifa diaria (USD)"
@@ -442,7 +512,7 @@ export default function ModalMaquina({
           <Button
             type="submit"
             variant="primary"
-            disabled={loading || !form.nombre_unidad}
+            disabled={loading || !form.nombre_unidad || (mostrarClientePropietario && !form.cliente_id)}
           >
             {loading
               ? 'GUARDANDO...'
