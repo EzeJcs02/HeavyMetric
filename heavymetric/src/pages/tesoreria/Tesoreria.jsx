@@ -77,29 +77,6 @@ const MOCK_PLANES_INICIALES = [
   },
 ]
 
-const MOCK_ECHEQS = [
-  {
-    id: 1,
-    tipo: 'cobro',
-    tercero: 'Minera Río Grande SA',
-    numero: 'CH-2026-00811',
-    importe: 820000,
-    moneda: 'ARS',
-    vencimiento: '2026-06-05',
-    estado: 'en cartera',
-  },
-  {
-    id: 2,
-    tipo: 'pago',
-    tercero: 'G&G Motors SRL',
-    numero: 'CH-2026-00834',
-    importe: 4211707.5,
-    moneda: 'ARS',
-    vencimiento: '2026-06-11',
-    estado: 'emitido',
-  },
-]
-
 function addPeriod(dateString, index, frecuencia) {
   const date = new Date(`${dateString}T00:00:00`)
 
@@ -339,6 +316,11 @@ export default function Tesoreria() {
     if (filterTipo === 'echeq') return v.forma?.toLowerCase() === 'echeq'
     return v.tipo === filterTipo
   })
+
+
+  const echeqsOperativos = vencimientos
+    .filter((v) => String(v.forma || '').toLowerCase() === 'echeq')
+    .sort((a, b) => String(a.vencimiento || '').localeCompare(String(b.vencimiento || '')))
 
   const totalBancosArs = BANCOS.filter((b) => b.moneda === 'ARS').reduce((s, b) => s + b.saldo, 0)
   const totalBancosUsd = BANCOS.filter((b) => b.moneda === 'USD').reduce((s, b) => s + b.saldo, 0)
@@ -846,32 +828,68 @@ export default function Tesoreria() {
       {tab === 'echeqs' && (
         <Panel className="overflow-hidden">
           <div className="border-b border-white/[0.06] px-5 py-4">
-            <h2 className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
-              ECHEQ en cartera / emitidos
-            </h2>
-          </div>
-
-          <div className="divide-y divide-white/[0.06]">
-            {MOCK_ECHEQS.map((e) => (
-              <div key={e.id} className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Badge tone={e.tipo === 'cobro' ? 'cobro' : 'pago'}>{e.tipo}</Badge>
-                    <Badge tone="echeq">ECHEQ</Badge>
-                  </div>
-                  <div className="mt-3 text-sm font-bold text-white">{e.tercero}</div>
-                  <div className="mt-1 font-mono text-xs text-neutral-600">{e.numero} · {e.estado}</div>
-                </div>
-
-                <div className="text-right">
-                  <div className={`font-mono text-lg font-black ${e.tipo === 'cobro' ? 'text-emerald-300' : 'text-red-300'}`}>
-                    {formatCurrency(e.importe, e.moneda)}
-                  </div>
-                  <div className="mt-1 font-mono text-xs text-neutral-600">{formatDate(e.vencimiento)}</div>
-                </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
+                  ECHEQ en cartera / emitidos
+                </h2>
+                <p className="mt-1 text-sm text-neutral-500">
+                  Se muestran únicamente planes o vencimientos configurados con forma ECHEQ.
+                </p>
               </div>
-            ))}
+
+              <Badge tone={echeqsOperativos.length > 0 ? 'echeq' : 'neutral'}>
+                {echeqsOperativos.length > 0 ? 'REAL / PLANES' : 'SIN DATOS'}
+              </Badge>
+            </div>
           </div>
+
+          {echeqsOperativos.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-cyan-300/20 bg-cyan-300/5 text-cyan-300">
+                <CreditCard className="h-5 w-5" />
+              </div>
+
+              <div className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-neutral-400">
+                Sin ECHEQ cargados
+              </div>
+
+              <p className="mx-auto mt-2 max-w-xl text-sm text-neutral-500">
+                La integración bancaria está preparada, pero no se muestran cheques demo.
+                Los ECHEQ aparecerán cuando existan planes reales o sincronización bancaria activa.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-white/[0.06]">
+              {echeqsOperativos.map((e) => (
+                <div key={e.id} className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={e.tipo === 'cobro' ? 'cobro' : 'pago'}>{e.tipo}</Badge>
+                      <Badge tone="echeq">ECHEQ</Badge>
+                      <Badge tone={e.origen === 'REAL' ? 'ok' : 'neutral'}>
+                        {e.origen || 'BASE PREPARADA'}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-3 text-sm font-bold text-white">{e.tercero}</div>
+                    <div className="mt-1 font-mono text-xs text-neutral-600">
+                      {e.concepto || 'Sin concepto'} · {e.estado || 'pendiente'}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className={`font-mono text-lg font-black ${e.tipo === 'cobro' ? 'text-emerald-300' : 'text-red-300'}`}>
+                      {formatCurrency(e.importe, e.moneda)}
+                    </div>
+                    <div className="mt-1 font-mono text-xs text-neutral-600">
+                      {formatDate(e.vencimiento)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Panel>
       )}
 
