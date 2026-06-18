@@ -35,12 +35,18 @@ const DEFAULT_CHECKLIST = [
   { categoria: 'limpieza', item: 'Zona de trabajo limpia post-servicio', estado: 'na' },
 ]
 
+const safeOnline = () => {
+  if (typeof navigator === 'undefined') return true
+  return navigator.onLine
+}
+
 export default function OTMobileDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
   const { taxonomia } = useRubro()
-  const { isOffline } = useOutletContext()
+  const outletContext = useOutletContext() || {}
+  const isOffline = outletContext.isOffline ?? !safeOnline()
 
   const activoSingular = taxonomia?.activoSingular || 'Activo'
   const ordenTrabajo = taxonomia?.ordenTrabajo || 'Orden de trabajo'
@@ -99,6 +105,15 @@ export default function OTMobileDetail() {
     return sigCanvasCliente.current && !sigCanvasCliente.current.isEmpty() && firmaClienteName.trim()
   }
 
+  const assertOTLoaded = () => {
+    if (!ot?.id) {
+      toast.error(`${ordenTrabajo} no cargada`)
+      return false
+    }
+
+    return true
+  }
+
   const loadOtData = async () => {
     setLoading(true)
 
@@ -111,6 +126,7 @@ export default function OTMobileDetail() {
       } else {
         toast.error(`${ordenTrabajo} no encontrada en caché`)
         navigate('/campo')
+        return
       }
 
       const localChecks = (await getCache('ot_checklists')) || []
@@ -170,6 +186,8 @@ export default function OTMobileDetail() {
   }
 
   const handleClockAction = async (action, newStatus) => {
+    if (!assertOTLoaded()) return
+
     const coords = await getGPSCoords()
 
     await queueMutation({
@@ -216,12 +234,16 @@ export default function OTMobileDetail() {
   }
 
   const handleChecklistChange = (index, status) => {
-    const newChecks = [...checklists]
-    newChecks[index].estado = status
-    setChecklists(newChecks)
+    setChecklists((prev) =>
+      prev.map((check, idx) =>
+        idx === index ? { ...check, estado: status } : check
+      )
+    )
   }
 
   const saveChecklist = async () => {
+    if (!assertOTLoaded()) return
+
     for (const check of checklists) {
       await queueMutation({
         type: check.id ? 'UPDATE' : 'INSERT',
@@ -254,18 +276,25 @@ export default function OTMobileDetail() {
   }
 
   const saveEvidence = async () => {
+    if (!assertOTLoaded()) return
+
+    if (!evidenciaDescripcion.trim() && !observacionesCampo.trim()) {
+      toast.error('Cargá una descripción u observación antes de guardar evidencia')
+      return
+    }
+
     const coords = await getGPSCoords()
 
     const payload = {
       orden_trabajo_id: ot.id,
       tecnico_id: user?.id || null,
-      descripcion: evidenciaDescripcion,
-      observaciones: observacionesCampo,
+      descripcion: evidenciaDescripcion.trim(),
+      observaciones: observacionesCampo.trim(),
       latitud: coords.lat,
       longitud: coords.lng,
       created_at: new Date().toISOString(),
       origen: 'campo_mobile',
-      estado_sync: navigator.onLine ? 'pendiente_upload' : 'offline_pendiente',
+      estado_sync: safeOnline() ? 'pendiente_upload' : 'offline_pendiente',
     }
 
     await queueMutation({
@@ -283,18 +312,38 @@ export default function OTMobileDetail() {
     toast.success('Evidencia guardada localmente')
   }
 
+  const tryUploadSignature = async (firmaBase64, path, label) => {
+    if (!safeOnline() || !isIntegrationEnabled('storage')) return firmaBase64
+
+    try {
+      toast.info(`Subiendo firma de ${label}...`)
+      const res = await uploadDocument(firmaBase64, path)
+
+      if (res?.success && res?.url) return res.url
+
+      console.warn(`No se pudo subir firma de ${label}:`, res?.error || res)
+      toast.warning(`Firma de ${label} guardada localmente. Se sincronizará luego.`)
+      return firmaBase64
+    } catch (error) {
+      console.error(`Error subiendo firma de ${label}:`, error)
+      toast.warning(`Firma de ${label} guardada localmente. Se sincronizará luego.`)
+      return firmaBase64
+    }
+  }
+
   const saveSignatures = async () => {
+    if (!assertOTLoaded()) return
+
     const coords = await getGPSCoords()
+    let guardoFirma = false
 
     if (sigCanvasCliente.current && !sigCanvasCliente.current.isEmpty() && firmaClienteName.trim()) {
       const firmaCliente = sigCanvasCliente.current.getTrimmedCanvas().toDataURL('image/png')
-      let firmaUrlOrBase64 = firmaCliente
-
-      if (navigator.onLine && isIntegrationEnabled('storage')) {
-        toast.info('Subiendo firma de cliente...')
-        const res = await uploadDocument(firmaCliente, `firmas/ot-${ot.id}-cliente.png`)
-        if (res.success) firmaUrlOrBase64 = res.url
-      }
+      const firmaUrlOrBase64 = await tryUploadSignature(
+        firmaCliente,
+        `firmas/ot-${ot.id}-cliente.png`,
+        'cliente'
+      )
 
       await queueMutation({
         type: 'INSERT',
@@ -309,17 +358,17 @@ export default function OTMobileDetail() {
           created_at: new Date().toISOString(),
         },
       })
+
+      guardoFirma = true
     }
 
     if (sigCanvasTecnico.current && !sigCanvasTecnico.current.isEmpty()) {
       const firmaTecnico = sigCanvasTecnico.current.getTrimmedCanvas().toDataURL('image/png')
-      let firmaUrlOrBase64 = firmaTecnico
-
-      if (navigator.onLine && isIntegrationEnabled('storage')) {
-        toast.info(`Subiendo firma de ${tecnicoLabel.toLowerCase()}...`)
-        const res = await uploadDocument(firmaTecnico, `firmas/ot-${ot.id}-tecnico.png`)
-        if (res.success) firmaUrlOrBase64 = res.url
-      }
+      const firmaUrlOrBase64 = await tryUploadSignature(
+        firmaTecnico,
+        `firmas/ot-${ot.id}-tecnico.png`,
+        tecnicoLabel.toLowerCase()
+      )
 
       await queueMutation({
         type: 'INSERT',
@@ -334,12 +383,21 @@ export default function OTMobileDetail() {
           created_at: new Date().toISOString(),
         },
       })
+
+      guardoFirma = true
+    }
+
+    if (!guardoFirma) {
+      toast.error('No hay firmas para guardar')
+      return
     }
 
     toast.success('Firmas guardadas localmente')
   }
 
   const handleCloseOT = async () => {
+    if (!assertOTLoaded()) return
+
     if (!checklistCompleto) {
       toast.error('No podés cerrar: completá el checklist operativo.')
       setActiveTab('checklist')
