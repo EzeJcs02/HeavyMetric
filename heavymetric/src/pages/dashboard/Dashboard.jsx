@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { toast } from 'sonner'
 import { useDolar } from '../../context/DolarContext'
 import { useDashboardData } from '../../hooks/useDashboardData'
 import { useAuth } from '../../context/AuthContext'
@@ -136,7 +137,20 @@ export default function Dashboard() {
   }
 
   const handleResolverAlerta = async (alertaId) => {
-    await supabase.from('alertas').update({ resuelta: true }).eq('id', alertaId)
+    let query = supabase.from('alertas').update({ resuelta: true }).eq('id', alertaId)
+
+    if (perfil?.organization_id) {
+      query = query.eq('organization_id', perfil.organization_id)
+    }
+
+    const { error: resolverError } = await query
+
+    if (resolverError) {
+      toast.error('No se pudo resolver la alerta')
+      console.warn('handleResolverAlerta:', resolverError.message)
+      return
+    }
+
     refresh()
   }
 
