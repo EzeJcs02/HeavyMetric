@@ -39,9 +39,13 @@ export const queueMutation = async (mutation) => {
     await pendingMutationsStore.setItem(key, mutation)
     console.log(`Mutación encolada: ${key}`, mutation)
     
-    // Intentar sincronizar inmediatamente si hay conexión
+    // Intentar sincronizar inmediatamente si hay conexión.
+    // Sin await: queueMutation no espera al sync completo para resolver.
+    // .catch: captura errores que antes producían Unhandled Promise Rejection.
     if (navigator.onLine) {
-      syncAllToSupabase()
+      syncAllToSupabase().catch((err) =>
+        console.warn('syncQueue: auto-sync fallido tras encolar mutación:', err)
+      )
     }
   } catch (error) {
     console.error('Error al encolar mutación:', error)
@@ -58,9 +62,22 @@ export const getPendingMutationsCount = async () => {
   }
 }
 
+// Lock interno de módulo: evita ejecuciones concurrentes de syncAllToSupabase.
+// No es parte de la interfaz pública. AppCampo, OTMobileDetail y OTMobileList
+// no necesitan cambios: el lock es transparente para todos los llamadores.
+let _syncInProgress = false
+
 // Sincronizar hacia Supabase
 export const syncAllToSupabase = async () => {
   if (!navigator.onLine) return;
+
+  // Hallazgo 1: si ya hay un sync corriendo, salir sin duplicar trabajo.
+  if (_syncInProgress) {
+    console.warn('syncQueue: sync ya en curso, se omite invocación concurrente.')
+    return
+  }
+
+  _syncInProgress = true
 
   try {
     const keys = await pendingMutationsStore.keys()
@@ -96,6 +113,9 @@ export const syncAllToSupabase = async () => {
   } catch (error) {
     console.error('Error general de sincronización:', error)
     throw error
+  } finally {
+    // Liberar el lock siempre, incluso si hubo error o throw.
+    _syncInProgress = false
   }
 }
 
