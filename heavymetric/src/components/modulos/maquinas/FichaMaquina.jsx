@@ -164,8 +164,21 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
       .select('*')
       .eq('maquina_id', maquinaId)
       .order('fecha_lectura', { ascending: false })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Error cargando historial de horómetros:', error.message)
+          toast.error('No se pudo cargar el historial de lecturas')
+          setHorometros([])
+          return
+        }
         setHorometros(data || [])
+      })
+      .catch((err) => {
+        console.error('Error inesperado cargando horómetros:', err)
+        toast.error('No se pudo cargar el historial de lecturas')
+        setHorometros([])
+      })
+      .finally(() => {
         setLoadingHoro(false)
       })
   }, [maquinaId])
@@ -203,13 +216,17 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
         observacion: '',
       }))
 
-      const { data } = await supabase
+      const { data: refreshData, error: refreshError } = await supabase
         .from('historial_horometros')
         .select('*')
         .eq('maquina_id', maquinaId)
         .order('fecha_lectura', { ascending: false })
 
-      setHorometros(data || [])
+      if (refreshError) {
+        console.warn('No se pudo recargar el historial tras insertar:', refreshError.message)
+      } else {
+        setHorometros(refreshData || [])
+      }
     } catch (err) {
       toast.error(err.message)
     } finally {
