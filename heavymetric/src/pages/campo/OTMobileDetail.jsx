@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useRubro } from '../../context/RubroContext'
-import { getCache, queueMutation, setCache } from '../../lib/syncQueue'
+import { getCache, queueMutation, setCache, clearPendingMutationsByTable } from '../../lib/syncQueue'
 import {
   ChevronLeft,
   Play,
@@ -110,7 +110,6 @@ export default function OTMobileDetail() {
       toast.error(`${ordenTrabajo} no cargada`)
       return false
     }
-
     return true
   }
 
@@ -243,6 +242,17 @@ export default function OTMobileDetail() {
 
   const saveChecklist = async () => {
     if (!assertOTLoaded()) return
+
+    // Eliminar INSERTs pendientes anteriores de este checklist para esta OT.
+    // Si el técnico guardó antes sin sincronizar, esas mutaciones previas
+    // serían duplicadas al volver a encolar. Se reemplazan con el estado actual.
+    // Solo se eliminan INSERTs (sin id): los UPDATEs tienen id propio y no duplican.
+    await clearPendingMutationsByTable(
+      'ot_checklists',
+      (mutation) =>
+        mutation.type === 'INSERT' &&
+        String(mutation.payload?.orden_trabajo_id) === String(ot.id)
+    )
 
     for (const check of checklists) {
       await queueMutation({
