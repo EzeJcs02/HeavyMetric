@@ -966,16 +966,21 @@ export default function Taller() {
         maquina={editingMaquina}
         clientes={clientes}
         onConfirm={async (payload) => {
-          if (editingMaquina) {
-            await updateMaquina(editingMaquina.id, payload)
-            toast.success(`${activoSingular} actualizado correctamente`)
-          } else {
-            await createMaquina(payload)
-            toast.success(`${activoSingular} agregado correctamente`)
-          }
+          try {
+            if (editingMaquina) {
+              await updateMaquina(editingMaquina.id, payload)
+              toast.success(`${activoSingular} actualizado correctamente`)
+            } else {
+              await createMaquina(payload)
+              toast.success(`${activoSingular} agregado correctamente`)
+            }
 
-          setIsMaquinaModalOpen(false)
-          setEditingMaquina(null)
+            setIsMaquinaModalOpen(false)
+            setEditingMaquina(null)
+          } catch (err) {
+            console.error('Error al guardar activo:', err)
+            toast.error(err?.message || `No se pudo guardar el ${activoSingular.toLowerCase()}`)
+          }
         }}
       />
     </div>
