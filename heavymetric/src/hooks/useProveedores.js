@@ -5,11 +5,18 @@ import { logAudit } from '../lib/auditLog'
 
 export function useProveedores() {
   const { perfil } = useAuth()
+  const organizationId = perfil?.organization_id
   const [proveedores, setProveedores]   = useState([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState(null)
 
   const fetchProveedores = async () => {
+    if (!organizationId) {
+      setProveedores([])
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -20,6 +27,7 @@ export function useProveedores() {
           compras(count),
           proveedor_repuestos(count)
         `)
+        .eq('organization_id', organizationId)
         .eq('activo', true)
         .order('empresa')
       if (err) throw err
@@ -32,9 +40,13 @@ export function useProveedores() {
   }
 
   const createProveedor = async (payload) => {
+    if (!organizationId) {
+      throw new Error('No se pudo determinar la organización. Volvé a iniciar sesión.')
+    }
+
     const { data, error: err } = await supabase
       .from('proveedores')
-      .insert([{ ...payload, organization_id: perfil?.organization_id }])
+      .insert([{ ...payload, organization_id: organizationId }])
       .select().single()
     if (err) throw err
     logAudit({ tabla: 'proveedores', registroId: data.id, accion: 'INSERT', datosDespues: payload, descripcion: `Proveedor creado: ${payload.empresa}` })
@@ -48,6 +60,7 @@ export function useProveedores() {
       .from('proveedores')
       .update({ ...payload, updated_at: new Date().toISOString() })
       .eq('id', id)
+      .eq('organization_id', organizationId)
     if (err) throw err
     logAudit({ tabla: 'proveedores', registroId: id, accion: 'UPDATE', datosAntes: antes, datosDespues: payload, descripcion: `Proveedor actualizado: ${payload.empresa}` })
     await fetchProveedores()
@@ -56,13 +69,19 @@ export function useProveedores() {
   const deactivateProveedor = async (id) => {
     const antes = proveedores.find(p => p.id === id)
     const { error: err } = await supabase
-      .from('proveedores').update({ activo: false }).eq('id', id)
+      .from('proveedores')
+      .update({ activo: false })
+      .eq('id', id)
+      .eq('organization_id', organizationId)
     if (err) throw err
     logAudit({ tabla: 'proveedores', registroId: id, accion: 'UPDATE', datosAntes: antes, datosDespues: { activo: false }, descripcion: `Proveedor desactivado: ${antes?.empresa}` })
     await fetchProveedores()
   }
 
-  useEffect(() => { fetchProveedores() }, [])
+  useEffect(() => {
+    fetchProveedores()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizationId])
 
   return { proveedores, loading, error, fetchProveedores, createProveedor, updateProveedor, deactivateProveedor }
 }
