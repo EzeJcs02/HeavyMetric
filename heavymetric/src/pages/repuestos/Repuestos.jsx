@@ -52,11 +52,18 @@ export default function Repuestos() {
   const [saving, setSaving] = useState(false)
 
   const fetchRepuestos = async () => {
+    if (!perfil?.organization_id) {
+      setRepuestos([])
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
 
     const { data, error } = await supabase
       .from('repuestos')
       .select('*')
+      .eq('organization_id', perfil.organization_id)
       .eq('activo', true)
       .order('nombre')
 
@@ -68,7 +75,8 @@ export default function Repuestos() {
 
   useEffect(() => {
     fetchRepuestos()
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfil?.organization_id])
 
   const filtrados = useMemo(() => {
     const q = search.toLowerCase()
@@ -110,6 +118,11 @@ export default function Repuestos() {
       return
     }
 
+    if (!perfil?.organization_id) {
+      toast.error('No se pudo determinar la organización. Volvé a iniciar sesión.')
+      return
+    }
+
     setSaving(true)
 
     try {
@@ -129,6 +142,7 @@ export default function Repuestos() {
           .from('repuestos')
           .update(payload)
           .eq('id', editando.id)
+          .eq('organization_id', perfil.organization_id)
 
         if (error) throw error
 
@@ -186,12 +200,18 @@ export default function Repuestos() {
   const handleVerHistorial = async (item) => {
     setHistModal(item)
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('stock_movimientos')
       .select('*, perfiles:creado_por(nombre_completo)')
       .eq('repuesto_id', item.id)
       .order('created_at', { ascending: false })
       .limit(30)
+
+    if (error) {
+      toast.error('No se pudo cargar el historial de movimientos')
+      console.error('handleVerHistorial:', error.message)
+      return
+    }
 
     setHistorial(data || [])
   }
@@ -199,10 +219,16 @@ export default function Repuestos() {
   const handleEliminar = async (item) => {
     if (!confirm(`¿Dar de baja "${item.nombre}"?`)) return
 
-    await supabase
+    const { error } = await supabase
       .from('repuestos')
       .update({ activo: false })
       .eq('id', item.id)
+      .eq('organization_id', perfil.organization_id)
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
 
     toast.success('Ítem dado de baja')
     fetchRepuestos()
