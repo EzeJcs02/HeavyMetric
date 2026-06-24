@@ -1,6 +1,6 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Activity,
   AlertTriangle,
   Banknote,
   Boxes,
@@ -8,261 +8,327 @@ import {
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
-  Factory,
-  Gauge,
   Layers3,
   MapPinned,
+  Plus,
+  RefreshCw,
   ShieldCheck,
-  Sparkles,
+  TrendingUp,
   Truck,
   Wrench,
+  Zap,
+  ArrowUpRight,
+  Gauge,
 } from 'lucide-react'
+import { useAuth }          from '../../context/AuthContext'
+import { useDolar }         from '../../context/DolarContext'
+import { useDashboardData } from '../../hooks/useDashboardData'
 
-const kpis = [
-  {
-    label: 'Estado operativo',
-    value: 'ONLINE',
-    detail: 'Sistema activo y sincronizado',
-    tone: 'text-emerald-300',
-    icon: Activity,
-  },
-  {
-    label: 'OT críticas',
-    value: '3',
-    detail: 'Requieren seguimiento hoy',
-    tone: 'text-amber-300',
-    icon: ClipboardList,
-  },
-  {
-    label: 'Stock crítico',
-    value: '4',
-    detail: 'Ítems bajo mínimo',
-    tone: 'text-red-300',
-    icon: Boxes,
-  },
-  {
-    label: 'Caja operativa',
-    value: '$ 12.4M',
-    detail: 'Flujo proyectado 7 días',
-    tone: 'text-cyan-300',
-    icon: Banknote,
-  },
-]
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
-const commandItems = [
-  {
-    title: 'Cliente 360',
-    description: 'Historial comercial, deuda, activos, OTs y oportunidades.',
-    route: '/app/clientes',
-    icon: Layers3,
-    status: 'Base preparada',
-  },
-  {
-    title: 'Activo 360',
-    description: 'Máquinas, horómetros, disponibilidad y continuidad operativa.',
-    route: '/app/activos',
-    icon: Truck,
-    status: 'Operativo',
-  },
-  {
-    title: 'OT 360',
-    description: 'Taller, técnicos, repuestos, garantías y estados de servicio.',
-    route: '/app/taller',
-    icon: Wrench,
-    status: 'Operativo',
-  },
-  {
-    title: 'Tesorería',
-    description: 'Caja, bancos, pagos, cobranzas, mora y flujo proyectado.',
-    route: '/app/tesoreria',
-    icon: CircleDollarSign,
-    status: 'En control',
-  },
-  {
-    title: 'Stock Inteligente',
-    description: 'Mínimos, rotación, inmovilizado y alertas de reposición.',
-    route: '/app/repuestos',
-    icon: Boxes,
-    status: 'Alertas activas',
-  },
-  {
-    title: 'App Campo',
-    description: 'Operación offline-first, partes, fotos, GPS y firma.',
-    route: '/campo',
-    icon: MapPinned,
-    status: 'Base preparada',
-  },
-]
-
-const alerts = [
-  {
-    title: 'Filtro aceite bajo mínimo',
-    detail: 'Stock actual: 2 u. · mínimo sugerido: 5 u.',
-    tone: 'border-amber-300/30 text-amber-300',
-  },
-  {
-    title: 'OT #2847 en proceso',
-    detail: 'Cambio de filtros + aceite motor · técnico asignado.',
-    tone: 'border-cyan-300/30 text-cyan-300',
-  },
-  {
-    title: 'Activo con mantenimiento próximo',
-    detail: '179 horas restantes para próximo servicio.',
-    tone: 'border-emerald-300/30 text-emerald-300',
-  },
-]
-
-const operations = [
-  ['Activos monitoreados', '24', 'text-cyan-300'],
-  ['OT abiertas hoy', '7', 'text-emerald-300'],
-  ['Alertas de stock', '4', 'text-amber-300'],
-  ['Riesgos críticos', '1', 'text-red-300'],
-]
-
-function StatusDot({ className = 'bg-emerald-300' }) {
-  return <span className={`h-2 w-2 rounded-full ${className} shadow-[0_0_14px_currentColor]`} />
+function greet(name) {
+  const h = new Date().getHours()
+  const saludo = h < 12 ? 'Buenos días' : h < 20 ? 'Buenas tardes' : 'Buenas noches'
+  const first = (name || '').split(' ')[0]
+  return first ? `${saludo}, ${first}` : saludo
 }
 
-function SectionTitle({ eyebrow, title, description }) {
+function Skel({ className = '' }) {
+  return <div className={`animate-pulse rounded-lg bg-white/[0.04] ${className}`} />
+}
+
+function StatusDot({ color = 'bg-emerald-400' }) {
+  return <span className={`h-2 w-2 shrink-0 rounded-full ${color} shadow-[0_0_8px_currentColor]`} />
+}
+
+function Eyebrow({ text }) {
   return (
-    <div>
-      <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-cyan-300/70">
-        <span className="h-px w-8 bg-cyan-300/40" />
-        {eyebrow}
-      </div>
-      <h2 className="text-xl font-black tracking-tight text-white">{title}</h2>
-      {description && <p className="mt-1 text-sm text-neutral-500">{description}</p>}
+    <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-cyan-300/60">
+      <span className="h-px w-6 bg-cyan-300/30" />
+      {text}
     </div>
   )
 }
 
-function KpiCard({ item }) {
-  const Icon = item.icon
+// ─── KPI card ─────────────────────────────────────────────────────────────────
 
+function KpiCard({ label, value, detail, tone, icon: Icon, loading }) {
   return (
-    <div className="group rounded-2xl border border-white/5 bg-[#0d1016]/90 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/25 hover:bg-[#11151c]">
-      <div className="mb-5 flex items-center justify-between">
-        <div className="rounded-xl border border-white/5 bg-black/30 p-2 text-neutral-500 group-hover:text-cyan-300">
+    <div className="group rounded-2xl border border-white/5 bg-[#0d1016]/90 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/20 hover:bg-[#11151c]">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="rounded-xl border border-white/5 bg-black/30 p-2 text-neutral-500 transition-colors group-hover:text-cyan-300">
           <Icon className="h-4 w-4" />
         </div>
-        <StatusDot className={item.tone.replace('text-', 'bg-')} />
+        <StatusDot color={tone.replace('text-', 'bg-')} />
       </div>
-
-      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-600">
-        {item.label}
-      </div>
-      <div className={`mt-2 font-mono text-3xl font-black ${item.tone}`}>
-        {item.value}
-      </div>
-      <p className="mt-2 text-sm text-neutral-500">{item.detail}</p>
+      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-600">{label}</div>
+      {loading
+        ? <Skel className="mt-2 h-9 w-24" />
+        : <div className={`mt-2 font-mono text-3xl font-black tabular-nums ${tone}`}>{value}</div>
+      }
+      <p className="mt-1.5 text-sm text-neutral-600">{detail}</p>
     </div>
   )
 }
+
+// ─── command module ────────────────────────────────────────────────────────────
 
 function CommandModule({ item }) {
   const Icon = item.icon
-
   return (
     <Link
       to={item.route}
-      className="group rounded-2xl border border-white/5 bg-[#0d1016]/85 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/25 hover:bg-[#11151c]"
+      className="group rounded-2xl border border-white/5 bg-[#0d1016]/85 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/20 hover:bg-[#11151c]"
     >
-      <div className="mb-5 flex items-center justify-between">
-        <div className="rounded-xl border border-white/5 bg-black/30 p-2 text-cyan-300/70">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="rounded-xl border border-white/5 bg-black/30 p-2 text-cyan-300/60 transition-colors group-hover:text-cyan-300">
           <Icon className="h-4 w-4" />
         </div>
-        <ChevronRight className="h-4 w-4 text-neutral-700 transition-transform group-hover:translate-x-1 group-hover:text-cyan-300" />
+        <ChevronRight className="h-4 w-4 text-neutral-700 transition-transform group-hover:translate-x-0.5 group-hover:text-cyan-300" />
       </div>
-
-      <h3 className="text-base font-black text-white">{item.title}</h3>
-      <p className="mt-2 min-h-[44px] text-sm leading-relaxed text-neutral-500">
-        {item.description}
-      </p>
-
-      <div className="mt-5 inline-flex rounded-full border border-white/5 bg-black/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+      <h3 className="text-sm font-black text-white">{item.title}</h3>
+      <p className="mt-1.5 min-h-[36px] text-xs leading-relaxed text-neutral-500">{item.description}</p>
+      <div className="mt-4 inline-flex rounded-full border border-white/5 bg-black/25 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-600">
         {item.status}
       </div>
     </Link>
   )
 }
 
-export default function Home() {
+// ─── alert row ────────────────────────────────────────────────────────────────
+
+function AlertRow({ alerta }) {
+  const TONE = {
+    critica: 'border-red-300/25 text-red-300',
+    alta:    'border-amber-300/25 text-amber-300',
+    media:   'border-cyan-300/20 text-cyan-300',
+    baja:    'border-neutral-700/40 text-neutral-500',
+  }
+  const tone = TONE[alerta.prioridad] || TONE.media
   return (
-    <div className="relative min-h-full overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_15%_10%,rgba(0,212,255,0.08),transparent_30%),radial-gradient(circle_at_85%_20%,rgba(0,245,160,0.045),transparent_30%)]" />
+    <div className={`flex items-start gap-3 rounded-2xl border bg-black/20 p-3.5 ${tone}`}>
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <div className="min-w-0">
+        <p className="text-sm font-bold leading-snug text-white">{alerta.titulo || alerta.nombre || 'Alerta'}</p>
+        {alerta.descripcion && (
+          <p className="mt-0.5 text-xs leading-relaxed text-neutral-500">{alerta.descripcion}</p>
+        )}
+      </div>
+    </div>
+  )
+}
 
-      <div className="space-y-8">
-        <section className="relative overflow-hidden rounded-[28px] border border-white/5 bg-[#07090d] p-6 shadow-[0_0_90px_rgba(0,212,255,0.05)] md:p-8">
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(0,212,255,0.022)_1px,transparent_1px),linear-gradient(90deg,rgba(0,212,255,0.022)_1px,transparent_1px)] bg-[size:48px_48px] opacity-40" />
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_50%,rgba(0,0,0,0.68)_100%)]" />
+// ─── transaction row ──────────────────────────────────────────────────────────
 
-          <div className="relative z-10 grid gap-8 lg:grid-cols-[1fr_0.9fr] lg:items-center">
+const TIPO_LABEL = {
+  factura:      'Factura',
+  nota_credito: 'NC',
+  nota_debito:  'ND',
+  recibo:       'Recibo',
+  presupuesto:  'Presupuesto',
+}
+
+function TxRow({ tx, formatUSD }) {
+  const isPaid = tx.estado_pago === 'pagado'
+  return (
+    <div className="flex items-center gap-3 border-b border-white/[0.04] py-3 last:border-0">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/5 bg-black/30">
+        <ArrowUpRight className="h-3 w-3 text-cyan-300/50" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-xs font-semibold text-neutral-200">
+            {TIPO_LABEL[tx.tipo_documento] || tx.tipo_documento} {tx.numero_comprobante}
+          </span>
+          <span className={`shrink-0 rounded-full px-1.5 py-px font-mono text-[9px] uppercase tracking-wide ${
+            isPaid ? 'bg-emerald-300/10 text-emerald-300' : 'bg-amber-300/10 text-amber-400'
+          }`}>
+            {isPaid ? 'cobrado' : 'pendiente'}
+          </span>
+        </div>
+        <div className="mt-0.5 font-mono text-[10px] text-neutral-700">
+          {new Date(tx.fecha_emision).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+        </div>
+      </div>
+      <div className="shrink-0 font-mono text-sm font-bold tabular-nums text-neutral-200">
+        {formatUSD(tx.monto_total_usd)}
+      </div>
+    </div>
+  )
+}
+
+// ─── quick action ─────────────────────────────────────────────────────────────
+
+function QuickAction({ label, route, icon: Icon }) {
+  return (
+    <Link
+      to={route}
+      className="group flex items-center gap-2 rounded-xl border border-white/5 bg-black/20 px-3.5 py-2 text-sm text-neutral-400 transition-all hover:border-cyan-300/20 hover:bg-[#11151c] hover:text-white"
+    >
+      <Icon className="h-4 w-4 shrink-0 text-cyan-300/60 transition-colors group-hover:text-cyan-300" />
+      {label}
+    </Link>
+  )
+}
+
+// ─── static data ──────────────────────────────────────────────────────────────
+
+const commandItems = [
+  { title: 'Cliente 360',   description: 'Historial comercial, deuda, activos, OTs y oportunidades.',     route: '/app/clientes',  icon: Layers3,          status: 'Operativo'       },
+  { title: 'Activo 360',    description: 'Máquinas, horómetros, disponibilidad y continuidad operativa.',  route: '/app/activo360', icon: Truck,            status: 'Operativo'       },
+  { title: 'OT 360',        description: 'Taller, técnicos, repuestos, garantías y estados de servicio.',  route: '/app/taller',    icon: Wrench,           status: 'Operativo'       },
+  { title: 'Tesorería',     description: 'Caja, bancos, pagos, cobranzas, mora y flujo proyectado.',       route: '/app/tesoreria', icon: CircleDollarSign, status: 'En control'      },
+  { title: 'Stock',         description: 'Mínimos, rotación, inmovilizado y alertas de reposición.',       route: '/app/repuestos', icon: Boxes,            status: 'Alertas activas' },
+  { title: 'App Campo',     description: 'Operación offline-first, partes, fotos, GPS y firma digital.',   route: '/campo',         icon: MapPinned,        status: 'Base preparada'  },
+]
+
+// ─── component ────────────────────────────────────────────────────────────────
+
+export default function Home() {
+  const { perfil }      = useAuth()
+  const { formatUSD }   = useDolar()
+  const { data, loading, refresh } = useDashboardData()
+
+  const k = data.kpis
+
+  const saludo = useMemo(() => greet(perfil?.nombre_completo || ''), [perfil?.nombre_completo])
+
+  const kpis = [
+    {
+      label:  'OT activas',
+      value:  String(k.ordenesActivas),
+      detail: 'En curso o borrador',
+      tone:   k.ordenesActivas > 5 ? 'text-amber-300' : 'text-emerald-300',
+      icon:   ClipboardList,
+    },
+    {
+      label:  'Service urgente',
+      value:  String(k.alertasServiceUrgentes),
+      detail: `${k.alertasService} máquinas en alerta`,
+      tone:   k.alertasServiceUrgentes > 0 ? 'text-red-300' : 'text-emerald-300',
+      icon:   Gauge,
+    },
+    {
+      label:  'Facturado mes',
+      value:  formatUSD(k.facturadoMes),
+      detail: 'Ingresos del mes actual',
+      tone:   'text-cyan-300',
+      icon:   TrendingUp,
+    },
+    {
+      label:  'Cobranza pendiente',
+      value:  formatUSD(k.cobranzaPendiente),
+      detail: 'Facturas sin cobrar',
+      tone:   k.cobranzaPendiente > 0 ? 'text-red-300' : 'text-emerald-300',
+      icon:   Banknote,
+    },
+  ]
+
+  const alertas        = data.alertas.slice(0, 5)
+  const alertasService = data.alertasService.slice(0, 3)
+  const transacciones  = data.transacciones
+
+  return (
+    <div className="relative min-h-full">
+      {/* Ambient background */}
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_15%_10%,rgba(0,212,255,0.07),transparent_35%),radial-gradient(circle_at_85%_20%,rgba(0,245,160,0.04),transparent_35%)]" />
+
+      <div className="space-y-6">
+
+        {/* ── HERO ──────────────────────────────────────────── */}
+        <section className="relative overflow-hidden rounded-[28px] border border-white/5 bg-[#07090d] p-6 md:p-8">
+          {/* grid overlay */}
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(0,212,255,0.016)_1px,transparent_1px),linear-gradient(90deg,rgba(0,212,255,0.016)_1px,transparent_1px)] bg-[size:48px_48px]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(0,212,255,0.055),transparent_45%),radial-gradient(ellipse_at_bottom_right,rgba(0,245,160,0.035),transparent_45%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(0,0,0,0.75)_100%)]" />
+
+          <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            {/* Text + quick actions */}
             <div>
-              <div className="mb-5 flex flex-wrap items-center gap-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-300">
-                  <StatusDot />
-                  Live System
+              <div className="mb-4 flex flex-wrap items-center gap-2.5">
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-300">
+                  <StatusDot color="bg-emerald-400" />
+                  Sistema activo
                 </div>
-
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/5 bg-black/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500">
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-white/5 bg-black/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500">
                   <ShieldCheck className="h-3 w-3" />
-                  Centro de Operaciones
+                  Centro de operaciones
                 </div>
               </div>
 
-              <h1 className="max-w-3xl text-4xl font-black leading-tight tracking-tight text-white md:text-5xl">
-                Control operativo para decisiones reales.
+              <h1 className="text-3xl font-black tracking-tight text-white md:text-4xl">
+                {saludo}
               </h1>
-
-              <p className="mt-5 max-w-2xl text-base leading-relaxed text-neutral-500">
-                Seguimiento ejecutivo de activos, taller, stock, tesorería y continuidad operativa.
-                Diseñado para detectar riesgos, priorizar trabajo y sostener la operación diaria.
+              <p className="mt-3 max-w-xl text-sm leading-relaxed text-neutral-500">
+                Seguimiento ejecutivo de activos, taller, stock y tesorería.
+                Detectá riesgos, priorizá el trabajo y sostené la operación diaria.
               </p>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <QuickAction label="Nueva OT"          route="/app/taller"        icon={Plus} />
+                <QuickAction label="Nueva cotización"  route="/app/cotizaciones"  icon={Plus} />
+                <QuickAction label="Aprobaciones"      route="/app/aprobaciones"  icon={CheckCircle2} />
+                <QuickAction label="CEO Dashboard"     route="/app/ceo"           icon={Zap} />
+              </div>
             </div>
 
-            <div className="rounded-2xl border border-white/5 bg-black/25 p-5">
+            {/* Live pulse */}
+            <div className="shrink-0 rounded-2xl border border-white/5 bg-black/25 p-5 lg:w-56">
               <div className="mb-4 flex items-center justify-between">
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-neutral-500">
-                  Operational Pulse
-                </div>
-                <Sparkles className="h-4 w-4 text-cyan-300/70" />
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-neutral-500">Pulso operativo</div>
+                <button
+                  onClick={refresh}
+                  className="text-neutral-700 transition-colors hover:text-cyan-300"
+                  title="Actualizar"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {operations.map(([label, value, color]) => (
-                  <div key={label} className="rounded-xl border border-white/5 bg-[#0d1016] p-4">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-600">
-                      {label}
+              <div className="space-y-3">
+                {loading ? (
+                  <>
+                    <Skel className="h-5" />
+                    <Skel className="h-5" />
+                    <Skel className="h-5" />
+                    <Skel className="h-5" />
+                  </>
+                ) : (
+                  [
+                    ['Flota activa',    String(data.flota.length),    'text-cyan-300'],
+                    ['OTs abiertas',    String(k.ordenesActivas),      k.ordenesActivas > 5 ? 'text-amber-300' : 'text-emerald-300'],
+                    ['Leads activos',   String(k.leadsActivos),        'text-neutral-300'],
+                    ['Alertas activas', String(data.alertas.length),   data.alertas.length > 0 ? 'text-red-300' : 'text-emerald-300'],
+                  ].map(([label, value, color]) => (
+                    <div key={label} className="flex items-center justify-between">
+                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-600">{label}</span>
+                      <span className={`font-mono text-sm font-black tabular-nums ${color}`}>{value}</span>
                     </div>
-                    <div className={`mt-2 font-mono text-2xl font-black ${color}`}>
-                      {value}
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {/* ── KPI ROW ───────────────────────────────────────── */}
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {kpis.map((item) => (
-            <KpiCard key={item.label} item={item} />
+            <KpiCard key={item.label} {...item} loading={loading} />
           ))}
         </section>
 
+        {/* ── MAIN GRID ─────────────────────────────────────── */}
         <section className="grid gap-6 xl:grid-cols-[1fr_0.72fr]">
-          <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <SectionTitle
-                eyebrow="Módulos críticos"
-                title="Mapa operativo"
-                description="Accesos principales para ejecutar y controlar la operación."
-              />
-              <div className="hidden rounded-full border border-white/5 bg-black/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-600 md:block">
-                Real / Base preparada / Demo
-              </div>
-            </div>
 
+          {/* ── Left: module map ──────────────────────────── */}
+          <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
+            <div className="mb-5">
+              <Eyebrow text="Módulos críticos" />
+              <h2 className="text-xl font-black tracking-tight text-white">Mapa operativo</h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                Accesos principales para ejecutar y controlar la operación.
+              </p>
+            </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {commandItems.map((item) => (
                 <CommandModule key={item.title} item={item} />
@@ -270,76 +336,104 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
-              <SectionTitle
-                eyebrow="Riesgo operativo"
-                title="Alertas prioritarias"
-                description="Eventos que requieren acción o seguimiento."
-              />
+          {/* ── Right: alerts + transactions ──────────────── */}
+          <div className="flex flex-col gap-5">
 
-              <div className="mt-6 space-y-3">
-                {alerts.map((alert) => (
-                  <div
-                    key={alert.title}
-                    className={`rounded-2xl border bg-black/20 p-4 ${alert.tone}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="mt-0.5 h-4 w-4" />
-                      <div>
-                        <h3 className="text-sm font-bold text-white">{alert.title}</h3>
-                        <p className="mt-1 text-xs leading-relaxed text-neutral-500">
-                          {alert.detail}
-                        </p>
+            {/* Alerts panel */}
+            <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <Eyebrow text="Riesgo operativo" />
+                  <h2 className="text-base font-black text-white">Alertas prioritarias</h2>
+                </div>
+                {!loading && alertas.length > 0 && (
+                  <span className="rounded-full border border-red-300/20 bg-red-300/10 px-2 py-0.5 font-mono text-[10px] font-bold text-red-300">
+                    {alertas.length}
+                  </span>
+                )}
+              </div>
+
+              {loading ? (
+                <div className="space-y-3">
+                  <Skel className="h-16" />
+                  <Skel className="h-14" />
+                  <Skel className="h-14" />
+                </div>
+              ) : alertas.length > 0 ? (
+                <div className="space-y-2.5">
+                  {alertas.map((a) => <AlertRow key={a.id} alerta={a} />)}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-white/5 bg-black/10 py-8 text-center">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-300/60" />
+                  <span className="text-sm text-neutral-600">Sin alertas activas</span>
+                </div>
+              )}
+
+              {/* Service alerts */}
+              {!loading && alertasService.length > 0 && (
+                <div className="mt-4">
+                  <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-amber-300/60">
+                    Service próximo
+                  </div>
+                  <div className="space-y-2">
+                    {alertasService.map((m) => (
+                      <div
+                        key={m.id}
+                        className="flex items-center justify-between rounded-xl border border-amber-300/15 bg-black/15 px-3.5 py-2.5"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-neutral-200">{m.nombre_unidad}</p>
+                          {m.cliente_nombre && (
+                            <p className="mt-0.5 truncate font-mono text-[10px] text-neutral-600">{m.cliente_nombre}</p>
+                          )}
+                        </div>
+                        <div className="ml-3 shrink-0 text-right">
+                          <div className="font-mono text-xs font-black text-amber-300">
+                            {m.horas_restantes_service != null ? `${m.horas_restantes_service} h` : '—'}
+                          </div>
+                          <div className="font-mono text-[9px] uppercase tracking-wider text-neutral-700">restantes</div>
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
 
-            <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
-              <SectionTitle
-                eyebrow="Continuidad"
-                title="Estado de la operación"
-                description="Resumen rápido del frente operativo."
-              />
-
-              <div className="mt-6 space-y-4">
-                {[
-                  ['Taller', '72%', 'bg-cyan-300'],
-                  ['Stock disponible', '84%', 'bg-emerald-300'],
-                  ['Cobranza semanal', '61%', 'bg-amber-300'],
-                ].map(([label, value, color]) => (
-                  <div key={label}>
-                    <div className="mb-2 flex items-center justify-between font-mono text-xs">
-                      <span className="text-neutral-500">{label}</span>
-                      <span className="text-neutral-300">{value}</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
-                      <div className={`h-full rounded-full ${color}`} style={{ width: value }} />
-                    </div>
-                  </div>
-                ))}
+            {/* Recent transactions */}
+            <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-5">
+              <div className="mb-4">
+                <Eyebrow text="Actividad reciente" />
+                <h2 className="text-base font-black text-white">Últimas transacciones</h2>
               </div>
+
+              {loading ? (
+                <div className="space-y-3">
+                  <Skel className="h-12" />
+                  <Skel className="h-12" />
+                  <Skel className="h-12" />
+                </div>
+              ) : transacciones.length > 0 ? (
+                <div>
+                  {transacciones.map((tx) => (
+                    <TxRow key={tx.id} tx={tx} formatUSD={formatUSD} />
+                  ))}
+                  <Link
+                    to="/app/facturacion"
+                    className="mt-4 flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-cyan-300/50 transition-colors hover:text-cyan-300"
+                  >
+                    Ver todas <ChevronRight className="h-3 w-3" />
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-sm text-neutral-600">Sin transacciones registradas aún.</p>
+              )}
             </div>
+
           </div>
         </section>
 
-        <section className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <SectionTitle
-              eyebrow="Próxima fase"
-              title="IA silenciosa y continuidad operativa"
-              description="La plataforma debe anticipar riesgos sin saturar al usuario."
-            />
-
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-cyan-300">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Roadmap activo
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   )
