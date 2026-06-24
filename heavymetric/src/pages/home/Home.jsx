@@ -1,440 +1,294 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  AlertTriangle,
-  Banknote,
-  Boxes,
-  CheckCircle2,
-  ChevronRight,
-  CircleDollarSign,
-  ClipboardList,
-  Layers3,
-  MapPinned,
-  Plus,
-  RefreshCw,
-  ShieldCheck,
-  TrendingUp,
-  Truck,
-  Wrench,
-  Zap,
-  ArrowUpRight,
-  Gauge,
-} from 'lucide-react'
 import { useAuth }          from '../../context/AuthContext'
 import { useDolar }         from '../../context/DolarContext'
 import { useDashboardData } from '../../hooks/useDashboardData'
+import KpiCard              from '../../components/ui/KpiCard'
+import Sparkline            from '../../components/ui/Sparkline'
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+// ─── Mock sparkline seeds (replace with real hook data when available) ────────
+const SPARK_OT  = [8, 6, 9, 7, 10, 8, 7, 9, 7]
+const SPARK_OV  = [3, 5, 4, 7, 6, 8, 10, 9, 12]
+const SPARK_STK = [15, 13, 14, 11, 10, 8, 9, 7, 6]
+const SPARK_USD = [40, 42, 45, 43, 50, 52, 55, 58, 62]
 
-function greet(name) {
-  const h = new Date().getHours()
-  const saludo = h < 12 ? 'Buenos días' : h < 20 ? 'Buenas tardes' : 'Buenas noches'
-  const first = (name || '').split(' ')[0]
-  return first ? `${saludo}, ${first}` : saludo
-}
-
-function Skel({ className = '' }) {
-  return <div className={`animate-pulse rounded-lg bg-white/[0.04] ${className}`} />
-}
-
-function StatusDot({ color = 'bg-emerald-400' }) {
-  return <span className={`h-2 w-2 shrink-0 rounded-full ${color} shadow-[0_0_8px_currentColor]`} />
-}
-
-function Eyebrow({ text }) {
+// ─── Priority Item ────────────────────────────────────────────────────────────
+function PriorityRow({ category, categoryColor, title, description, borderColor }) {
   return (
-    <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-cyan-300/60">
-      <span className="h-px w-6 bg-cyan-300/30" />
-      {text}
-    </div>
-  )
-}
-
-// ─── KPI card ─────────────────────────────────────────────────────────────────
-
-function KpiCard({ label, value, detail, tone, icon: Icon, loading }) {
-  return (
-    <div className="group rounded-2xl border border-white/5 bg-[#0d1016]/90 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/20 hover:bg-[#11151c]">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="rounded-xl border border-white/5 bg-black/30 p-2 text-neutral-500 transition-colors group-hover:text-cyan-300">
-          <Icon className="h-4 w-4" />
-        </div>
-        <StatusDot color={tone.replace('text-', 'bg-')} />
-      </div>
-      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-600">{label}</div>
-      {loading
-        ? <Skel className="mt-2 h-9 w-24" />
-        : <div className={`mt-2 font-mono text-3xl font-black tabular-nums ${tone}`}>{value}</div>
-      }
-      <p className="mt-1.5 text-sm text-neutral-600">{detail}</p>
-    </div>
-  )
-}
-
-// ─── command module ────────────────────────────────────────────────────────────
-
-function CommandModule({ item }) {
-  const Icon = item.icon
-  return (
-    <Link
-      to={item.route}
-      className="group rounded-2xl border border-white/5 bg-[#0d1016]/85 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/20 hover:bg-[#11151c]"
+    <a
+      href="#"
+      className={`flex items-center gap-3 px-4 py-3 border-b border-hm-border/50 hover:bg-hm-surface2/60 transition-colors border-l-2`}
+      style={{ borderLeftColor: borderColor }}
     >
-      <div className="mb-4 flex items-center justify-between">
-        <div className="rounded-xl border border-white/5 bg-black/30 p-2 text-cyan-300/60 transition-colors group-hover:text-cyan-300">
-          <Icon className="h-4 w-4" />
+      <div className="flex-1 min-w-0">
+        <div className="font-mono text-[9px] tracking-[0.14em] uppercase font-semibold mb-1" style={{ color: borderColor }}>
+          {category}
         </div>
-        <ChevronRight className="h-4 w-4 text-neutral-700 transition-transform group-hover:translate-x-0.5 group-hover:text-cyan-300" />
+        <div className="text-[13px] font-semibold text-hm-text">{title}</div>
+        <div className="text-[11px] text-hm-muted mt-0.5">{description}</div>
       </div>
-      <h3 className="text-sm font-black text-white">{item.title}</h3>
-      <p className="mt-1.5 min-h-[36px] text-xs leading-relaxed text-neutral-500">{item.description}</p>
-      <div className="mt-4 inline-flex rounded-full border border-white/5 bg-black/25 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-600">
-        {item.status}
+      <svg className="h-3.5 w-3.5 shrink-0 text-hm-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 18l6-6-6-6" />
+      </svg>
+    </a>
+  )
+}
+
+// ─── Stepper ──────────────────────────────────────────────────────────────────
+function StepperItem({ n, title, description, isLast }) {
+  return (
+    <div className="flex items-start gap-3 relative">
+      {!isLast && (
+        <div className="absolute left-[11px] top-6 bottom-0 w-px bg-hm-border" />
+      )}
+      <div className="relative z-10 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border border-hm-accent/40 bg-hm-surface font-mono text-[9px] font-semibold text-hm-accent">
+        {n}
       </div>
+      <a href="#" className="flex-1 flex items-center justify-between rounded-md border border-hm-border/60 px-3 py-2 mb-3 hover:bg-hm-surface2/60 transition-colors">
+        <div>
+          <div className="text-[12.5px] font-semibold text-hm-text">{title}</div>
+          <div className="text-[11px] text-hm-muted mt-0.5">{description}</div>
+        </div>
+        <svg className="h-3 w-3 shrink-0 text-hm-muted ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 18l6-6-6-6" />
+        </svg>
+      </a>
+    </div>
+  )
+}
+
+// ─── Module shortcut card ─────────────────────────────────────────────────────
+function ModuleCard({ to, label, code, description, accentColor }) {
+  return (
+    <Link to={to}
+      className="block bg-hm-surface border border-hm-border rounded-lg p-3.5 hover:border-hm-accent/40 hover:bg-hm-surface2/40 transition-colors relative overflow-hidden group">
+      <div className="absolute top-0 left-0 right-0 h-0.5 opacity-70 group-hover:opacity-100 transition-opacity"
+        style={{ background: accentColor }} />
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="font-mono text-[9px] tracking-[0.14em] uppercase text-hm-muted">{label}</span>
+        <svg className="h-3 w-3 text-hm-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 18l6-6-6-6" />
+        </svg>
+      </div>
+      <div className="font-mono text-[26px] font-bold leading-none tracking-tight" style={{ color: accentColor }}>
+        {code}
+      </div>
+      <div className="text-[11px] text-hm-muted mt-1.5">{description}</div>
     </Link>
   )
 }
 
-// ─── alert row ────────────────────────────────────────────────────────────────
-
-function AlertRow({ alerta }) {
-  const TONE = {
-    critica: 'border-red-300/25 text-red-300',
-    alta:    'border-amber-300/25 text-amber-300',
-    media:   'border-cyan-300/20 text-cyan-300',
-    baja:    'border-neutral-700/40 text-neutral-500',
-  }
-  const tone = TONE[alerta.prioridad] || TONE.media
+// ─── Activity row ─────────────────────────────────────────────────────────────
+function ActivityRow({ title, description }) {
   return (
-    <div className={`flex items-start gap-3 rounded-2xl border bg-black/20 p-3.5 ${tone}`}>
-      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-      <div className="min-w-0">
-        <p className="text-sm font-bold leading-snug text-white">{alerta.titulo || alerta.nombre || 'Alerta'}</p>
-        {alerta.descripcion && (
-          <p className="mt-0.5 text-xs leading-relaxed text-neutral-500">{alerta.descripcion}</p>
-        )}
+    <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-hm-border/50 last:border-0">
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="text-[12.5px] font-semibold text-hm-text">{title}</div>
+        <div className="text-[11px] text-hm-muted">{description}</div>
       </div>
+      <span className="font-mono text-[9px] text-emerald-600 shrink-0">OK</span>
     </div>
   )
 }
 
-// ─── transaction row ──────────────────────────────────────────────────────────
-
-const TIPO_LABEL = {
-  factura:      'Factura',
-  nota_credito: 'NC',
-  nota_debito:  'ND',
-  recibo:       'Recibo',
-  presupuesto:  'Presupuesto',
-}
-
-function TxRow({ tx, formatUSD }) {
-  const isPaid = tx.estado_pago === 'pagado'
-  return (
-    <div className="flex items-center gap-3 border-b border-white/[0.04] py-3 last:border-0">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/5 bg-black/30">
-        <ArrowUpRight className="h-3 w-3 text-cyan-300/50" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-xs font-semibold text-neutral-200">
-            {TIPO_LABEL[tx.tipo_documento] || tx.tipo_documento} {tx.numero_comprobante}
-          </span>
-          <span className={`shrink-0 rounded-full px-1.5 py-px font-mono text-[9px] uppercase tracking-wide ${
-            isPaid ? 'bg-emerald-300/10 text-emerald-300' : 'bg-amber-300/10 text-amber-400'
-          }`}>
-            {isPaid ? 'cobrado' : 'pendiente'}
-          </span>
-        </div>
-        <div className="mt-0.5 font-mono text-[10px] text-neutral-700">
-          {new Date(tx.fecha_emision).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
-        </div>
-      </div>
-      <div className="shrink-0 font-mono text-sm font-bold tabular-nums text-neutral-200">
-        {formatUSD(tx.monto_total_usd)}
-      </div>
-    </div>
-  )
-}
-
-// ─── quick action ─────────────────────────────────────────────────────────────
-
-function QuickAction({ label, route, icon: Icon }) {
-  return (
-    <Link
-      to={route}
-      className="group flex items-center gap-2 rounded-xl border border-white/5 bg-black/20 px-3.5 py-2 text-sm text-neutral-400 transition-all hover:border-cyan-300/20 hover:bg-[#11151c] hover:text-white"
-    >
-      <Icon className="h-4 w-4 shrink-0 text-cyan-300/60 transition-colors group-hover:text-cyan-300" />
-      {label}
-    </Link>
-  )
-}
-
-// ─── static data ──────────────────────────────────────────────────────────────
-
-const commandItems = [
-  { title: 'Cliente 360',   description: 'Historial comercial, deuda, activos, OTs y oportunidades.',     route: '/app/clientes',  icon: Layers3,          status: 'Operativo'       },
-  { title: 'Activo 360',    description: 'Máquinas, horómetros, disponibilidad y continuidad operativa.',  route: '/app/activo360', icon: Truck,            status: 'Operativo'       },
-  { title: 'OT 360',        description: 'Taller, técnicos, repuestos, garantías y estados de servicio.',  route: '/app/taller',    icon: Wrench,           status: 'Operativo'       },
-  { title: 'Tesorería',     description: 'Caja, bancos, pagos, cobranzas, mora y flujo proyectado.',       route: '/app/tesoreria', icon: CircleDollarSign, status: 'En control'      },
-  { title: 'Stock',         description: 'Mínimos, rotación, inmovilizado y alertas de reposición.',       route: '/app/repuestos', icon: Boxes,            status: 'Alertas activas' },
-  { title: 'App Campo',     description: 'Operación offline-first, partes, fotos, GPS y firma digital.',   route: '/campo',         icon: MapPinned,        status: 'Base preparada'  },
-]
-
-// ─── component ────────────────────────────────────────────────────────────────
-
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function Home() {
-  const { perfil }      = useAuth()
-  const { formatUSD }   = useDolar()
-  const { data, loading, refresh } = useDashboardData()
-
+  const { perfil }    = useAuth()
+  const { formatUSD } = useDolar()
+  const { data, loading } = useDashboardData()
   const k = data.kpis
 
-  const saludo = useMemo(() => greet(perfil?.nombre_completo || ''), [perfil?.nombre_completo])
-
-  const kpis = [
-    {
-      label:  'OT activas',
-      value:  String(k.ordenesActivas),
-      detail: 'En curso o borrador',
-      tone:   k.ordenesActivas > 5 ? 'text-amber-300' : 'text-emerald-300',
-      icon:   ClipboardList,
-    },
-    {
-      label:  'Service urgente',
-      value:  String(k.alertasServiceUrgentes),
-      detail: `${k.alertasService} máquinas en alerta`,
-      tone:   k.alertasServiceUrgentes > 0 ? 'text-red-300' : 'text-emerald-300',
-      icon:   Gauge,
-    },
-    {
-      label:  'Facturado mes',
-      value:  formatUSD(k.facturadoMes),
-      detail: 'Ingresos del mes actual',
-      tone:   'text-cyan-300',
-      icon:   TrendingUp,
-    },
-    {
-      label:  'Cobranza pendiente',
-      value:  formatUSD(k.cobranzaPendiente),
-      detail: 'Facturas sin cobrar',
-      tone:   k.cobranzaPendiente > 0 ? 'text-red-300' : 'text-emerald-300',
-      icon:   Banknote,
-    },
-  ]
-
-  const alertas        = data.alertas.slice(0, 5)
-  const alertasService = data.alertasService.slice(0, 3)
-  const transacciones  = data.transacciones
+  const saludo = useMemo(() => {
+    const h = new Date().getHours()
+    const s = h < 12 ? 'Buenos días' : h < 20 ? 'Buenas tardes' : 'Buenas noches'
+    const first = (perfil?.nombre_completo || '').split(' ')[0]
+    return first ? `${s}, ${first}` : s
+  }, [perfil?.nombre_completo])
 
   return (
-    <div className="relative min-h-full">
-      {/* Ambient background */}
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_15%_10%,rgba(0,212,255,0.07),transparent_35%),radial-gradient(circle_at_85%_20%,rgba(0,245,160,0.04),transparent_35%)]" />
+    <div className="flex flex-col gap-4 p-5">
 
-      <div className="space-y-6">
-
-        {/* ── HERO ──────────────────────────────────────────── */}
-        <section className="relative overflow-hidden rounded-[28px] border border-white/5 bg-[#07090d] p-6 md:p-8">
-          {/* grid overlay */}
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(0,212,255,0.016)_1px,transparent_1px),linear-gradient(90deg,rgba(0,212,255,0.016)_1px,transparent_1px)] bg-[size:48px_48px]" />
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(0,212,255,0.055),transparent_45%),radial-gradient(ellipse_at_bottom_right,rgba(0,245,160,0.035),transparent_45%)]" />
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(0,0,0,0.75)_100%)]" />
-
-          <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            {/* Text + quick actions */}
-            <div>
-              <div className="mb-4 flex flex-wrap items-center gap-2.5">
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-300">
-                  <StatusDot color="bg-emerald-400" />
-                  Sistema activo
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-white/5 bg-black/25 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-neutral-500">
-                  <ShieldCheck className="h-3 w-3" />
-                  Centro de operaciones
-                </div>
-              </div>
-
-              <h1 className="text-3xl font-black tracking-tight text-white md:text-4xl">
-                {saludo}
-              </h1>
-              <p className="mt-3 max-w-xl text-sm leading-relaxed text-neutral-500">
-                Seguimiento ejecutivo de activos, taller, stock y tesorería.
-                Detectá riesgos, priorizá el trabajo y sostené la operación diaria.
-              </p>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <QuickAction label="Nueva OT"          route="/app/taller"        icon={Plus} />
-                <QuickAction label="Nueva cotización"  route="/app/cotizaciones"  icon={Plus} />
-                <QuickAction label="Aprobaciones"      route="/app/aprobaciones"  icon={CheckCircle2} />
-                <QuickAction label="CEO Dashboard"     route="/app/ceo"           icon={Zap} />
-              </div>
-            </div>
-
-            {/* Live pulse */}
-            <div className="shrink-0 rounded-2xl border border-white/5 bg-black/25 p-5 lg:w-56">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-neutral-500">Pulso operativo</div>
-                <button
-                  onClick={refresh}
-                  className="text-neutral-700 transition-colors hover:text-cyan-300"
-                  title="Actualizar"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <div className="space-y-3">
-                {loading ? (
-                  <>
-                    <Skel className="h-5" />
-                    <Skel className="h-5" />
-                    <Skel className="h-5" />
-                    <Skel className="h-5" />
-                  </>
-                ) : (
-                  [
-                    ['Flota activa',    String(data.flota.length),    'text-cyan-300'],
-                    ['OTs abiertas',    String(k.ordenesActivas),      k.ordenesActivas > 5 ? 'text-amber-300' : 'text-emerald-300'],
-                    ['Leads activos',   String(k.leadsActivos),        'text-neutral-300'],
-                    ['Alertas activas', String(data.alertas.length),   data.alertas.length > 0 ? 'text-red-300' : 'text-emerald-300'],
-                  ].map(([label, value, color]) => (
-                    <div key={label} className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-600">{label}</span>
-                      <span className={`font-mono text-sm font-black tabular-nums ${color}`}>{value}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-hm-muted mb-1">
+            APP / CENTRO DE OPERACIONES
           </div>
-        </section>
-
-        {/* ── KPI ROW ───────────────────────────────────────── */}
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {kpis.map((item) => (
-            <KpiCard key={item.label} {...item} loading={loading} />
-          ))}
-        </section>
-
-        {/* ── MAIN GRID ─────────────────────────────────────── */}
-        <section className="grid gap-6 xl:grid-cols-[1fr_0.72fr]">
-
-          {/* ── Left: module map ──────────────────────────── */}
-          <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-6">
-            <div className="mb-5">
-              <Eyebrow text="Módulos críticos" />
-              <h2 className="text-xl font-black tracking-tight text-white">Mapa operativo</h2>
-              <p className="mt-1 text-sm text-neutral-500">
-                Accesos principales para ejecutar y controlar la operación.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {commandItems.map((item) => (
-                <CommandModule key={item.title} item={item} />
-              ))}
-            </div>
-          </div>
-
-          {/* ── Right: alerts + transactions ──────────────── */}
-          <div className="flex flex-col gap-5">
-
-            {/* Alerts panel */}
-            <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-5">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <Eyebrow text="Riesgo operativo" />
-                  <h2 className="text-base font-black text-white">Alertas prioritarias</h2>
-                </div>
-                {!loading && alertas.length > 0 && (
-                  <span className="rounded-full border border-red-300/20 bg-red-300/10 px-2 py-0.5 font-mono text-[10px] font-bold text-red-300">
-                    {alertas.length}
-                  </span>
-                )}
-              </div>
-
-              {loading ? (
-                <div className="space-y-3">
-                  <Skel className="h-16" />
-                  <Skel className="h-14" />
-                  <Skel className="h-14" />
-                </div>
-              ) : alertas.length > 0 ? (
-                <div className="space-y-2.5">
-                  {alertas.map((a) => <AlertRow key={a.id} alerta={a} />)}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-white/5 bg-black/10 py-8 text-center">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-300/60" />
-                  <span className="text-sm text-neutral-600">Sin alertas activas</span>
-                </div>
-              )}
-
-              {/* Service alerts */}
-              {!loading && alertasService.length > 0 && (
-                <div className="mt-4">
-                  <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-amber-300/60">
-                    Service próximo
-                  </div>
-                  <div className="space-y-2">
-                    {alertasService.map((m) => (
-                      <div
-                        key={m.id}
-                        className="flex items-center justify-between rounded-xl border border-amber-300/15 bg-black/15 px-3.5 py-2.5"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-bold text-neutral-200">{m.nombre_unidad}</p>
-                          {m.cliente_nombre && (
-                            <p className="mt-0.5 truncate font-mono text-[10px] text-neutral-600">{m.cliente_nombre}</p>
-                          )}
-                        </div>
-                        <div className="ml-3 shrink-0 text-right">
-                          <div className="font-mono text-xs font-black text-amber-300">
-                            {m.horas_restantes_service != null ? `${m.horas_restantes_service} h` : '—'}
-                          </div>
-                          <div className="font-mono text-[9px] uppercase tracking-wider text-neutral-700">restantes</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Recent transactions */}
-            <div className="rounded-[24px] border border-white/5 bg-[#080b10] p-5">
-              <div className="mb-4">
-                <Eyebrow text="Actividad reciente" />
-                <h2 className="text-base font-black text-white">Últimas transacciones</h2>
-              </div>
-
-              {loading ? (
-                <div className="space-y-3">
-                  <Skel className="h-12" />
-                  <Skel className="h-12" />
-                  <Skel className="h-12" />
-                </div>
-              ) : transacciones.length > 0 ? (
-                <div>
-                  {transacciones.map((tx) => (
-                    <TxRow key={tx.id} tx={tx} formatUSD={formatUSD} />
-                  ))}
-                  <Link
-                    to="/app/facturacion"
-                    className="mt-4 flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-cyan-300/50 transition-colors hover:text-cyan-300"
-                  >
-                    Ver todas <ChevronRight className="h-3 w-3" />
-                  </Link>
-                </div>
-              ) : (
-                <p className="text-sm text-neutral-600">Sin transacciones registradas aún.</p>
-              )}
-            </div>
-
-          </div>
-        </section>
-
+          <h1 className="text-xl font-bold tracking-tight text-hm-text">{saludo}</h1>
+          <p className="text-[12px] text-hm-muted mt-1">Operación consolidada · {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 pt-1">
+          <Link to="/app/taller"
+            className="flex items-center gap-1.5 rounded-md border border-hm-border bg-hm-surface px-3 py-1.5 text-xs font-semibold text-hm-muted hover:border-hm-accent/40 hover:text-hm-text transition-colors">
+            + Nueva OT
+          </Link>
+          <Link to="/app/ceo"
+            className="flex items-center gap-1.5 rounded-md bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 transition-colors">
+            ⚡ CEO Dashboard
+          </Link>
+        </div>
       </div>
+
+      {/* ── KPI row ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard
+          label="Órdenes de Venta"
+          value={loading ? '—' : String(k.ordenesActivas ?? 0)}
+          subtext="pendientes de firma"
+          delta="+18%"
+          deltaType="up"
+          accent="amber"
+          sparkData={SPARK_OV}
+        />
+        <KpiCard
+          label="Trabajos Abiertos"
+          value={loading ? '—' : String(k.alertasService ?? 0)}
+          subtext={`${k.alertasServiceUrgentes ?? 0} urgentes`}
+          delta={k.alertasServiceUrgentes > 0 ? `${k.alertasServiceUrgentes} urgentes` : 'OK'}
+          deltaType={k.alertasServiceUrgentes > 0 ? 'warn' : 'up'}
+          accent="blue"
+          sparkData={SPARK_OT}
+        />
+        <KpiCard
+          label="Facturado mes"
+          value={loading ? '—' : formatUSD(k.facturadoMes)}
+          subtext="ingresos del mes"
+          delta="+12%"
+          deltaType="up"
+          accent="green"
+          sparkData={SPARK_USD}
+        />
+        <KpiCard
+          label="Cobranza pendiente"
+          value={loading ? '—' : formatUSD(k.cobranzaPendiente)}
+          subtext="sin cobrar"
+          delta={k.cobranzaPendiente > 0 ? '6 facturas' : 'Al día'}
+          deltaType={k.cobranzaPendiente > 0 ? 'warn' : 'up'}
+          accent={k.cobranzaPendiente > 0 ? 'amber' : 'green'}
+          sparkData={SPARK_STK}
+        />
+      </div>
+
+      {/* ── Main grid ── */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
+
+        {/* Left: Priority */}
+        <div className="bg-hm-surface border border-hm-border rounded-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-hm-border flex items-center justify-between">
+            <div>
+              <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-hm-muted mb-0.5">PRIORIDAD</div>
+              <div className="text-[14px] font-bold text-hm-text">Atención Requerida</div>
+              <div className="text-[11px] text-hm-muted">Accesos directos a los frentes que conviene revisar primero.</div>
+            </div>
+            <span className="flex items-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-1 font-mono text-[9px] text-red-600">
+              ⚠ OPERACIÓN
+            </span>
+          </div>
+          <PriorityRow category="VENTA" title="Órdenes de Venta pendientes de firma"
+            description="Revisar ventas en preparación y confirmar aceptación del cliente."
+            borderColor="#D97706" />
+          <PriorityRow category="COBRANZA" title="Documentos pendientes de cobro"
+            description="Facturas y recibos con seguimiento financiero abierto."
+            borderColor="#3B82F6" />
+          <PriorityRow category="INVENTARIO" title="Stock bajo o pendiente de reposición"
+            description="Revisar mínimos, movimientos y necesidades de compra."
+            borderColor="#DC2626" />
+          <PriorityRow category="SERVICIO" title="Trabajos y servicios en curso"
+            description="Órdenes de trabajo, activos y tareas operativas pendientes."
+            borderColor="#94A3B8" />
+        </div>
+
+        {/* Right: Activity + analytics */}
+        <div className="flex flex-col gap-4">
+          <div className="bg-hm-surface border border-hm-border rounded-lg overflow-hidden">
+            <div className="px-4 py-3 border-b border-hm-border">
+              <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-hm-muted mb-0.5">ACTIVIDAD</div>
+              <div className="text-[14px] font-bold text-hm-text">Últimas Mejoras</div>
+            </div>
+            <ActivityRow title="Ventas" description="Base real de Órdenes de Venta habilitada" />
+            <ActivityRow title="Usuarios" description="Permisos de owner y roles normalizados" />
+            <ActivityRow title="Proveedores" description="Lenguaje profesional e ISO aplicado" />
+            <ActivityRow title="Facturación" description="Documentos y Cobranzas consolidado" />
+            <ActivityRow title="Stock / Inventario" description="Mínimos y gestión de reposición" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Module shortcuts ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <ModuleCard to="/app/ventas"       label="Órdenes de Venta"  code="OV"  description="Ventas, firmas y facturación"  accentColor="#D97706" />
+        <ModuleCard to="/app/taller"       label="Trabajos Abiertos" code="OT"  description="Taller y servicio"             accentColor="#3B82F6" />
+        <ModuleCard to="/app/repuestos"    label="Inventario"        code="STK" description="Stock, mínimos y reposición"   accentColor="#DC2626" />
+        <ModuleCard to="/app/tesoreria"    label="Tesorería"         code="$"   description="Caja, bancos y pagos"          accentColor="#10B981" />
+      </div>
+
+      {/* ── Bottom grid ── */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+
+        {/* Quick actions */}
+        <div className="bg-hm-surface border border-hm-border rounded-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-hm-border">
+            <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-hm-muted mb-0.5">ACCIONES</div>
+            <div className="text-[14px] font-bold text-hm-text">Accesos Rápidos</div>
+          </div>
+          {[
+            { to: '/app/ventas',      label: 'Crear Orden de Venta',    sub: 'Generar una OV comercial.',            accent: '#D97706' },
+            { to: '/app/cotizaciones',label: 'Cotizaciones',             sub: 'Revisar y convertir cotizaciones.',    accent: null },
+            { to: '/app/clientes',    label: 'Ver clientes',             sub: 'Historial, deuda y actividad.',        accent: null },
+            { to: '/app/repuestos',   label: 'Revisar inventario',       sub: 'Stock, movimientos y reposición.',     accent: null },
+            { to: '/app/facturacion', label: 'Documentos y Cobranzas',   sub: 'Facturas, recibos, remitos y cobros.', accent: null },
+            { to: '/app/tesoreria',   label: 'Tesorería',                sub: 'Flujo de fondos, bancos y pagos.',     accent: null },
+          ].map(item => (
+            <Link key={item.to} to={item.to}
+              className="flex items-center gap-3 px-4 py-2.5 border-b border-hm-border/50 last:border-0 hover:bg-hm-surface2/60 transition-colors"
+              style={{ borderLeftWidth: 2, borderLeftColor: item.accent || 'transparent' }}>
+              <div className="flex-1">
+                <div className="text-[12.5px] font-semibold text-hm-text">{item.label}</div>
+                <div className="text-[11px] text-hm-muted">{item.sub}</div>
+              </div>
+              <svg className="h-3 w-3 shrink-0 text-hm-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 18l6-6-6-6" />
+              </svg>
+            </Link>
+          ))}
+        </div>
+
+        {/* Pipeline stepper */}
+        <div className="bg-hm-surface border border-hm-border rounded-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-hm-border">
+            <div className="font-mono text-[9px] tracking-[0.14em] uppercase text-hm-muted mb-0.5">FLUJO COMERCIAL</div>
+            <div className="text-[14px] font-bold text-hm-text">Cotización a Cobranza</div>
+            <div className="text-[11px] text-hm-muted">Circuito comercial preparado para operación real.</div>
+          </div>
+          <div className="p-4">
+            <StepperItem n={1} title="Cotización"      description="Presupuesto comercial enviado al cliente" />
+            <StepperItem n={2} title="Orden de Venta"  description="Condiciones aceptadas y operación confirmada" />
+            <StepperItem n={3} title="Firma"           description="Evidencia de aceptación del comprador" />
+            <StepperItem n={4} title="Factura / Cobranza" description="Documento emitido y seguimiento financiero" isLast />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Status strip ── */}
+      <div className="flex items-center gap-3 bg-hm-surface border border-hm-border rounded-lg px-4 py-3">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50">
+          <svg className="h-3.5 w-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M22 11.08V12a10 10 0 11-5.93-9.14M22 4L12 14.01l-3-3" />
+          </svg>
+        </div>
+        <div className="flex-1">
+          <div className="text-[11.5px] font-bold text-hm-text">BASE OPERATIVA CONSOLIDADA</div>
+          <div className="text-[11px] text-hm-muted mt-0.5">
+            Navegación profesional, roles normalizados, ventas con OV real, gestión de proveedores, inventario y documentos de cobranza.
+          </div>
+        </div>
+        <Link to="/app/ventas"
+          className="flex items-center gap-1.5 rounded-md bg-zinc-950 px-3 py-1.5 text-[11px] font-bold text-white tracking-wide hover:bg-zinc-800 transition-colors shrink-0 whitespace-nowrap">
+          IR A VENTAS
+        </Link>
+      </div>
+
     </div>
   )
 }

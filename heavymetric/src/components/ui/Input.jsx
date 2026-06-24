@@ -1,24 +1,12 @@
 export default function Input({ label, className = '', ...props }) {
-  if (label) {
-    return (
-      <div className="flex flex-col gap-1">
-        <label className="label-mono">{label}</label>
-        <input
-          className={`bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text
-            focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30
-            transition-colors w-full placeholder-hm-muted/50 ${className}`}
-          {...props}
-        />
-      </div>
-    )
-  }
-
   return (
-    <input
-      className={`bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text
-        focus:outline-none focus:border-hm-accent focus:ring-1 focus:ring-hm-accent/30
-        transition-colors w-full placeholder-hm-muted/50 ${className}`}
-      {...props}
-    />
+    <div className="flex flex-col gap-1">
+      {label && <label className="text-[10px] font-mono font-bold tracking-[0.12em] uppercase text-hm-muted">{label}</label>}
+      <input
+        className={`bg-hm-surface border border-hm-border rounded-md px-3 py-2 text-sm text-hm-text
+          placeholder:text-hm-muted focus:outline-none focus:border-hm-accent transition-colors w-full ${className}`}
+        {...props}
+      />
+    </div>
   )
 }

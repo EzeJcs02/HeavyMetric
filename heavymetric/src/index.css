@@ -2,67 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Design tokens — Light Mode ─────────────────────────────────────────── */
 :root {
-  --hm-bg:       #0c0e14;
-  --hm-surface:  #141720;
-  --hm-surface2: #1a1e2b;
-  --hm-border:   #252a38;
-  --hm-accent:   #f0a500;
-  --hm-text:     #dde1ec;
-  --hm-muted:    #5c6278;
+  --hm-bg:       #F8FAFC;
+  --hm-surface:  #FFFFFF;
+  --hm-surface2: #F1F5F9;
+  --hm-border:   #E2E8F0;
+  --hm-accent:   #D97706;
+  --hm-text:     #09090B;
+  --hm-muted:    #71717A;
+  --hm-green:    #10B981;
+  --hm-blue:     #3B82F6;
+  --hm-red:      #DC2626;
 }
 
-:root.light {
-  --hm-bg:       #f0f2f7;
-  --hm-surface:  #ffffff;
-  --hm-surface2: #f5f7fa;
-  --hm-border:   #dde1ec;
-  --hm-accent:   #d4920a;
-  --hm-text:     #1a1d2e;
-  --hm-muted:    #7a8099;
+/* ─── Dark Mode (opt-in via .dark class) ─────────────────────────────────── */
+:root.dark {
+  --hm-bg:       #070810;
+  --hm-surface:  #0c0e1a;
+  --hm-surface2: #0f1120;
+  --hm-border:   #1e2138;
+  --hm-accent:   #e09830;
+  --hm-text:     #d4d8ea;
+  --hm-muted:    #6b7090;
+  --hm-green:    #25a36a;
+  --hm-blue:     #1aafc4;
+  --hm-red:      #c24848;
 }
 
+/* ─── Base ───────────────────────────────────────────────────────────────── */
 @layer base {
-  *,
-  *::before,
-  *::after {
-    scrollbar-width: thin;
-    scrollbar-color: var(--hm-border) transparent;
-  }
-
+  *, *::before, *::after { scrollbar-width: thin; scrollbar-color: var(--hm-border) transparent; }
   ::-webkit-scrollbar        { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track  { background: transparent; }
   ::-webkit-scrollbar-thumb  { background: var(--hm-border); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--hm-surface2); }
 
   body {
     @apply bg-hm-bg text-hm-text antialiased;
-    font-size: 15px;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 14px;
     line-height: 1.5;
   }
 
-  h1 { @apply text-2xl font-bold tracking-tight; }
-  h2 { @apply text-sm font-semibold tracking-wide text-hm-muted uppercase; }
-
-  ::selection {
-    background: rgba(240, 165, 0, 0.2);
-    color: #f0a500;
-  }
+  ::selection { background: rgba(217, 119, 6, 0.15); color: #D97706; }
 }
 
+/* ─── Components ─────────────────────────────────────────────────────────── */
 @layer components {
   .section-header {
-    @apply px-5 py-3 border-b border-hm-border bg-hm-surface2/40
-           text-[11px] font-bold tracking-widest uppercase text-hm-muted;
+    @apply px-4 py-2.5 border-b border-hm-border bg-hm-surface2/60
+           text-[10px] font-bold tracking-widest uppercase text-hm-muted font-mono;
   }
 
   .label-mono {
-    @apply block text-[10px] font-mono font-bold tracking-[0.12em] uppercase text-hm-muted mb-1;
+    @apply block text-[9px] font-mono font-bold tracking-[0.14em] uppercase text-hm-muted mb-1;
   }
 
-  .select-hm {
-    @apply bg-hm-surface2 border border-hm-border rounded-lg px-3 py-2 text-sm text-hm-text
-           focus:outline-none focus:border-hm-accent
-           transition-colors w-full;
+  .input-hm {
+    @apply bg-hm-surface border border-hm-border rounded-md px-3 py-2 text-sm text-hm-text
+           focus:outline-none focus:border-hm-accent transition-colors w-full
+           placeholder:text-hm-muted;
   }
+
+  .row-item {
+    @apply flex items-center gap-3 px-4 py-2.5 border-b border-hm-border/50
+           hover:bg-hm-surface2/60 transition-colors cursor-pointer;
+  }
+
+  .panel {
+    @apply bg-hm-surface border border-hm-border rounded-lg overflow-hidden;
+  }
+
+  .panel-header {
+    @apply px-4 py-3 border-b border-hm-border;
+  }
+
+  .badge-green  { @apply bg-emerald-50 border border-emerald-200 text-emerald-700; }
+  .badge-amber  { @apply bg-amber-50 border border-amber-200 text-amber-700; }
+  .badge-blue   { @apply bg-blue-50 border border-blue-200 text-blue-700; }
+  .badge-red    { @apply bg-red-50 border border-red-200 text-red-700; }
+  .badge-gray   { @apply bg-slate-100 border border-slate-200 text-slate-600; }
 }
