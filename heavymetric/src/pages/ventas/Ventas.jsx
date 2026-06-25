@@ -207,6 +207,8 @@ function ModalOrdenVenta({ isOpen, onClose, onConfirm, clientes, orden }) {
     try {
       await onConfirm(form, items, totales)
       onClose()
+    } catch (err) {
+      toast.error(err?.message || 'No se pudo guardar la orden de venta')
     } finally {
       setSaving(false)
     }
@@ -430,12 +432,19 @@ export default function Ventas() {
   const [estadoFilter, setEstadoFilter] = useState('todos')
 
   const fetchOrders = async () => {
+    if (!perfil?.organization_id) {
+      setOrders([])
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
 
     try {
       const { data: ordersData, error } = await supabase
         .from('sales_orders')
         .select('*')
+        .eq('organization_id', perfil.organization_id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -479,7 +488,8 @@ export default function Ventas() {
 
   useEffect(() => {
     fetchOrders()
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfil?.organization_id])
 
   const filteredOrders = useMemo(() => {
     const q = search.toLowerCase()
@@ -536,10 +546,22 @@ export default function Ventas() {
     }
 
     if (editing) {
+      const { data: orderCheck, error: checkError } = await supabase
+        .from('sales_orders')
+        .select('id')
+        .eq('id', editing.id)
+        .eq('organization_id', perfil.organization_id)
+        .single()
+
+      if (checkError || !orderCheck) {
+        throw new Error('Acceso denegado: la orden de venta no pertenece a tu organización.')
+      }
+
       const { error } = await supabase
         .from('sales_orders')
         .update(payload)
         .eq('id', editing.id)
+        .eq('organization_id', perfil.organization_id)
 
       if (error) throw error
 
@@ -617,6 +639,11 @@ export default function Ventas() {
   const handleChangeStatus = async () => {
     if (!changingStatus) return
 
+    if (!perfil?.organization_id) {
+      toast.error('No se encontró organization_id del usuario')
+      return
+    }
+
     const { order, estado } = changingStatus
 
     try {
@@ -624,6 +651,7 @@ export default function Ventas() {
         .from('sales_orders')
         .update({ estado })
         .eq('id', order.id)
+        .eq('organization_id', perfil.organization_id)
 
       if (error) throw error
 
