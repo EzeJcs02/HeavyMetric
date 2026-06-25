@@ -16,18 +16,18 @@
   --hm-red:      #DC2626;
 }
 
-/* ─── Dark Mode (opt-in via .dark class) ─────────────────────────────────── */
+/* ─── Dark Mode (opt-in via .dark class) — matches Landing/Login palette ─── */
 :root.dark {
-  --hm-bg:       #070810;
-  --hm-surface:  #0c0e1a;
-  --hm-surface2: #0f1120;
-  --hm-border:   #1e2138;
-  --hm-accent:   #e09830;
-  --hm-text:     #d4d8ea;
-  --hm-muted:    #6b7090;
-  --hm-green:    #25a36a;
-  --hm-blue:     #1aafc4;
-  --hm-red:      #c24848;
+  --hm-bg:       #09090B;
+  --hm-surface:  #0f1117;
+  --hm-surface2: #16181f;
+  --hm-border:   #27272A;
+  --hm-accent:   #D97706;
+  --hm-text:     #e4e6ef;
+  --hm-muted:    #71717A;
+  --hm-green:    #10B981;
+  --hm-blue:     #3B82F6;
+  --hm-red:      #DC2626;
 }
 
 /* ─── Base ───────────────────────────────────────────────────────────────── */

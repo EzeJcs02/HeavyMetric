@@ -6,10 +6,10 @@ export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => localStorage.getItem('hm-theme') || 'dark')
 
   useEffect(() => {
-    if (theme === 'light') {
-      document.documentElement.classList.add('light')
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark')
     } else {
-      document.documentElement.classList.remove('light')
+      document.documentElement.classList.remove('dark')
     }
     localStorage.setItem('hm-theme', theme)
   }, [theme])
