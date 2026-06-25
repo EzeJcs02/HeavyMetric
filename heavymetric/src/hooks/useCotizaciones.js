@@ -1,12 +1,22 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 export function useCotizaciones() {
+  const { perfil } = useAuth()
+  const organizationId = perfil?.organization_id
+
   const [cotizaciones, setCotizaciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const fetchCotizaciones = async () => {
+    if (!organizationId) {
+      setCotizaciones([])
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -19,6 +29,7 @@ export function useCotizaciones() {
           lead:leads(id, nombre, empresa, email, telefono, estado),
           items:cotizacion_items(*)
         `)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
 
       if (err) throw err
@@ -65,6 +76,10 @@ export function useCotizaciones() {
   }
 
   const crearCotizacion = async (payload, items) => {
+    if (!organizationId) {
+      throw new Error('No se pudo determinar la organización. Volvé a iniciar sesión.')
+    }
+
     const { subtotal, iva, total } = calcularTotales(items)
 
     const { data: cot, error: errC } = await supabase
@@ -72,6 +87,7 @@ export function useCotizaciones() {
       .insert([
         {
           ...payload,
+          organization_id: organizationId,
           subtotal_usd: subtotal,
           iva_usd: iva,
           total_usd: total,
@@ -99,6 +115,7 @@ export function useCotizaciones() {
       .from('cotizaciones')
       .update({ estado })
       .eq('id', id)
+      .eq('organization_id', organizationId)
 
     if (err) throw err
 
@@ -106,6 +123,19 @@ export function useCotizaciones() {
   }
 
   const actualizarCotizacion = async (id, payload, items) => {
+    // Verificar primero que la cotización pertenece a esta organización
+    // antes de borrar cotizacion_items (que no tiene organization_id propio)
+    const { data: cotCheck, error: errCheck } = await supabase
+      .from('cotizaciones')
+      .select('id')
+      .eq('id', id)
+      .eq('organization_id', organizationId)
+      .single()
+
+    if (errCheck || !cotCheck) {
+      throw new Error('Acceso denegado: la cotización no pertenece a tu organización.')
+    }
+
     const { subtotal, iva, total } = calcularTotales(items)
 
     const { error: errU } = await supabase
@@ -117,6 +147,7 @@ export function useCotizaciones() {
         total_usd: total,
       })
       .eq('id', id)
+      .eq('organization_id', organizationId)
 
     if (errU) throw errU
 
@@ -140,7 +171,8 @@ export function useCotizaciones() {
 
   useEffect(() => {
     fetchCotizaciones()
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizationId])
 
   return {
     cotizaciones,
