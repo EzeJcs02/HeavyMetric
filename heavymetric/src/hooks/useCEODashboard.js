@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
-async function fetchCEOData() {
+async function fetchCEOData(organizationId) {
   const hoy    = new Date()
   const inicioMes  = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0]
   const inicioAnio = new Date(hoy.getFullYear(), 0, 1).toISOString().split('T')[0]
@@ -25,40 +26,40 @@ async function fetchCEOData() {
     { data: compData,  error: e12 },
   ] = await Promise.all([
     // Ingresos del mes actual
-    supabase.from('transacciones').select('monto_total_usd, origen_tipo').gte('fecha_emision', inicioMes),
+    supabase.from('transacciones').select('monto_total_usd, origen_tipo').eq('organization_id', organizationId).gte('fecha_emision', inicioMes),
 
     // Cobranza pendiente
-    supabase.from('transacciones').select('monto_total_usd, cliente_id, clientes(razon_social)').eq('estado_pago', 'pendiente'),
+    supabase.from('transacciones').select('monto_total_usd, cliente_id, clientes(razon_social)').eq('organization_id', organizationId).eq('estado_pago', 'pendiente'),
 
     // Ingresos anuales por mes
-    supabase.from('transacciones').select('fecha_emision, monto_total_usd').gte('fecha_emision', inicioAnio),
+    supabase.from('transacciones').select('fecha_emision, monto_total_usd').eq('organization_id', organizationId).gte('fecha_emision', inicioAnio),
 
     // Top clientes por facturación (últimos 90 días)
-    supabase.from('transacciones').select('cliente_id, monto_total_usd, clientes(razon_social)').gte('fecha_emision', hace90),
+    supabase.from('transacciones').select('cliente_id, monto_total_usd, clientes(razon_social)').eq('organization_id', organizationId).gte('fecha_emision', hace90),
 
     // OTs por estado
-    supabase.from('ordenes_trabajo').select('estado, total_usd, total_repuestos_usd, total_mano_obra_usd, numero_ot, maquina:maquinas(nombre_unidad), created_at').gte('created_at', inicioAnio),
+    supabase.from('ordenes_trabajo').select('estado, total_usd, total_repuestos_usd, total_mano_obra_usd, numero_ot, maquina:maquinas(nombre_unidad), created_at').eq('organization_id', organizationId).gte('created_at', inicioAnio),
 
     // Flota por estado_operativo
-    supabase.from('maquinas').select('estado_operativo, activa').eq('activa', true),
+    supabase.from('maquinas').select('estado_operativo, activa').eq('organization_id', organizationId).eq('activa', true),
 
     // Leads activos + pipeline
-    supabase.from('leads').select('estado, lead_grade, pipeline').not('estado', 'in', '(Ganado,Perdido,Facturado)'),
+    supabase.from('leads').select('estado, lead_grade, pipeline').eq('organization_id', organizationId).not('estado', 'in', '(Ganado,Perdido,Facturado)'),
 
     // Cotizaciones pendientes + monto
-    supabase.from('cotizaciones').select('estado, total_usd').in('estado', ['Borrador','Enviada']),
+    supabase.from('cotizaciones').select('estado, total_usd').eq('organization_id', organizationId).in('estado', ['Borrador','Enviada']),
 
     // Alertas sin resolver
-    supabase.from('alertas').select('tipo, prioridad').eq('resuelta', false),
+    supabase.from('alertas').select('tipo, prioridad').eq('organization_id', organizationId).eq('resuelta', false),
 
     // Repuestos en stock crítico
-    supabase.from('repuestos').select('nombre, stock_actual, stock_minimo').filter('stock_actual', 'lte', 'stock_minimo').eq('activo', true),
+    supabase.from('repuestos').select('nombre, stock_actual, stock_minimo').eq('organization_id', organizationId).filter('stock_actual', 'lte', 'stock_minimo').eq('activo', true),
 
     // Proveedores por estado
-    supabase.from('proveedores').select('estado').eq('activo', true),
+    supabase.from('proveedores').select('estado').eq('organization_id', organizationId).eq('activo', true),
 
     // Compras del año
-    supabase.from('compras').select('total_usd, estado, proveedor_id, proveedores(empresa)').gte('created_at', inicioAnio),
+    supabase.from('compras').select('total_usd, estado, proveedor_id, proveedores(empresa)').eq('organization_id', organizationId).gte('created_at', inicioAnio),
   ])
 
   // Ignorar errores no críticos (tablas que pueden no existir aún)
@@ -170,9 +171,13 @@ async function fetchCEOData() {
 }
 
 export function useCEODashboard() {
+  const { perfil } = useAuth()
+  const organizationId = perfil?.organization_id ?? null
+
   const { data, isLoading: loading, error: queryError, refetch } = useQuery({
-    queryKey: ['ceo-dashboard'],
-    queryFn:  fetchCEOData,
+    queryKey: ['ceo-dashboard', organizationId],
+    queryFn:  () => fetchCEOData(organizationId),
+    enabled:  !!organizationId,
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   })
