@@ -136,7 +136,7 @@ export default function Login() {
         `}
       </style>
 
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(37,99,235,0.12),transparent_28%),radial-gradient(circle_at_80%_70%,rgba(0,245,160,0.07),transparent_28%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(217,119,6,0.12),transparent_28%),radial-gradient(circle_at_80%_70%,rgba(59,130,246,0.07),transparent_28%)]" />
 
       <div className="relative grid min-h-screen grid-cols-1 lg:grid-cols-[1.08fr_0.92fr]">
         <section className="relative hidden overflow-hidden border-r border-neutral-800/70 bg-[#0b0c0e] p-10 lg:flex lg:flex-col lg:justify-between">
@@ -150,10 +150,11 @@ export default function Login() {
             className="relative z-20 flex w-fit cursor-pointer items-center gap-3 rounded-2xl transition-all duration-200 hover:scale-[1.02] hover:opacity-90"
           >
             <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-neutral-700/80 bg-neutral-950">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(0,245,160,0.14),transparent_35%),radial-gradient(circle_at_80%_70%,rgba(37,99,235,0.18),transparent_40%)]" />
-              <span className="relative bg-gradient-to-br from-zinc-100 via-zinc-400 to-zinc-700 bg-clip-text font-mono text-3xl font-black text-transparent">
-                ∞
-              </span>
+              <svg className="relative h-5 w-5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
             </div>
 
             <div>
@@ -168,8 +169,8 @@ export default function Login() {
           </Link>
 
           <div className="relative z-10 max-w-md">
-            <div className="mb-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300/70">
-              <span className="h-px w-8 bg-cyan-300/40" />
+            <div className="mb-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-500/70">
+              <span className="h-px w-8 bg-amber-500/40" />
               Operational Command Layer
             </div>
 
@@ -180,16 +181,34 @@ export default function Login() {
             </h1>
 
             <p className="mt-5 max-w-sm text-sm leading-relaxed text-neutral-500">
-              Acceso seguro al entorno operativo de activos, taller, stock, tesorería y continuidad.
+              Acceso seguro al entorno operativo de activos, taller, stock, tesorería y continuidad de flota.
             </p>
+
+            <div className="mt-7 flex flex-wrap gap-2">
+              {['TALLER · OTs', 'ALQUILERES', 'FACTURACIÓN', 'TESORERÍA', 'CEO DASHBOARD'].map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded border border-neutral-800 bg-neutral-900/60 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] text-neutral-500"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative z-10 flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-neutral-600">
+              Sistema activo · v2.4.0 · ISO Traceability ON
+            </span>
           </div>
         </section>
 
         <section className="relative flex min-h-screen items-center justify-center px-5 py-10">
           <div className="relative w-full max-w-md rounded-3xl border border-neutral-800/80 bg-neutral-950/70 p-8 shadow-2xl shadow-black/60 backdrop-blur-xl">
             <div className="mb-8">
-              <div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-cyan-300/80">
-                <span className="h-px w-6 bg-cyan-300/50" />
+              <div className="mb-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-amber-500/80">
+                <span className="h-px w-6 bg-amber-500/50" />
                 {current.label}
               </div>
 
@@ -229,7 +248,7 @@ export default function Login() {
                       <button
                         type="button"
                         onClick={() => switchMode('reset')}
-                        className="text-[11px] text-cyan-300/70 transition-colors hover:text-cyan-200"
+                        className="text-[11px] text-amber-500/70 transition-colors hover:text-amber-400"
                       >
                         ¿Olvidaste?
                       </button>
@@ -249,7 +268,7 @@ export default function Login() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((value) => !value)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500 hover:text-cyan-300"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-500 hover:text-amber-400"
                     >
                       {showPassword ? 'Ocultar' : 'Ver'}
                     </button>
