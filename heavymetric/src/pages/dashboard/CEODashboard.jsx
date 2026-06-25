@@ -1,346 +1,459 @@
+import { useMemo } from 'react'
 import { useCEODashboard } from '../../hooks/useCEODashboard'
 import { useDolar } from '../../context/DolarContext'
 import Card from '../../components/ui/Card'
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
-const Skeleton = ({ className }) => <div className={`animate-pulse bg-hm-surface2 rounded ${className}`} />
+const Skeleton = ({ className }) => (
+  <div className={`animate-pulse rounded bg-hm-surface2 ${className}`} />
+)
 
-function Section({ title, children }) {
+function DataBadge({ type = 'real' }) {
+  const cfg = {
+    real: 'border-hm-accent/30 bg-hm-accent/10 text-hm-accent',
+    prepared: 'border-hm-border bg-hm-surface2/40 text-hm-muted',
+    empty: 'border-hm-border bg-hm-surface2/20 text-hm-muted/60',
+  }
+
+  const label = {
+    real: 'REAL',
+    prepared: 'BASE PREPARADA',
+    empty: 'SIN DATOS',
+  }
+
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-1 h-4 bg-hm-accent rounded-full" />
-        <h2 className="text-xs font-mono font-bold text-hm-muted uppercase tracking-widest">{title}</h2>
-      </div>
-      {children}
-    </div>
+    <span className={`rounded border px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-widest ${cfg[type] || cfg.real}`}>
+      {label[type] || label.real}
+    </span>
   )
 }
 
-function KpiBlock({ label, value, sub, accent = '', alert = false }) {
+function Section({ title, children }) {
+  return (
+    <section>
+      <div className="mb-3 flex items-center gap-2">
+        <div className="h-4 w-1 rounded-full bg-hm-accent" />
+        <h2 className="font-mono text-xs font-bold uppercase tracking-widest text-hm-muted">{title}</h2>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function KpiBlock({ label, value, sub, accent = '', alert = false, dataState = 'real' }) {
   return (
     <Card className={`p-4 ${alert ? 'border-red-500/40' : ''}`}>
-      <div className={`text-2xl font-bold ${accent}`}>{value}</div>
-      <div className="text-[9px] font-mono text-hm-muted uppercase tracking-widest mt-0.5">{label}</div>
-      {sub && <div className={`text-[10px] mt-0.5 ${alert ? 'text-red-400' : 'text-hm-muted'}`}>{sub}</div>}
+      <div className="flex items-start justify-between gap-2">
+        <div className={`text-2xl font-bold ${accent}`}>{value}</div>
+        <DataBadge type={dataState} />
+      </div>
+      <div className="mt-0.5 font-mono text-[9px] uppercase tracking-widest text-hm-muted">{label}</div>
+      {sub && <div className={`mt-0.5 text-[10px] ${alert ? 'text-red-400' : 'text-hm-muted'}`}>{sub}</div>}
     </Card>
   )
 }
 
-function TopList({ items, labelKey = 'nombre', valueKey = 'total', formatFn, emptyText = 'Sin datos' }) {
-  if (!items?.length) return <div className="text-sm text-hm-muted font-mono py-3">{emptyText}</div>
-  const max = Math.max(...items.map(i => i[valueKey]))
+function TopList({ items = [], labelKey = 'nombre', valueKey = 'total', formatFn, emptyText = 'Sin datos' }) {
+  if (!items?.length) {
+    return <div className="py-3 font-mono text-sm text-hm-muted">{emptyText}</div>
+  }
+
+  const max = Math.max(...items.map((item) => Number(item[valueKey] || item.value || 0)), 0)
+
   return (
     <div className="flex flex-col gap-2">
-      {items.map((item, idx) => (
-        <div key={idx} className="flex items-center gap-3">
-          <span className="text-[10px] font-mono text-hm-muted w-4 shrink-0">{idx + 1}</span>
-          <div className="flex-1 min-w-0">
-            <div className="flex justify-between items-center mb-0.5">
-              <span className="text-sm font-medium truncate">{item[labelKey]}</span>
-              <span className="text-sm font-bold font-mono text-hm-accent shrink-0 ml-2">
-                {formatFn ? formatFn(item[valueKey]) : item[valueKey]}
-              </span>
-            </div>
-            <div className="h-1 bg-hm-surface2 rounded-full overflow-hidden">
-              <div className="h-full bg-hm-accent/60 rounded-full" style={{ width: `${max > 0 ? (item[valueKey] / max) * 100 : 0}%` }} />
+      {items.map((item, index) => {
+        const label = item[labelKey] || item.label || item.nombre || 'Sin identificar'
+        const value = Number(item[valueKey] ?? item.value ?? item.total ?? 0)
+        const width = max > 0 ? (value / max) * 100 : 0
+
+        return (
+          <div key={`${label}-${index}`} className="flex items-center gap-3">
+            <span className="w-4 shrink-0 font-mono text-[10px] text-hm-muted">{index + 1}</span>
+            <div className="min-w-0 flex-1">
+              <div className="mb-0.5 flex items-center justify-between">
+                <span className="truncate text-sm font-medium">{label}</span>
+                <span className="ml-2 shrink-0 font-mono text-sm font-bold text-hm-accent">
+                  {formatFn ? formatFn(value) : value}
+                </span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-hm-surface2">
+                <div className="h-full rounded-full bg-hm-accent/60" style={{ width: `${width}%` }} />
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
+    </div>
+  )
+}
+
+function EmptyBox({ title = 'Sin datos suficientes', description = 'La base está preparada para recibir información real.' }) {
+  return (
+    <div className="rounded-xl border border-dashed border-hm-border bg-hm-surface2/10 p-5 text-center">
+      <div className="mb-1 text-sm font-bold text-hm-muted">{title}</div>
+      <div className="text-xs text-hm-muted/70">{description}</div>
     </div>
   )
 }
 
 const FLOTA_COLORS = {
-  'Operativo':          '#22c55e',
-  'En mantenimiento':   '#eab308',
-  'En taller':          '#f97316',
+  Operativo: '#22c55e',
+  'En mantenimiento': '#eab308',
+  'En taller': '#f97316',
   'Esperando repuesto': '#ef4444',
-  'Fuera de servicio':  '#dc2626',
-  'Baja':               '#6b7280',
+  'Fuera de servicio': '#dc2626',
+  Baja: '#6b7280',
 }
 
 export default function CEODashboard() {
   const { data, loading, error, refresh } = useCEODashboard()
   const { formatUSD } = useDolar()
 
-  if (error) return (
-    <div className="p-6">
-      <Card className="p-6 border-red-800 bg-red-900/20 text-red-400">
-        <h2 className="font-bold mb-2">Error cargando CEO Dashboard</h2>
-        <p className="font-mono text-sm">{error}</p>
-      </Card>
-    </div>
-  )
+  const k = data?.kpis || {}
 
-  const k = data?.kpis
+  const hasValue = (value) => value !== null && value !== undefined && value !== ''
+  const safeNumber = (value) => Number(value || 0)
+  const countOrDash = (value) => (hasValue(value) ? value : '—')
+
+  const er = useMemo(() => {
+    const ingresos = safeNumber(k.ingresosMes)
+    const compras = safeNumber(k.gastoProveedores)
+    const repuestos = safeNumber(k.costoRepuestosOT)
+    const manoObra = safeNumber(k.costoManoObraOT)
+    const egresos = compras + repuestos + manoObra
+    const utilidadBruta = ingresos - egresos
+    const margenBruto = ingresos > 0 ? (utilidadBruta / ingresos) * 100 : 0
+
+    return {
+      ingresos,
+      compras,
+      repuestos,
+      manoObra,
+      egresos,
+      utilidadBruta,
+      margenBruto,
+    }
+  }, [k])
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null
+
     return (
-      <div className="bg-hm-surface border border-hm-border rounded-lg px-3 py-2 text-xs shadow-lg">
-        <div className="font-mono text-hm-muted mb-1">{label}</div>
+      <div className="rounded-lg border border-hm-border bg-hm-surface px-3 py-2 text-xs shadow-lg">
+        <div className="mb-1 font-mono text-hm-muted">{label}</div>
         <div className="font-bold text-hm-accent">{formatUSD(payload[0].value)}</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <Card className="border-red-800 bg-red-900/20 p-6 text-red-400">
+          <h2 className="mb-2 font-bold">Error cargando CEO Dashboard</h2>
+          <p className="font-mono text-sm">{error}</p>
+        </Card>
       </div>
     )
   }
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-hm-border pb-4">
         <div>
           <h1 className="text-2xl font-bold">CEO Dashboard</h1>
-          <p className="text-sm text-hm-muted mt-1">Visión ejecutiva — acceso restringido owner</p>
+          <p className="mt-1 text-sm text-hm-muted">Visión ejecutiva — datos reales, bases preparadas y alertas críticas separadas.</p>
         </div>
-        <button onClick={refresh} className="text-xs font-mono font-bold border border-hm-border text-hm-muted rounded px-3 py-1.5 hover:border-hm-accent hover:text-hm-accent transition-colors">
+
+        <button
+          onClick={refresh}
+          className="rounded border border-hm-border px-3 py-1.5 font-mono text-xs font-bold text-hm-muted transition-colors hover:border-hm-accent hover:text-hm-accent"
+        >
           ↻ ACTUALIZAR
         </button>
       </div>
 
-      {/* ── FINANZAS / ESTADO DE RESULTADOS ── */}
-      <Section title="Estado de Resultados (Gerencial)">
-        {/* KPIs rápidos */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          {loading ? [1,2,3,4,5].map(i => <Skeleton key={i} className="h-[80px]" />) : (() => {
-            const ingresosTotales = k?.ingresosMes || 0
-            const egresosTotales = (k?.gastoProveedores || 0) + (k?.costoRepuestosOT || 0) + (k?.costoManoObraOT || 0)
-            const utilidadBruta = ingresosTotales - egresosTotales
-            const margen = ingresosTotales > 0 ? ((utilidadBruta / ingresosTotales) * 100).toFixed(1) : 0
-            return (
-              <>
-                <KpiBlock label="Ingresos Mes" value={formatUSD(ingresosTotales)} accent="text-green-400" />
-                <KpiBlock label="Egresos Mes" value={formatUSD(egresosTotales)} accent="text-orange-400" />
-                <KpiBlock label="Compras Supply" value={formatUSD(k?.gastoProveedores)} accent="text-red-400" />
-                <KpiBlock label="Utilidad Bruta" value={formatUSD(utilidadBruta)} accent="text-hm-accent" />
-                <KpiBlock label="Margen Bruto" value={`${margen}%`} accent="text-hm-accent" />
-              </>
-            )
-          })()}
+      <Section title="Estado de Resultados Gerencial">
+        <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
+          {loading ? (
+            [1, 2, 3, 4, 5].map((item) => <Skeleton key={item} className="h-[88px]" />)
+          ) : (
+            <>
+              <KpiBlock label="Ingresos mes" value={formatUSD(er.ingresos)} accent="text-green-400" />
+              <KpiBlock label="Egresos mes" value={formatUSD(er.egresos)} accent="text-orange-400" />
+              <KpiBlock label="Compras supply" value={formatUSD(er.compras)} accent="text-red-400" />
+              <KpiBlock
+                label="Utilidad bruta"
+                value={formatUSD(er.utilidadBruta)}
+                accent={er.utilidadBruta >= 0 ? 'text-hm-accent' : 'text-red-400'}
+                alert={er.utilidadBruta < 0}
+              />
+              <KpiBlock
+                label="Margen bruto"
+                value={`${er.margenBruto.toFixed(1)}%`}
+                accent={er.margenBruto >= 20 ? 'text-green-400' : er.margenBruto >= 10 ? 'text-yellow-400' : 'text-red-400'}
+              />
+            </>
+          )}
         </div>
 
-        {/* Desglose Ingresos / Egresos */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-          {/* A) Ingresos */}
-          <div className="bg-hm-surface2/20 border border-hm-border/50 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-2 h-2 rounded-full bg-green-500" />
-              <div className="text-xs font-mono font-bold text-green-400 uppercase tracking-widest">Ingresos</div>
+        <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card className="bg-hm-surface2/20 p-4">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-green-500" />
+              <div className="font-mono text-xs font-bold uppercase tracking-widest text-green-400">Ingresos</div>
             </div>
-            {loading ? <Skeleton className="h-32" /> : (
+
+            {loading ? (
+              <Skeleton className="h-32" />
+            ) : (
               <div className="flex flex-col gap-2">
                 {[
-                  { label: 'Servicios / Taller', value: k?.ingresosServicios || 0, real: true },
-                  { label: 'Ventas directas', value: k?.ingresosVentas || 0, real: true },
-                  { label: 'Alquileres', value: k?.ingresosAlquileres || 0, real: true },
-                  { label: 'Repuestos / Otros', value: k?.ingresosOtros || 0, real: true },
-                ].map(({ label, value, real }) => {
-                  const pct = k?.ingresosMes > 0 ? (value / k.ingresosMes) * 100 : 0
-                  return (
-                  <div key={label}>
-                    <div className="flex justify-between text-xs mb-0.5 items-center">
-                      <span className="text-hm-muted flex items-center gap-1">
-                        {label} {real && <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-accent border border-hm-border">[REAL]</span>}
-                      </span>
-                      <span className={`font-mono font-bold ${!real ? 'text-hm-muted/50' : 'text-green-400'}`}>
-                        {!real ? <span className="text-[9px] bg-hm-surface2/50 px-1 py-0.5 rounded border border-hm-border">[BASE PREPARADA]</span> : formatUSD(value)}
-                      </span>
-                    </div>
-                    <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500/60 rounded-full transition-all" style={{width:`${!real ? 0 : pct}%`}} />
-                    </div>
-                  </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+                  ['Servicios / Taller', k.ingresosServicios || 0],
+                  ['Ventas directas', k.ingresosVentas || 0],
+                  ['Alquileres', k.ingresosAlquileres || 0],
+                  ['Repuestos / Otros', k.ingresosOtros || 0],
+                ].map(([label, value]) => {
+                  const pct = er.ingresos > 0 ? (Number(value) / er.ingresos) * 100 : 0
 
-          {/* B) Egresos */}
-          <div className="bg-hm-surface2/20 border border-hm-border/50 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-2 h-2 rounded-full bg-red-500" />
-              <div className="text-xs font-mono font-bold text-red-400 uppercase tracking-widest">Egresos</div>
-            </div>
-            {loading ? <Skeleton className="h-32" /> : (
-              <div className="flex flex-col gap-2">
-                {[
-                  { label: 'Compras / Supply', value: k?.gastoProveedores || 0, real: true },
-                  { label: 'Repuestos (OT)', value: k?.costoRepuestosOT || 0, real: true },
-                  { label: 'Mano de Obra (OT)', value: k?.costoManoObraOT || 0, real: true },
-                  { label: 'Gastos Operativos', value: 0, real: false },
-                ].map(({ label, value, real }) => {
-                  const egresosTotales = (k?.gastoProveedores || 0) + (k?.costoRepuestosOT || 0) + (k?.costoManoObraOT || 0)
-                  const pct = egresosTotales > 0 ? (value / egresosTotales) * 100 : 0
                   return (
-                  <div key={label}>
-                    <div className="flex justify-between text-xs mb-0.5 items-center">
-                      <span className="text-hm-muted flex items-center gap-1">
-                        {label} {real ? <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-accent border border-hm-border">[REAL]</span> : <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-muted/50 border border-hm-border">[SIN DATOS]</span>}
-                      </span>
-                      <span className={`font-mono font-bold ${!real ? 'text-hm-muted/50' : 'text-red-400'}`}>
-                        {!real ? <span className="text-[9px] bg-hm-surface2/50 px-1 py-0.5 rounded border border-hm-border">[BASE PREPARADA]</span> : formatUSD(value)}
-                      </span>
-                    </div>
-                    <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
-                      <div className="h-full bg-red-500/60 rounded-full transition-all" style={{width:`${!real ? 0 : pct}%`}} />
-                    </div>
-                  </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* C) Resultado + D) Riesgo operativo */}
-          <div className="flex flex-col gap-4">
-            <div className="bg-hm-surface2/20 border border-hm-border/50 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-2 h-2 rounded-full bg-hm-accent" />
-                <div className="text-xs font-mono font-bold text-hm-accent uppercase tracking-widest">Resultado</div>
-              </div>
-              {loading ? <Skeleton className="h-20" /> : (() => {
-                const ingresosTotales = k?.ingresosMes || 0
-                const egresosTotales = (k?.gastoProveedores || 0) + (k?.costoRepuestosOT || 0) + (k?.costoManoObraOT || 0)
-                const utilidadBruta = ingresosTotales - egresosTotales
-                const margen = ingresosTotales > 0 ? ((utilidadBruta / ingresosTotales) * 100).toFixed(1) : 0
-                return (
-                  <div className="flex flex-col gap-2">
-                    {[['Utilidad Bruta', formatUSD(utilidadBruta), utilidadBruta >= 0 ? 'text-green-400' : 'text-red-400', true],
-                      ['Utilidad Neta', 'Base preparada', 'text-hm-muted/60', false],
-                      ['Margen Bruto', `${margen}%`, Number(margen) >= 20 ? 'text-green-400' : Number(margen) >= 10 ? 'text-yellow-400' : 'text-red-400', true],
-                    ].map(([l, v, c, real]) => (
-                      <div key={l} className="flex justify-between items-center">
-                        <span className="text-xs text-hm-muted flex items-center gap-1">
-                          {l} {real && <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-accent border border-hm-border">[REAL]</span>}
+                    <div key={label}>
+                      <div className="mb-0.5 flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-1 text-hm-muted">
+                          {label} <DataBadge type="real" />
                         </span>
-                        <span className={`text-sm font-bold font-mono ${c}`}>
-                          {!real ? <span className="text-[9px] font-normal border border-hm-border bg-hm-surface2/50 px-1 py-0.5 rounded">[BASE PREPARADA]</span> : v}
+                        <span className="font-mono font-bold text-green-400">{formatUSD(value)}</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-hm-surface2">
+                        <div className="h-full rounded-full bg-green-500/60" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </Card>
+
+          <Card className="bg-hm-surface2/20 p-4">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-red-500" />
+              <div className="font-mono text-xs font-bold uppercase tracking-widest text-red-400">Egresos</div>
+            </div>
+
+            {loading ? (
+              <Skeleton className="h-32" />
+            ) : (
+              <div className="flex flex-col gap-2">
+                {[
+                  ['Compras / Supply', er.compras, true],
+                  ['Repuestos OT', er.repuestos, true],
+                  ['Mano de obra OT', er.manoObra, true],
+                  ['Gastos operativos', null, false],
+                ].map(([label, value, real]) => {
+                  const pct = er.egresos > 0 && real ? (Number(value) / er.egresos) * 100 : 0
+
+                  return (
+                    <div key={label}>
+                      <div className="mb-0.5 flex items-center justify-between gap-3 text-xs">
+                        <span className="flex items-center gap-1 text-hm-muted">
+                          {label} <DataBadge type={real ? 'real' : 'prepared'} />
+                        </span>
+                        <span className={`font-mono font-bold ${real ? 'text-red-400' : 'text-hm-muted/60'}`}>
+                          {real ? formatUSD(value) : '—'}
                         </span>
                       </div>
-                    ))}
-                  </div>
-                )
-              })()}
-            </div>
-
-            {/* D) Riesgo operativo HeavyMetric */}
-            <div className="bg-hm-surface2/20 border border-hm-border/50 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-2 h-2 rounded-full bg-red-500" />
-                <div className="text-xs font-mono font-bold text-red-400 uppercase tracking-widest">Riesgo Operativo</div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-hm-surface2">
+                        <div className="h-full rounded-full bg-red-500/60" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-              {loading ? <Skeleton className="h-20" /> : (
+            )}
+          </Card>
+
+          <div className="flex flex-col gap-4">
+            <Card className="bg-hm-surface2/20 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-hm-accent" />
+                <div className="font-mono text-xs font-bold uppercase tracking-widest text-hm-accent">Resultado</div>
+              </div>
+
+              {loading ? (
+                <Skeleton className="h-20" />
+              ) : (
                 <div className="flex flex-col gap-2">
                   {[
-                    { label: 'Clientes críticos', value: k?.alertasCriticas || 0, color: (k?.alertasCriticas || 0) > 0 ? 'text-red-400' : 'text-green-400' },
-                    { label: 'Proveedores riesgosos', value: k?.provRiesgosos || 0, color: (k?.provRiesgosos || 0) > 0 ? 'text-red-400' : 'text-green-400' },
-                    { label: 'Máquinas detenidas', value: k?.flotaDetenida || 0, color: (k?.flotaDetenida || 0) > 0 ? 'text-orange-400' : 'text-green-400' },
-                    { label: 'Stock crítico', value: k?.stockCritico || 0, color: (k?.stockCritico || 0) > 0 ? 'text-yellow-400' : 'text-green-400' },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className="flex justify-between items-center">
-                      <span className="text-xs text-hm-muted">{label}</span>
-                      <span className={`text-sm font-bold font-mono ${color}`}>{value}</span>
+                    ['Utilidad bruta', formatUSD(er.utilidadBruta), er.utilidadBruta >= 0 ? 'text-green-400' : 'text-red-400', 'real'],
+                    ['Utilidad neta', '—', 'text-hm-muted/60', 'prepared'],
+                    ['Margen bruto', `${er.margenBruto.toFixed(1)}%`, er.margenBruto >= 20 ? 'text-green-400' : er.margenBruto >= 10 ? 'text-yellow-400' : 'text-red-400', 'real'],
+                  ].map(([label, value, cls, state]) => (
+                    <div key={label} className="flex items-center justify-between gap-3">
+                      <span className="flex items-center gap-1 text-xs text-hm-muted">
+                        {label} <DataBadge type={state} />
+                      </span>
+                      <span className={`font-mono text-sm font-bold ${cls}`}>{value}</span>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </Card>
+
+            <Card className="bg-hm-surface2/20 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-red-500" />
+                <div className="font-mono text-xs font-bold uppercase tracking-widest text-red-400">Riesgo operativo</div>
+              </div>
+
+              {loading ? (
+                <Skeleton className="h-20" />
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {[
+                    ['Clientes críticos', k.alertasCriticas || 0],
+                    ['Proveedores riesgosos', k.provRiesgosos || 0],
+                    ['Activos detenidos', k.flotaDetenida || 0],
+                    ['Stock crítico', k.stockCritico || 0],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex items-center justify-between">
+                      <span className="text-xs text-hm-muted">{label}</span>
+                      <span className={`font-mono text-sm font-bold ${value > 0 ? 'text-red-400' : 'text-green-400'}`}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
           </div>
         </div>
       </Section>
 
-      {/* ── ACCIONES REQUERIDAS (CEO) ── */}
-      <Section title="Acciones que requieren tu decisión">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {/* Aprobaciones pendientes */}
-          <div className="bg-orange-500/5 border border-orange-500/30 rounded-xl p-4 hover:border-orange-500/60 transition-colors">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-              <div className="text-xs font-mono font-bold text-orange-400 uppercase tracking-widest">Aprobaciones pendientes</div>
+      <Section title="Acciones que requieren decisión">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <Card className="border-orange-500/30 bg-orange-500/5 p-4 transition-colors hover:border-orange-500/60">
+            <div className="mb-3 flex items-center gap-2">
+              <div className="h-2 w-2 animate-pulse rounded-full bg-orange-500" />
+              <div className="font-mono text-xs font-bold uppercase tracking-widest text-orange-400">Aprobaciones pendientes</div>
             </div>
-            <div className="text-3xl font-black text-orange-400 mb-1">3</div>
-            <div className="text-xs text-hm-muted mb-3">Cotizaciones, compras y OTs esperando tu firma.</div>
-            <a href="/app/aprobaciones" className="text-xs font-mono font-bold border border-orange-500/40 text-orange-400 rounded px-3 py-1.5 hover:bg-orange-500/10 transition-colors inline-block">
-              VER APROBACIONES →
-            </a>
-          </div>
+            {loading ? (
+              <Skeleton className="h-20" />
+            ) : (
+              <>
+                <div className="mb-1 text-3xl font-black text-orange-400">{countOrDash(k.aprobacionesPendientes)}</div>
+                <div className="mb-2 text-xs text-hm-muted">Cotizaciones, compras y OTs esperando firma.</div>
+                {!hasValue(k.aprobacionesPendientes) && <DataBadge type="prepared" />}
+                <div className="mt-3">
+                  <a href="/app/aprobaciones" className="inline-block rounded border border-orange-500/40 px-3 py-1.5 font-mono text-xs font-bold text-orange-400 transition-colors hover:bg-orange-500/10">
+                    VER APROBACIONES →
+                  </a>
+                </div>
+              </>
+            )}
+          </Card>
 
-          {/* Riesgos financieros */}
-          <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-4 hover:border-red-500/60 transition-colors">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 rounded-full bg-red-500" />
-              <div className="text-xs font-mono font-bold text-red-400 uppercase tracking-widest">Riesgos financieros</div>
+          <Card className="border-red-500/30 bg-red-500/5 p-4 transition-colors hover:border-red-500/60">
+            <div className="mb-3 flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-red-500" />
+              <div className="font-mono text-xs font-bold uppercase tracking-widest text-red-400">Riesgos financieros</div>
             </div>
-            {loading ? <div className="h-20 bg-hm-surface2/30 animate-pulse rounded" /> : (
+            {loading ? (
+              <Skeleton className="h-20" />
+            ) : (
               <div className="flex flex-col gap-2">
                 {[
-                  { label: 'Clientes morosos', value: k?.alertasCriticas || 0, link: '/app/clientes' },
-                  { label: 'Facturas vencidas', value: k?.cobranzaPend > 0 ? 1 : 0, link: '/app/clientes' },
-                  { label: 'Cheques por vencer', value: 2, link: '/app/tesoreria' }, // TODO: conectar real
-                ].map(({ label, value, link }) => (
-                  <div key={label} className="flex justify-between items-center">
-                    <a href={link} className="text-xs text-hm-muted hover:text-hm-text transition-colors">{label}</a>
-                    <span className={`text-sm font-bold font-mono ${value > 0 ? 'text-red-400' : 'text-green-400'}`}>{value}</span>
+                  ['Clientes morosos', k.alertasCriticas || 0, '/app/clientes', 'real'],
+                  ['Facturas vencidas', k.cobranzaPend > 0 ? 1 : 0, '/app/clientes', 'real'],
+                  ['Cheques por vencer', k.chequesPorVencer, '/app/tesoreria', hasValue(k.chequesPorVencer) ? 'real' : 'prepared'],
+                ].map(([label, value, link, state]) => (
+                  <div key={label} className="flex items-center justify-between gap-3">
+                    <a href={link} className="text-xs text-hm-muted transition-colors hover:text-hm-text">{label}</a>
+                    {state === 'real' ? (
+                      <span className={`font-mono text-sm font-bold ${value > 0 ? 'text-red-400' : 'text-green-400'}`}>{value}</span>
+                    ) : (
+                      <DataBadge type="prepared" />
+                    )}
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </Card>
 
-          {/* Riesgos operativos */}
-          <div className="bg-yellow-500/5 border border-yellow-500/30 rounded-xl p-4 hover:border-yellow-500/60 transition-colors">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 rounded-full bg-yellow-500" />
-              <div className="text-xs font-mono font-bold text-yellow-400 uppercase tracking-widest">Riesgos operativos</div>
+          <Card className="border-yellow-500/30 bg-yellow-500/5 p-4 transition-colors hover:border-yellow-500/60">
+            <div className="mb-3 flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-yellow-500" />
+              <div className="font-mono text-xs font-bold uppercase tracking-widest text-yellow-400">Riesgos operativos</div>
             </div>
-            {loading ? <div className="h-20 bg-hm-surface2/30 animate-pulse rounded" /> : (
+            {loading ? (
+              <Skeleton className="h-20" />
+            ) : (
               <div className="flex flex-col gap-2">
                 {[
-                  { label: 'Máquinas detenidas', value: k?.flotaDetenida || 0, link: '/app/taller' },
-                  { label: 'Stock crítico', value: k?.stockCritico || 0, link: '/app/repuestos' },
-                  { label: 'Proveedores riesgosos', value: k?.provRiesgosos || 0, link: '/app/proveedores' },
-                  { label: 'OTs demoradas', value: k?.otAbiertas > 5 ? k?.otAbiertas - 5 : 0, link: '/app/taller' },
-                ].map(({ label, value, link }) => (
-                  <div key={label} className="flex justify-between items-center">
-                    <a href={link} className="text-xs text-hm-muted hover:text-hm-text transition-colors">{label}</a>
-                    <span className={`text-sm font-bold font-mono ${value > 0 ? 'text-yellow-400' : 'text-green-400'}`}>{value}</span>
+                  ['Activos detenidos', k.flotaDetenida || 0, '/app/taller'],
+                  ['Stock crítico', k.stockCritico || 0, '/app/repuestos'],
+                  ['Proveedores riesgosos', k.provRiesgosos || 0, '/app/proveedores'],
+                  ['OTs demoradas', k.otAbiertas > 5 ? k.otAbiertas - 5 : 0, '/app/taller'],
+                ].map(([label, value, link]) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <a href={link} className="text-xs text-hm-muted transition-colors hover:text-hm-text">{label}</a>
+                    <span className={`font-mono text-sm font-bold ${value > 0 ? 'text-yellow-400' : 'text-green-400'}`}>{value}</span>
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </Card>
         </div>
       </Section>
 
-      {/* ── COMERCIAL ── */}
       <Section title="Comercial">
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          {loading ? [1,2,3,4].map(i => <Skeleton key={i} className="h-[80px]" />) : <>
-            <KpiBlock label="Ingresos del mes" value={formatUSD(k?.ingresosMes)} accent="text-green-400" />
-            <KpiBlock label="Pipeline activo" value={formatUSD(k?.pipelineVal)} accent="text-hm-accent"
-              sub={`${k?.leadsActivos} leads · ${k?.leadsGradoA} grado A`} />
-            <KpiBlock label="Cobranza pendiente" value={formatUSD(k?.cobranzaPend)}
-              accent={k?.cobranzaPend > 0 ? 'text-red-400' : 'text-green-400'}
-              alert={k?.cobranzaPend > 0} sub="Sin cobrar" />
-            <KpiBlock label="OTs abiertas" value={k?.otAbiertas}
-              accent={k?.otAbiertas > 5 ? 'text-yellow-400' : ''} />
-          </>}
+        <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+          {loading ? (
+            [1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-[88px]" />)
+          ) : (
+            <>
+              <KpiBlock label="Ingresos del mes" value={formatUSD(k.ingresosMes)} accent="text-green-400" />
+              <KpiBlock
+                label="Pipeline activo"
+                value={formatUSD(k.pipelineVal)}
+                accent="text-hm-accent"
+                sub={`${k.leadsActivos || 0} leads · ${k.leadsGradoA || 0} grado A`}
+              />
+              <KpiBlock
+                label="Cobranza pendiente"
+                value={formatUSD(k.cobranzaPend)}
+                accent={k.cobranzaPend > 0 ? 'text-red-400' : 'text-green-400'}
+                alert={k.cobranzaPend > 0}
+                sub="Sin cobrar"
+              />
+              <KpiBlock label="OTs abiertas" value={k.otAbiertas || 0} accent={k.otAbiertas > 5 ? 'text-yellow-400' : ''} />
+            </>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Ingresos anuales */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card className="p-4">
-            <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-3">Ingresos anuales por mes</div>
-            {loading ? <Skeleton className="h-40" /> : (
+            <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-hm-muted">Ingresos anuales por mes</div>
+            {loading ? (
+              <Skeleton className="h-40" />
+            ) : (data?.ingresosPorMes || []).length === 0 ? (
+              <EmptyBox title="Sin ingresos mensuales" />
+            ) : (
               <ResponsiveContainer width="100%" height={160}>
                 <AreaChart data={data?.ingresosPorMes || []}>
                   <defs>
                     <linearGradient id="gradCeo" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-accent, #00e5ff)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="var(--color-accent, #00e5ff)" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#00e5ff" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#00e5ff" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
@@ -353,40 +466,49 @@ export default function CEODashboard() {
             )}
           </Card>
 
-          {/* Top clientes */}
           <Card className="p-4">
-            <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-3">Top clientes (90 días)</div>
-            {loading ? <Skeleton className="h-40" /> : (
-              <TopList items={data?.topClientes} formatFn={formatUSD} emptyText="Sin facturación registrada" />
-            )}
+            <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-hm-muted">Top clientes 90 días</div>
+            {loading ? <Skeleton className="h-40" /> : <TopList items={data?.topClientes || []} formatFn={formatUSD} emptyText="Sin facturación registrada" />}
           </Card>
         </div>
       </Section>
 
-      {/* ── OPERACIONES ── */}
       <Section title="Operaciones">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          {loading ? [1,2,3,4].map(i => <Skeleton key={i} className="h-[80px]" />) : <>
-            <KpiBlock label="Flota total" value={k?.flotaTotal} sub={`${k?.flotaOperativa} operativos`} />
-            <KpiBlock label="Uptime flota" value={`${k?.uptime}%`}
-              accent={k?.uptime >= 80 ? 'text-green-400' : k?.uptime >= 60 ? 'text-yellow-400' : 'text-red-400'} />
-            <KpiBlock label="Activos detenidos" value={k?.flotaDetenida}
-              accent={k?.flotaDetenida > 0 ? 'text-red-400' : 'text-green-400'}
-              alert={k?.flotaDetenida > 0} />
-            <KpiBlock label="Costo mant. año" value={formatUSD(k?.costoMantenimiento)} accent="text-orange-400" />
-          </>}
+        <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+          {loading ? (
+            [1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-[88px]" />)
+          ) : (
+            <>
+              <KpiBlock label="Flota total" value={k.flotaTotal || 0} sub={`${k.flotaOperativa || 0} operativos`} />
+              <KpiBlock
+                label="Uptime flota"
+                value={`${k.uptime || 0}%`}
+                accent={k.uptime >= 80 ? 'text-green-400' : k.uptime >= 60 ? 'text-yellow-400' : 'text-red-400'}
+              />
+              <KpiBlock
+                label="Activos detenidos"
+                value={k.flotaDetenida || 0}
+                accent={k.flotaDetenida > 0 ? 'text-red-400' : 'text-green-400'}
+                alert={k.flotaDetenida > 0}
+              />
+              <KpiBlock label="Costo mant. año" value={formatUSD(k.costoMantenimiento)} accent="text-orange-400" />
+            </>
+          )}
         </div>
 
-        {/* Flota por estado */}
         <Card className="p-4">
-          <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-3">Estado de flota</div>
-          {loading ? <Skeleton className="h-16" /> : (
+          <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-hm-muted">Estado de activos</div>
+          {loading ? (
+            <Skeleton className="h-16" />
+          ) : Object.keys(data?.flotaPorEstado || {}).length === 0 ? (
+            <EmptyBox title="Sin activos operativos registrados" />
+          ) : (
             <div className="flex flex-wrap gap-3">
               {Object.entries(data?.flotaPorEstado || {}).map(([estado, count]) => (
                 <div key={estado} className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ background: FLOTA_COLORS[estado] || '#888' }} />
+                  <div className="h-2 w-2 rounded-full" style={{ background: FLOTA_COLORS[estado] || '#888' }} />
                   <span className="text-sm">{estado}</span>
-                  <span className="text-sm font-bold font-mono">{count}</span>
+                  <span className="font-mono text-sm font-bold">{count}</span>
                 </div>
               ))}
             </div>
@@ -394,97 +516,96 @@ export default function CEODashboard() {
         </Card>
       </Section>
 
-      {/* ── PROVEEDORES ── */}
       <Section title="Proveedores">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card className="p-4">
-            <div className="text-[10px] font-mono text-hm-muted uppercase tracking-widest mb-1">Top proveedores (gasto acumulado)</div>
-            {loading ? <Skeleton className="h-40" /> : (
-              <TopList items={data?.topProveedores} formatFn={formatUSD} emptyText="Sin compras registradas" />
-            )}
+            <div className="mb-1 font-mono text-[10px] uppercase tracking-widest text-hm-muted">Top proveedores por gasto</div>
+            {loading ? <Skeleton className="h-40" /> : <TopList items={data?.topProveedores || []} formatFn={formatUSD} emptyText="Sin compras registradas" />}
           </Card>
+
           <div className="grid grid-cols-2 gap-4">
-            {loading ? [1,2,3,4].map(i => <Skeleton key={i} className="h-[80px]" />) : <>
-              <KpiBlock label="Gasto total" value={formatUSD(k?.gastoProveedores)} accent="text-hm-accent" />
-              <KpiBlock label="Proveedores riesgosos" value={k?.provRiesgosos}
-                accent={k?.provRiesgosos > 0 ? 'text-red-400' : 'text-green-400'}
-                alert={k?.provRiesgosos > 0} />
-              <KpiBlock label="Preferidos" value={k?.provPreferidos} accent="text-hm-accent" />
-              <KpiBlock label="Stock crítico" value={k?.stockCritico}
-                accent={k?.stockCritico > 0 ? 'text-orange-400' : 'text-green-400'}
-                alert={k?.stockCritico > 0} />
-            </>}
+            {loading ? (
+              [1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-[88px]" />)
+            ) : (
+              <>
+                <KpiBlock label="Gasto total" value={formatUSD(k.gastoProveedores)} accent="text-hm-accent" />
+                <KpiBlock
+                  label="Proveedores riesgosos"
+                  value={k.provRiesgosos || 0}
+                  accent={k.provRiesgosos > 0 ? 'text-red-400' : 'text-green-400'}
+                  alert={k.provRiesgosos > 0}
+                />
+                <KpiBlock label="Preferidos" value={k.provPreferidos || 0} accent="text-hm-accent" />
+                <KpiBlock
+                  label="Stock crítico"
+                  value={k.stockCritico || 0}
+                  accent={k.stockCritico > 0 ? 'text-orange-400' : 'text-green-400'}
+                  alert={k.stockCritico > 0}
+                />
+              </>
+            )}
           </div>
         </div>
       </Section>
 
-      {/* ── RIESGOS ── */}
       <Section title="Riesgos y alertas">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          {loading ? [1,2,3,4].map(i => <Skeleton key={i} className="h-[80px]" />) : <>
-            <KpiBlock label="Alertas críticas" value={k?.alertasCriticas}
-              accent={k?.alertasCriticas > 0 ? 'text-red-400' : 'text-green-400'}
-              alert={k?.alertasCriticas > 0} />
-            <KpiBlock label="Total alertas activas" value={k?.alertasTotal}
-              accent={k?.alertasTotal > 0 ? 'text-yellow-400' : 'text-green-400'} />
-            <KpiBlock label="Repuestos sin stock" value={k?.stockCritico}
-              accent={k?.stockCritico > 0 ? 'text-orange-400' : 'text-green-400'} />
-            <KpiBlock label="Proveedores riesgosos" value={k?.provRiesgosos}
-              accent={k?.provRiesgosos > 0 ? 'text-red-400' : 'text-green-400'} />
-          </>}
+        <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+          {loading ? (
+            [1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-[88px]" />)
+          ) : (
+            <>
+              <KpiBlock
+                label="Alertas críticas"
+                value={k.alertasCriticas || 0}
+                accent={k.alertasCriticas > 0 ? 'text-red-400' : 'text-green-400'}
+                alert={k.alertasCriticas > 0}
+              />
+              <KpiBlock label="Total alertas" value={k.alertasTotal || 0} accent={k.alertasTotal > 0 ? 'text-yellow-400' : 'text-green-400'} />
+              <KpiBlock label="Repuestos sin stock" value={k.stockCritico || 0} accent={k.stockCritico > 0 ? 'text-orange-400' : 'text-green-400'} />
+              <KpiBlock label="Proveedores riesgosos" value={k.provRiesgosos || 0} accent={k.provRiesgosos > 0 ? 'text-red-400' : 'text-green-400'} />
+            </>
+          )}
         </div>
 
-        {/* Top deudores */}
         {!loading && data?.topDeudores?.length > 0 && (
-          <Card className="p-4 border-red-500/20">
-            <div className="text-[10px] font-mono text-red-400 uppercase tracking-widest mb-3">⚠️ Morosidad — top deudores</div>
+          <Card className="border-red-500/20 p-4">
+            <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-red-400">Morosidad — top deudores</div>
             <TopList items={data.topDeudores} formatFn={formatUSD} />
           </Card>
         )}
       </Section>
 
-      {/* ── NEGOCIO 360 ── */}
       <Section title="Negocio 360">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
-          {/* Top clientes rentables */}
+        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Card className="p-4">
-            <div className="text-[10px] font-mono text-green-400 uppercase tracking-widest mb-3">🏆 Top Clientes Rentables</div>
-            {loading ? <div className="h-32 bg-hm-surface2/30 animate-pulse rounded" /> : (
-              <div className="flex flex-col gap-2">
-                {(data?.topClientes || []).slice(0,4).map((c, i) => (
-                  <div key={i} className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono text-hm-muted">{i+1}</span>
-                      <span className="text-sm truncate max-w-[140px]">{c.label}</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs font-bold text-green-400">{formatUSD(c.value)}</div>
-                    </div>
-                  </div>
-                ))}
-                {(!data?.topClientes?.length) && <div className="text-xs text-hm-muted italic">Sin datos de clientes</div>}
-              </div>
+            <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-green-400">Top clientes rentables</div>
+            {loading ? (
+              <Skeleton className="h-32" />
+            ) : (data?.topClientes || []).length === 0 ? (
+              <EmptyBox title="Sin datos de clientes" />
+            ) : (
+              <TopList items={(data?.topClientes || []).slice(0, 4)} labelKey="label" valueKey="value" formatFn={formatUSD} />
             )}
           </Card>
 
-          {/* Máquinas rentables vs críticas */}
           <Card className="p-4">
-            <div className="text-[10px] font-mono text-hm-accent uppercase tracking-widest mb-3">⚙️ Estado de Activos</div>
-            {loading ? <div className="h-32 bg-hm-surface2/30 animate-pulse rounded" /> : (
+            <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-hm-accent">Estado de activos</div>
+            {loading ? (
+              <Skeleton className="h-32" />
+            ) : (
               <div className="flex flex-col gap-3">
                 {[
-                  { label: 'Activos operativos', value: k?.flotaOperativa || 0, color: 'text-green-400', bar: 'bg-green-500' },
-                  { label: 'En mantenimiento / taller', value: (k?.flotaTotal || 0) - (k?.flotaOperativa || 0) - (k?.flotaDetenida || 0), color: 'text-yellow-400', bar: 'bg-yellow-500' },
-                  { label: 'Fuera de servicio', value: k?.flotaDetenida || 0, color: 'text-red-400', bar: 'bg-red-500' },
-                ].map(({ label, value, color, bar }) => (
+                  ['Activos operativos', k.flotaOperativa || 0, 'text-green-400', 'bg-green-500'],
+                  ['En mantenimiento / taller', Math.max((k.flotaTotal || 0) - (k.flotaOperativa || 0) - (k.flotaDetenida || 0), 0), 'text-yellow-400', 'bg-yellow-500'],
+                  ['Fuera de servicio', k.flotaDetenida || 0, 'text-red-400', 'bg-red-500'],
+                ].map(([label, value, color, bar]) => (
                   <div key={label}>
-                    <div className="flex justify-between text-xs mb-1">
+                    <div className="mb-1 flex justify-between text-xs">
                       <span className="text-hm-muted">{label}</span>
                       <span className={`font-bold ${color}`}>{value}</span>
                     </div>
-                    <div className="h-1.5 bg-hm-surface2 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${bar}`}
-                        style={{width: k?.flotaTotal > 0 ? `${Math.round((value/(k.flotaTotal))*100)}%` : '0%'}} />
+                    <div className="h-1.5 overflow-hidden rounded-full bg-hm-surface2">
+                      <div className={`h-full rounded-full ${bar}`} style={{ width: k.flotaTotal > 0 ? `${Math.round((value / k.flotaTotal) * 100)}%` : '0%' }} />
                     </div>
                   </div>
                 ))}
@@ -492,68 +613,62 @@ export default function CEODashboard() {
             )}
           </Card>
 
-          {/* Áreas con mayor costo */}
           <Card className="p-4">
-            <div className="text-[10px] font-mono text-orange-400 uppercase tracking-widest mb-3">📊 Áreas de Mayor Costo</div>
+            <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-orange-400">Áreas de mayor costo</div>
             <div className="flex flex-col gap-2">
               {[
-                { area: 'Compras (Supply)', costo: k?.gastoProveedores || 0, color: 'bg-orange-500' },
-                { area: 'Repuestos (OT)', costo: k?.costoRepuestosOT || 0, color: 'bg-red-500' },
-                { area: 'Mano de Obra (OT)', costo: k?.costoManoObraOT || 0, color: 'bg-blue-500' },
-                { area: 'Combustible', costo: 0, color: 'bg-yellow-500', placeholder: true },
-              ].map(({ area, costo, color, placeholder }) => (
-                <div key={area} className="flex justify-between items-center">
+                ['Compras supply', er.compras, 'bg-orange-500', true],
+                ['Repuestos OT', er.repuestos, 'bg-red-500', true],
+                ['Mano de obra OT', er.manoObra, 'bg-blue-500', true],
+                ['Combustible', null, 'bg-yellow-500', false],
+              ].map(([area, costo, color, real]) => (
+                <div key={area} className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${color}`} />
-                    <span className="text-xs text-hm-muted">
-                      {area} {!placeholder && <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-accent border border-hm-border ml-1">[REAL]</span>}
-                      {placeholder && <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-muted/50 border border-hm-border ml-1">[SIN DATOS]</span>}
+                    <div className={`h-2 w-2 shrink-0 rounded-full ${color}`} />
+                    <span className="flex items-center gap-1 text-xs text-hm-muted">
+                      {area} <DataBadge type={real ? 'real' : 'prepared'} />
                     </span>
                   </div>
-                  <span className={`text-sm font-bold font-mono ${placeholder ? 'text-hm-muted/40' : 'text-hm-text'}`}>
-                    {placeholder ? <span className="text-[9px] font-normal bg-hm-surface2/50 px-1 py-0.5 rounded border border-hm-border">[BASE PREPARADA]</span> : formatUSD(costo)}
-                  </span>
+                  <span className={`font-mono text-sm font-bold ${real ? 'text-hm-text' : 'text-hm-muted/50'}`}>{real ? formatUSD(costo) : '—'}</span>
                 </div>
               ))}
             </div>
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* OTs con pérdida */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Card className="p-4">
-            <div className="text-[10px] font-mono text-red-400 uppercase tracking-widest mb-3">⚠️ OTs Sin Rentabilidad</div>
-            <div className="text-xs text-hm-muted italic flex items-center gap-2">
-              <span className="text-[8px] bg-hm-surface2/50 px-1 rounded text-hm-accent border border-hm-border">[REAL]</span>
-              OTs finalizadas de mayor costo
+            <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-red-400">OTs sin rentabilidad</div>
+            <div className="mb-3 flex items-center gap-2 text-xs text-hm-muted italic">
+              <DataBadge type="real" />
+              OTs finalizadas de mayor costo.
             </div>
-            <div className="mt-3 flex flex-col gap-1.5">
-              {(k?.otsCriticas || []).map((o) => (
-                <div key={o.id} className="flex justify-between items-center p-2 bg-hm-surface2/10 border border-hm-border/30 rounded">
-                  <span className="text-xs text-hm-muted">OT {o.numero_ot} {o.maquina?.nombre_unidad ? `— ${o.maquina.nombre_unidad}` : ''}</span>
-                  <span className="text-xs font-bold text-red-400">Costo: {formatUSD(o.total_usd)}</span>
-                </div>
-              ))}
-              {(!k?.otsCriticas || k?.otsCriticas.length === 0) && (
-                <div className="text-xs text-hm-muted italic">No hay OTs completadas aún.</div>
-              )}
-            </div>
+            {loading ? (
+              <Skeleton className="h-28" />
+            ) : (k.otsCriticas || []).length === 0 ? (
+              <EmptyBox title="Sin OTs críticas detectadas" />
+            ) : (
+              <div className="flex flex-col gap-2">
+                {(k.otsCriticas || []).slice(0, 5).map((ot) => (
+                  <div key={ot.id} className="flex items-center justify-between rounded border border-red-500/20 bg-red-500/5 px-3 py-2">
+                    <div>
+                      <div className="text-sm font-bold text-red-300">OT #{ot.numero_ot || ot.id?.slice?.(0, 8)}</div>
+                      <div className="text-[10px] text-hm-muted">{ot.cliente || ot.descripcion || 'Sin detalle'}</div>
+                    </div>
+                    <span className="font-mono text-sm font-bold text-red-400">{formatUSD(ot.total_usd || ot.costo_usd || 0)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
 
-          {/* Servicios más rentables */}
           <Card className="p-4">
-            <div className="text-[10px] font-mono text-hm-accent uppercase tracking-widest mb-3">💡 Servicios Más Rentables</div>
-            <div className="text-xs text-hm-muted italic mb-3">Base preparada — conectar con tipos de servicio por margen</div>
-            {[
-              { servicio: 'Revisión hidráulica', margen: '62%' },
-              { servicio: 'Cambio de filtros', margen: '55%' },
-              { servicio: 'Service preventivo', margen: '48%' },
-            ].map(({ servicio, margen }) => (
-              <div key={servicio} className="flex justify-between items-center py-1.5 border-b border-hm-border/30 last:border-0">
-                <span className="text-xs text-hm-muted">{servicio}</span>
-                <span className="text-xs font-bold text-green-400">{margen}</span>
-              </div>
-            ))}
+            <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-hm-muted">Proyección ejecutiva</div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <KpiBlock label="Flujo 30 días" value="—" dataState="prepared" accent="text-hm-muted" />
+              <KpiBlock label="EBITDA" value="—" dataState="prepared" accent="text-hm-muted" />
+              <KpiBlock label="Riesgo 90 días" value="—" dataState="prepared" accent="text-hm-muted" />
+            </div>
           </Card>
         </div>
       </Section>

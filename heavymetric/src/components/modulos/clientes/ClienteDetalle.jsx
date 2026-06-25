@@ -501,16 +501,20 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
                 }
                 const scoreLabel = { normal: 'SIN MORA', estratégico: 'CLIENTE VIP', riesgoso: 'RIESGO MODERADO', moroso: 'MOROSO' }
 
-                const MOCK_CHEQUES = [
-                  { id: 1, banco: 'Santander', numero: '00234501', importe: 150000, vencimiento: '2026-06-20', estado: 'en_cartera',  moneda: 'ARS' },
-                  { id: 2, banco: 'Galicia',   numero: '00198712', importe: 2500,   vencimiento: '2026-05-28', estado: 'por_vencer', moneda: 'USD' },
-                ]
-                const MOCK_PROMESAS = [
-                  { id: 1, fecha: '2026-05-30', monto: 180000, estado: 'pendiente', notas: 'Prometió transferir antes de fin de mes' },
-                ]
-
-                const factPend     = kpis.deudaPendiente
-                const creditoUsado = kpis.facturadoTotal > 0 ? Math.min(Math.round((factPend / (factPend + 20000)) * 100), 100) : 0
+                const factPend = kpis.deudaPendiente
+                const facturasPendientes = transacciones.filter(t => t.estado_pago === 'pendiente')
+                const facturasCobradas = transacciones.filter(t => ['cobrado', 'pagado'].includes(t.estado_pago))
+                const facturasVencidas = facturasPendientes.filter(t => {
+                  if (!t.fecha_emision) return false
+                  const dias = Math.floor((new Date() - new Date(t.fecha_emision)) / 86400000)
+                  return dias > 30
+                })
+                const totalCobrado = facturasCobradas.reduce((s, t) => s + Number(t.monto_total_usd || 0), 0)
+                const ultimoPago = facturasCobradas
+                  .filter(t => t.fecha_cobro || t.fecha_emision)
+                  .sort((a, b) => new Date(b.fecha_cobro || b.fecha_emision) - new Date(a.fecha_cobro || a.fecha_emision))[0]
+                const creditoBase = Math.max(kpis.facturadoTotal || 0, factPend + totalCobrado, 1)
+                const creditoUsado = Math.min(Math.round((factPend / creditoBase) * 100), 100)
 
                 return (
                   <div className="flex flex-col gap-5">
@@ -544,9 +548,9 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
                       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                         <Kpi label="Deuda actual" value={factPend > 0 ? formatUSD(factPend) : 'Sin deuda'} color={factPend > 0 ? 'text-red-400' : 'text-emerald-400'} badge="real" />
                         <Kpi label="Score mora" value={estadoCliente === 'moroso' ? 'ALTO' : estadoCliente === 'riesgoso' ? 'MEDIO' : 'BAJO'} color={estadoCliente === 'moroso' ? 'text-red-400' : estadoCliente === 'riesgoso' ? 'text-yellow-400' : 'text-emerald-400'} badge="real" />
-                        <Kpi label="Días prom. pago" value="Prep" badge="prep" />
-                        <Kpi label="Facturas pendientes" value={kpis.otsAbiertas} color={kpis.otsAbiertas > 0 ? 'text-yellow-400' : 'text-emerald-400'} badge="real" />
-                        <Kpi label="Facturas vencidas" value={factPend > 0 ? 1 : 0} color={factPend > 0 ? 'text-red-400' : 'text-emerald-400'} badge="real" />
+                        <Kpi label="Último pago" value={ultimoPago ? fmtFecha(ultimoPago.fecha_cobro || ultimoPago.fecha_emision) : 'Sin pagos'} badge="real" />
+                        <Kpi label="Facturas pendientes" value={facturasPendientes.length} color={facturasPendientes.length > 0 ? 'text-yellow-400' : 'text-emerald-400'} badge="real" />
+                        <Kpi label="Facturas vencidas" value={facturasVencidas.length} color={facturasVencidas.length > 0 ? 'text-red-400' : 'text-emerald-400'} badge="real" />
                         <div className="flex flex-col gap-1.5 rounded-xl border border-white/[0.06] bg-black/20 p-3.5">
                           <div className="flex items-center justify-between">
                             <div className="font-mono text-[9px] uppercase tracking-widest text-neutral-600">Crédito usado</div>
@@ -562,52 +566,50 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
                       </div>
                     </Section>
 
-                    <Section label="C — Promesas de Pago" badge="demo">
-                      {MOCK_PROMESAS.map(p => (
-                        <div key={p.id} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3">
-                          <div>
-                            <div className="font-mono text-[10px] text-neutral-600">{fmtFecha(p.fecha)}</div>
-                            <div className="mt-0.5 text-sm font-medium text-neutral-300">{p.notas}</div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono text-sm font-bold text-neutral-200">
-                              {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(p.monto)}
-                            </span>
-                            <span className={`rounded border px-2 py-0.5 font-mono text-[9px] uppercase ${
-                              p.estado === 'pendiente' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                            }`}>{p.estado}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </Section>
-
-                    <Section label="D — Cheques y E-Cheqs" badge="demo">
+                    <Section label="C — Cuenta corriente" badge="real">
                       <div className="flex flex-col gap-2">
-                        {MOCK_CHEQUES.map(c => {
-                          const venc = new Date(c.vencimiento + 'T00:00:00')
-                          const diasRestantes = Math.ceil((venc - new Date()) / (1000 * 60 * 60 * 24))
-                          const alerta = diasRestantes <= 10
-                          return (
-                            <div key={c.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${
-                              alerta ? 'border-red-500/25 bg-red-500/[0.04]' : 'border-white/[0.06] bg-black/20'
+                        {transacciones.length === 0 ? (
+                          <EmptyState icon="🧾" title="Sin movimientos financieros" desc="Todavía no hay facturas, recibos o comprobantes vinculados a este cliente." />
+                        ) : (
+                          transacciones.slice(0, 8).map(t => (
+                            <div key={t.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${
+                              t.estado_pago === 'pendiente' ? 'border-red-500/20 bg-red-500/[0.04]' : 'border-white/[0.06] bg-black/20'
                             }`}>
                               <div>
-                                <div className={`font-mono text-[10px] mb-0.5 ${alerta ? 'text-red-400' : 'text-neutral-600'}`}>
-                                  Vence: {venc.toLocaleDateString('es-AR')}{alerta && ` (¡${diasRestantes}d!)`}
+                                <div className="font-mono text-[10px] text-neutral-600">{fmtFecha(t.fecha_emision)}</div>
+                                <div className="mt-0.5 text-sm font-medium text-neutral-300">
+                                  {t.tipo_documento || 'Documento'} {t.numero_comprobante || ''}
                                 </div>
-                                <div className="font-semibold text-sm text-neutral-200">{c.banco} — #{c.numero}</div>
                               </div>
                               <div className="flex items-center gap-3">
-                                <span className="font-mono text-sm font-bold text-neutral-200">
-                                  {c.moneda === 'USD' ? `USD ${c.importe.toLocaleString()}` : new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(c.importe)}
+                                <span className={`font-mono text-sm font-bold ${t.estado_pago === 'pendiente' ? 'text-red-400' : 'text-emerald-400'}`}>
+                                  {t.estado_pago === 'pendiente' ? '-' : '+'}{formatUSD(t.monto_total_usd)}
                                 </span>
                                 <span className={`rounded border px-2 py-0.5 font-mono text-[9px] uppercase ${
-                                  c.estado === 'por_vencer' ? 'border-red-500/30 bg-red-500/10 text-red-400' : 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400'
-                                }`}>{c.estado.replace('_', ' ')}</span>
+                                  t.estado_pago === 'pendiente' ? 'border-red-500/30 bg-red-500/10 text-red-400' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                                }`}>{t.estado_pago || '—'}</span>
                               </div>
                             </div>
-                          )
-                        })}
+                          ))
+                        )}
+                      </div>
+                    </Section>
+
+                    <Section label="D — Últimos cobros" badge="real">
+                      <div className="flex flex-col gap-2">
+                        {facturasCobradas.length === 0 ? (
+                          <EmptyState icon="💳" title="Sin cobros registrados" desc="No hay pagos cobrados asociados a este cliente en la base actual." />
+                        ) : (
+                          facturasCobradas.slice(0, 5).map(t => (
+                            <div key={t.id} className="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-4 py-3">
+                              <div>
+                                <div className="font-mono text-[10px] text-emerald-400/70">{fmtFecha(t.fecha_cobro || t.fecha_emision)}</div>
+                                <div className="mt-0.5 text-sm font-medium text-emerald-100">{t.numero_comprobante || 'Cobro registrado'}</div>
+                              </div>
+                              <div className="font-mono text-sm font-bold text-emerald-400">{formatUSD(t.monto_total_usd)}</div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </Section>
 
@@ -619,10 +621,10 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
                             <div className="mt-0.5 text-xs text-red-300/80">Deuda total: {formatUSD(factPend)} — Requiere gestión inmediata.</div>
                           </div>
                         )}
-                        {MOCK_CHEQUES.some(c => Math.ceil((new Date(c.vencimiento + 'T00:00:00') - new Date()) / (1000*60*60*24)) <= 10) && (
+                        {facturasVencidas.length > 0 && (
                           <div className="rounded-r-xl border-l-4 border-orange-500 bg-orange-500/[0.06] p-3">
-                            <div className="font-bold text-sm text-orange-400">Cheque próximo a vencer</div>
-                            <div className="mt-0.5 text-xs text-orange-300/80">Hay cheques con vencimiento en los próximos 10 días.</div>
+                            <div className="font-bold text-sm text-orange-400">Comprobantes vencidos</div>
+                            <div className="mt-0.5 text-xs text-orange-300/80">{facturasVencidas.length} documento(s) superan los 30 días desde su emisión.</div>
                           </div>
                         )}
                         {creditoUsado > 80 && (
@@ -631,7 +633,7 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
                             <div className="mt-0.5 text-xs text-yellow-300/80">Crédito utilizado al {creditoUsado}% del límite asignado.</div>
                           </div>
                         )}
-                        {factPend === 0 && creditoUsado <= 80 && estadoCliente !== 'moroso' && (
+                        {factPend === 0 && creditoUsado <= 80 && estadoCliente !== 'moroso' && facturasVencidas.length === 0 && (
                           <EmptyState icon="✅" title="Sin alertas financieras" desc="No se detectan anomalías financieras activas." />
                         )}
                       </div>

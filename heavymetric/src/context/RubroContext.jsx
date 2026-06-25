@@ -1,90 +1,33 @@
 import { createContext, useContext, useMemo } from 'react'
 import { useAuth } from './AuthContext'
+import { rubrosTaxonomia, RUBRO_DEFAULT } from '../config/rubrosTaxonomia'
 
 const RubroContext = createContext(null)
-
-const taxonomiasPorRubro = {
-  maquinaria: {
-    activoSingular: 'Máquina',
-    activoPlural: 'Máquinas',
-    medidor: 'Horómetro',
-    medidorUnidad: 'hs',
-    taller: 'Taller',
-  },
-  flota: {
-    activoSingular: 'Vehículo',
-    activoPlural: 'Vehículos',
-    medidor: 'Kilometraje',
-    medidorUnidad: 'km',
-    taller: 'Taller',
-  },
-  talleres: {
-    activoSingular: 'Vehículo',
-    activoPlural: 'Vehículos',
-    medidor: 'Kilometraje',
-    medidorUnidad: 'km',
-    taller: 'Taller',
-  },
-  rental: {
-    activoSingular: 'Equipo',
-    activoPlural: 'Equipos',
-    medidor: 'Uso',
-    medidorUnidad: 'hs',
-    taller: 'Mantenimiento',
-  },
-  agro: {
-    activoSingular: 'Unidad',
-    activoPlural: 'Unidades',
-    medidor: 'Horómetro',
-    medidorUnidad: 'hs',
-    taller: 'Taller',
-  },
-  mineria: {
-    activoSingular: 'Equipo',
-    activoPlural: 'Equipos',
-    medidor: 'Horómetro',
-    medidorUnidad: 'hs',
-    taller: 'Taller',
-  },
-  logistica: {
-    activoSingular: 'Vehículo',
-    activoPlural: 'Flota',
-    medidor: 'Kilometraje',
-    medidorUnidad: 'km',
-    taller: 'Taller',
-  },
-  concesionarias: {
-    activoSingular: 'Vehículo',
-    activoPlural: 'Vehículos',
-    medidor: 'Kilometraje',
-    medidorUnidad: 'km',
-    taller: 'Servicio',
-  },
-  distribucion: {
-    activoSingular: 'Vehículo',
-    activoPlural: 'Vehículos',
-    medidor: 'Kilometraje',
-    medidorUnidad: 'km',
-    taller: 'Taller',
-  },
-  servicios_tecnicos: {
-    activoSingular: 'Equipo',
-    activoPlural: 'Equipos',
-    medidor: 'Uso',
-    medidorUnidad: 'ciclos',
-    taller: 'Laboratorio',
-  }
-}
 
 export function RubroProvider({ children }) {
   const { rubro } = useAuth()
 
   const taxonomia = useMemo(() => {
-    return taxonomiasPorRubro[rubro] || taxonomiasPorRubro['maquinaria']
+    return rubrosTaxonomia[rubro] || rubrosTaxonomia[RUBRO_DEFAULT]
   }, [rubro])
 
+  const hasCapability = (key) => {
+    return Boolean(taxonomia?.capabilities?.[key])
+  }
+
+  const getTiposActivo = () => {
+    return taxonomia?.tiposActivo || []
+  }
+
   return (
-    <RubroContext.Provider value={{ taxonomia }}>
+    <RubroContext.Provider
+      value={{
+        rubro,
+        taxonomia,
+        hasCapability,
+        getTiposActivo,
+      }}
+    >
       {children}
     </RubroContext.Provider>
   )
@@ -92,8 +35,10 @@ export function RubroProvider({ children }) {
 
 export const useRubro = () => {
   const context = useContext(RubroContext)
+
   if (!context) {
-    throw new Error("useRubro debe ser usado dentro de un RubroProvider")
+    throw new Error('useRubro debe ser usado dentro de un RubroProvider')
   }
+
   return context
 }

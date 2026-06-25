@@ -1,8 +1,9 @@
-import { useRef, useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useRef, useEffect, useState, useMemo } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useDolar } from '../../context/DolarContext'
 import { useTheme } from '../../context/ThemeContext'
+import { useRubro } from '../../context/RubroContext'
 import { supabase } from '../../lib/supabase'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
@@ -19,7 +20,9 @@ export default function Topbar() {
   const { user, perfil, orgId, isOwner, recargarPerfil } = useAuth()
   const { tcVenta } = useDolar()
   const { theme, toggleTheme } = useTheme()
+  const { taxonomia } = useRubro()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [open, setOpen] = useState(false)
   const [openNotif, setOpenNotif] = useState(false)
@@ -37,6 +40,45 @@ export default function Topbar() {
   const orgNombre = perfil?.organizaciones?.nombre_comercial || 'Mi empresa'
   const logoUrl = perfil?.organizaciones?.logo_url
   const noLeidas = notificaciones.filter(n => !n.leido).length
+
+  const activoPlural = taxonomia?.activoPlural || 'Activos'
+  const ordenTrabajoPlural = taxonomia?.ordenTrabajoPlural || 'Órdenes'
+  const moduloTaller = taxonomia?.moduloTaller || 'Operaciones'
+  const repuestoPlural = taxonomia?.repuestoPlural || 'Repuestos'
+
+  const routeContext = useMemo(() => {
+    const path = location.pathname
+
+    if (path === '/app') {
+      return { section: 'Centro de Operaciones', detail: 'Vista general del sistema' }
+    }
+    if (path.includes('/taller')) {
+      return { section: moduloTaller, detail: ordenTrabajoPlural }
+    }
+    if (path.includes('/activo360')) {
+      return { section: activoPlural, detail: 'Estado operativo y trazabilidad' }
+    }
+    if (path.includes('/clientes')) {
+      return { section: 'Clientes', detail: 'Relación comercial y operativa' }
+    }
+    if (path.includes('/repuestos')) {
+      return { section: repuestoPlural, detail: 'Consumo, stock y disponibilidad' }
+    }
+    if (path.includes('/tesoreria')) {
+      return { section: 'Tesorería', detail: 'Caja, bancos y vencimientos' }
+    }
+    if (path.includes('/facturacion')) {
+      return { section: 'Facturación', detail: 'Comprobantes y ARCA' }
+    }
+    if (path.includes('/proveedores')) {
+      return { section: 'Proveedores', detail: 'Compras y cuentas por pagar' }
+    }
+    if (path.includes('/ceo')) {
+      return { section: 'Panel Dirección', detail: 'Indicadores ejecutivos' }
+    }
+
+    return { section: 'HeavyMetric', detail: 'Sistema operativo empresarial' }
+  }, [location.pathname, activoPlural, moduloTaller, ordenTrabajoPlural, repuestoPlural])
 
   useEffect(() => {
     function handleClick(e) {
@@ -119,10 +161,10 @@ export default function Topbar() {
 
       <div className="w-px h-5 bg-hm-border shrink-0 hidden md:block" />
 
-      {/* Page title slot — filled by Layout via context or just static */}
+      {/* Page title slot — dynamic by route */}
       <div className="hidden md:block shrink-0">
-        <div className="text-[12.5px] font-semibold text-hm-text leading-none">Centro de Operaciones</div>
-        <div className="font-mono text-[8.5px] text-hm-muted tracking-widest mt-0.5">VISTA GENERAL</div>
+        <div className="text-[12.5px] font-semibold text-hm-text leading-none">{routeContext.section}</div>
+        <div className="font-mono text-[8.5px] text-hm-muted tracking-widest mt-0.5">{routeContext.detail}</div>
       </div>
 
       {/* Search */}
@@ -131,7 +173,9 @@ export default function Topbar() {
           <svg className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          <span className="flex-1 text-left text-xs">Buscar activos, clientes, OTs…</span>
+          <span className="flex-1 text-left text-xs">
+            Buscar {activoPlural.toLowerCase()}, clientes, {ordenTrabajoPlural.toLowerCase()}…
+          </span>
           <kbd className="hidden sm:inline font-mono text-[9px] bg-hm-surface border border-hm-border rounded px-1.5 py-0.5 text-hm-muted">⌘K</kbd>
         </button>
       </div>
