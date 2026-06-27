@@ -20,7 +20,7 @@ const TIPO_COLOR = {
 }
 
 const COLOR_STYLES = {
-  red:    { bg: 'bg-red-500/10 border-red-500/30',    dot: 'bg-red-500',    text: 'text-red-300',    label: 'text-red-400' },
+  red:    { bg: 'bg-red-500/10 border-red-500/30',       dot: 'bg-red-500',    text: 'text-red-300',    label: 'text-red-400' },
   yellow: { bg: 'bg-yellow-500/10 border-yellow-500/30', dot: 'bg-yellow-500', text: 'text-yellow-300', label: 'text-yellow-400' },
   orange: { bg: 'bg-orange-500/10 border-orange-500/30', dot: 'bg-orange-500', text: 'text-orange-300', label: 'text-orange-400' },
 }
@@ -30,9 +30,14 @@ export default function AlertasBanner() {
   const [idx, setIdx]             = useState(0)
   const [dismissed, setDismissed] = useState(false)
   const { perfil }                = useAuth()
+  const organizationId            = perfil?.organization_id ?? null
 
   useEffect(() => {
-    if (!perfil?.organization_id) return
+    if (!organizationId) {
+      setAlertas([])
+      setIdx(0)
+      return
+    }
 
     const fetch = async () => {
       const sevenDaysAgo = new Date()
@@ -50,6 +55,7 @@ export default function AlertasBanner() {
         supabase
           .from('alertas')
           .select('id, tipo, titulo, prioridad')
+          .eq('organization_id', organizationId)
           .eq('resuelta', false)
           .order('prioridad', { ascending: true })
           .limit(10),
@@ -58,6 +64,7 @@ export default function AlertasBanner() {
         supabase
           .from('repuestos')
           .select('id, nombre')
+          .eq('organization_id', organizationId)
           .lte('stock_actual', 'stock_minimo')
           .eq('activo', true),
 
@@ -65,6 +72,7 @@ export default function AlertasBanner() {
         supabase
           .from('maquinas')
           .select('id, nombre_unidad, estado_operativo')
+          .eq('organization_id', organizationId)
           .in('estado_operativo', ['Fuera de servicio', 'Esperando repuesto'])
           .eq('activa', true),
 
@@ -72,6 +80,7 @@ export default function AlertasBanner() {
         supabase
           .from('ordenes_trabajo')
           .select('id')
+          .eq('organization_id', organizationId)
           .in('estado', ['borrador', 'en_progreso'])
           .lt('fecha_ingreso', sevenDaysAgo.toISOString().split('T')[0]),
 
@@ -79,6 +88,7 @@ export default function AlertasBanner() {
         supabase
           .from('clientes')
           .select('id')
+          .eq('organization_id', organizationId)
           .eq('estado_financiero', 'moroso')
           .eq('activo', true),
 
@@ -86,6 +96,7 @@ export default function AlertasBanner() {
         supabase
           .from('proveedores')
           .select('id')
+          .eq('organization_id', organizationId)
           .eq('estado', 'riesgoso')
           .eq('activo', true),
       ])
@@ -145,7 +156,7 @@ export default function AlertasBanner() {
     fetch()
     const interval = setInterval(fetch, 5 * 60 * 1000)
     return () => clearInterval(interval)
-  }, [perfil?.organization_id])
+  }, [organizationId])
 
   if (!alertas.length || dismissed) return null
 
