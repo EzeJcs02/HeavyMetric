@@ -1,20 +1,89 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+
+// ────────────────────────────────────────────────────────────────
+// HeavyMetric - Leads
+// Seguridad multitenancy + trazabilidad operativa ISO
+// Regla: ninguna operación sensible sin organization_id.
+// ────────────────────────────────────────────────────────────────
+
+function getOrganizationId(auth) {
+  return (
+    auth?.profile?.organization_id ||
+    auth?.perfil?.organization_id ||
+    auth?.user?.user_metadata?.organization_id ||
+    auth?.organizationId ||
+    null
+  )
+}
+
+async function getCurrentAuthScope() {
+  const { data: authData, error: authError } = await supabase.auth.getUser()
+  if (authError) throw authError
+
+  const user = authData?.user
+  if (!user) throw new Error('Usuario no autenticado')
+
+  const { data: perfil, error: perfilError } = await supabase
+    .from('perfiles')
+    .select('organization_id')
+    .eq('id', user.id)
+    .single()
+
+  if (perfilError) throw perfilError
+  if (!perfil?.organization_id) {
+    throw new Error('No se pudo determinar la organización del usuario')
+  }
+
+  return {
+    userId: user.id,
+    organizationId: perfil.organization_id,
+  }
+}
+
+async function assertLeadInOrganization(leadId, organizationId) {
+  const { data, error } = await supabase
+    .from('leads')
+    .select('id, organization_id')
+    .eq('id', leadId)
+    .eq('organization_id', organizationId)
+    .single()
+
+  if (error) throw error
+  return data
+}
 
 // ── Scoring ──────────────────────────────────────────────────────
 export function calcularScore(rubro, origen, mensaje, empresa) {
-  const rubroScore  = { Mineria: 35, Vial: 30, Construccion: 25, Agro: 20, Industrial: 15, Municipio: 10 }
-  const origenScore = { Licitacion: 25, Referido: 22, Web: 18, Meta: 15, WhatsApp: 12, Manual: 5 }
+  const rubroScore = {
+    Mineria: 35,
+    Vial: 30,
+    Construccion: 25,
+    Agro: 20,
+    Industrial: 15,
+    Municipio: 10,
+  }
+
+  const origenScore = {
+    Licitacion: 25,
+    Referido: 22,
+    Web: 18,
+    Meta: 15,
+    WhatsApp: 12,
+    Manual: 5,
+  }
 
   let score = 0
-  score += rubroScore[rubro]  || 0
+  score += rubroScore[rubro] || 0
   score += origenScore[origen] || 0
 
-  const texto = ((mensaje || '') + ' ' + (empresa || '')).toLowerCase()
-  if (/compra|licitac|urgen|inmedia/.test(texto))  score += 25
-  else if (/alquil|renta|arrend/.test(texto))       score += 20
-  else if (/servic|manten|repar/.test(texto))        score += 15
-  else                                              score += 10
+  const texto = `${mensaje || ''} ${empresa || ''}`.toLowerCase()
+
+  if (/compra|licitac|urgen|inmedia/.test(texto)) score += 25
+  else if (/alquil|renta|arrend/.test(texto)) score += 20
+  else if (/servic|manten|repar/.test(texto)) score += 15
+  else score += 10
 
   if (empresa && empresa.trim()) score += 15
 
@@ -24,14 +93,23 @@ export function calcularScore(rubro, origen, mensaje, empresa) {
 
 // ── Hook principal ───────────────────────────────────────────────
 export function useLeads() {
-  const [leads, setLeads]   = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError]   = useState(null)
+  const auth = useAuth()
+  const organizationId = getOrganizationId(auth)
 
-  const fetchLeads = async () => {
+  const [leads, setLeads] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const fetchLeads = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
+
+      if (!organizationId) {
+        setLeads([])
+        return
+      }
+
       const { data, error: err } = await supabase
         .from('leads')
         .select(`
@@ -40,137 +118,225 @@ export function useLeads() {
           cliente:clientes(razon_social),
           cotizaciones(count)
         `)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
+
       if (err) throw err
       setLeads(data || [])
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Error al cargar leads')
     } finally {
       setLoading(false)
     }
-  }
+  }, [organizationId])
 
   const crearLead = async (payload) => {
-    const { score, grade } = calcularScore(payload.rubro, payload.origen, payload.mensaje, payload.empresa)
+    if (!organizationId) throw new Error('No se pudo determinar la organización')
+
+    const { score, grade } = calcularScore(
+      payload.rubro,
+      payload.origen,
+      payload.mensaje,
+      payload.empresa
+    )
+
+    const { id: _ignoredId, organization_id: _ignoredOrg, ...safePayload } = payload
+
     const { data, error: err } = await supabase
       .from('leads')
-      .insert([{ ...payload, lead_score: score, lead_grade: grade }])
+      .insert([{
+        ...safePayload,
+        organization_id: organizationId,
+        lead_score: score,
+        lead_grade: grade,
+      }])
       .select()
+      .single()
+
     if (err) throw err
     await fetchLeads()
-    return data[0]
+    return data
   }
 
   const actualizarLead = async (id, payload) => {
-    const { score, grade } = calcularScore(payload.rubro, payload.origen, payload.mensaje, payload.empresa)
+    if (!organizationId) throw new Error('No se pudo determinar la organización')
+
+    const { score, grade } = calcularScore(
+      payload.rubro,
+      payload.origen,
+      payload.mensaje,
+      payload.empresa
+    )
+
+    const { id: _ignoredId, organization_id: _ignoredOrg, ...safePayload } = payload
+
     const { error: err } = await supabase
       .from('leads')
-      .update({ ...payload, lead_score: score, lead_grade: grade })
+      .update({
+        ...safePayload,
+        lead_score: score,
+        lead_grade: grade,
+      })
       .eq('id', id)
+      .eq('organization_id', organizationId)
+
     if (err) throw err
     await fetchLeads()
   }
 
   const avanzarEstado = async (id, nuevoEstado, estadoAnterior) => {
+    if (!organizationId) throw new Error('No se pudo determinar la organización')
+
+    await assertLeadInOrganization(id, organizationId)
+
     const { error: err } = await supabase
       .from('leads')
       .update({ estado: nuevoEstado })
       .eq('id', id)
+      .eq('organization_id', organizationId)
+
     if (err) throw err
-    // Log actividad
+
     if (estadoAnterior) {
-      await supabase.from('lead_actividades').insert({
-        lead_id: id,
-        tipo: 'cambio_estado',
-        descripcion: `Estado cambiado de "${estadoAnterior}" a "${nuevoEstado}"`,
-        datos: { de: estadoAnterior, a: nuevoEstado },
-      })
+      const { error: actividadError } = await supabase
+        .from('lead_actividades')
+        .insert({
+          organization_id: organizationId,
+          lead_id: id,
+          tipo: 'cambio_estado',
+          descripcion: `Estado cambiado de "${estadoAnterior}" a "${nuevoEstado}"`,
+          datos: { de: estadoAnterior, a: nuevoEstado },
+        })
+
+      if (actividadError) throw actividadError
     }
+
     await fetchLeads()
   }
 
   const registrarContacto = async (id) => {
+    if (!organizationId) throw new Error('No se pudo determinar la organización')
+
+    await assertLeadInOrganization(id, organizationId)
+
     const ahora = new Date().toISOString()
+
     const { error: err } = await supabase
       .from('leads')
       .update({ ultimo_contacto: ahora })
       .eq('id', id)
+      .eq('organization_id', organizationId)
+
     if (err) throw err
-    await supabase.from('lead_actividades').insert({
-      lead_id: id,
-      tipo: 'contacto',
-      descripcion: 'Contacto registrado manualmente',
-    })
+
+    const { error: actividadError } = await supabase
+      .from('lead_actividades')
+      .insert({
+        organization_id: organizationId,
+        lead_id: id,
+        tipo: 'contacto',
+        descripcion: 'Contacto registrado manualmente',
+      })
+
+    if (actividadError) throw actividadError
+
     await fetchLeads()
   }
 
   const convertirACliente = async (lead) => {
+    if (!organizationId) throw new Error('No se pudo determinar la organización')
+    await assertLeadInOrganization(lead.id, organizationId)
+
     const { data: cliente, error: errC } = await supabase
       .from('clientes')
       .insert([{
-        razon_social:      lead.empresa || lead.nombre,
-        nombre_comercial:  lead.empresa || lead.nombre,
-        email:             lead.email,
-        telefono:          lead.telefono,
-        rubro:             lead.rubro,
+        organization_id: organizationId,
+        razon_social: lead.empresa || lead.nombre,
+        nombre_comercial: lead.empresa || lead.nombre,
+        email: lead.email,
+        telefono: lead.telefono,
+        rubro: lead.rubro,
         propension_compra: lead.lead_grade,
-        organization_id:   lead.organization_id,
       }])
       .select()
       .single()
+
     if (errC) throw errC
 
     const { error: errL } = await supabase
       .from('leads')
-      .update({ estado: 'Ganado', cliente_id: cliente.id })
+      .update({
+        estado: 'Ganado',
+        cliente_id: cliente.id,
+      })
       .eq('id', lead.id)
+      .eq('organization_id', organizationId)
+
     if (errL) throw errL
 
-    await supabase.from('lead_actividades').insert({
-      lead_id: lead.id,
-      tipo: 'sistema',
-      descripcion: 'Lead convertido a cliente',
-    })
+    const { error: actividadError } = await supabase
+      .from('lead_actividades')
+      .insert({
+        organization_id: organizationId,
+        lead_id: lead.id,
+        tipo: 'sistema',
+        descripcion: 'Lead convertido a cliente',
+      })
+
+    if (actividadError) throw actividadError
 
     await fetchLeads()
     return cliente
   }
 
   const convertirAVenta = async (lead) => {
+    if (!organizationId) throw new Error('No se pudo determinar la organización')
+    await assertLeadInOrganization(lead.id, organizationId)
+
     if (!lead.cliente_id) throw new Error('Debe ser cliente primero')
-    if (!lead.monto_estimado_usd || lead.monto_estimado_usd <= 0) throw new Error('El monto estimado debe ser mayor a 0')
+    if (!lead.monto_estimado_usd || lead.monto_estimado_usd <= 0) {
+      throw new Error('El monto estimado debe ser mayor a 0')
+    }
 
     const { data: tx, error: errTx } = await supabase
       .from('transacciones')
       .insert([{
-        organization_id: lead.organization_id,
+        organization_id: organizationId,
         tipo_documento: 'Presupuesto',
         origen_tipo: 'otro',
         cliente_id: lead.cliente_id,
         monto_neto_usd: lead.monto_estimado_usd,
         monto_total_usd: lead.monto_estimado_usd,
         estado_pago: 'pendiente',
-        notas: `Venta generada desde Lead: ${lead.producto_interes || 'N/A'}`
+        notas: `Venta generada desde Lead: ${lead.producto_interes || 'N/A'}`,
       }])
       .select()
       .single()
+
     if (errTx) throw errTx
 
-    await supabase.from('lead_actividades').insert({
-      lead_id: lead.id,
-      tipo: 'sistema',
-      descripcion: `Venta generada (Presupuesto) por USD ${lead.monto_estimado_usd}`,
-    })
-    
-    toast.success('Venta registrada en Tesorería')
+    const { error: actividadError } = await supabase
+      .from('lead_actividades')
+      .insert({
+        organization_id: organizationId,
+        lead_id: lead.id,
+        tipo: 'sistema',
+        descripcion: `Venta generada (Presupuesto) por USD ${lead.monto_estimado_usd}`,
+      })
+
+    if (actividadError) throw actividadError
+
     return tx
   }
 
   const generarPostventa = async (lead) => {
-    const { data: newLead, error } = await supabase
+    if (!organizationId) throw new Error('No se pudo determinar la organización')
+    await assertLeadInOrganization(lead.id, organizationId)
+
+    const { data: newLead, error: err } = await supabase
       .from('leads')
       .insert([{
-        organization_id: lead.organization_id,
+        organization_id: organizationId,
         pipeline: 'postventa',
         estado: 'Reclamo',
         nombre: lead.nombre,
@@ -181,70 +347,161 @@ export function useLeads() {
         cliente_id: lead.cliente_id,
         origen: 'Sistema',
         prioridad: lead.prioridad,
-        notas: `Generado desde venta ganada. Lead Origen: ${lead.id}`
+        notas: `Generado desde venta ganada. Lead Origen: ${lead.id}`,
       }])
       .select()
       .single()
-    
-    if (error) throw error
 
-    await supabase.from('lead_actividades').insert({
-      lead_id: lead.id,
-      tipo: 'sistema',
-      descripcion: 'Lead derivado a Postventa',
-    })
+    if (err) throw err
 
-    toast.success('Lead de Postventa generado')
+    const { error: actividadError } = await supabase
+      .from('lead_actividades')
+      .insert({
+        organization_id: organizationId,
+        lead_id: lead.id,
+        tipo: 'sistema',
+        descripcion: 'Lead derivado a Postventa',
+      })
+
+    if (actividadError) throw actividadError
+
     await fetchLeads()
     return newLead
   }
 
-  useEffect(() => { fetchLeads() }, [])
+  useEffect(() => {
+    fetchLeads()
+  }, [fetchLeads])
 
   return {
-    leads, loading, error, fetchLeads,
-    crearLead, actualizarLead, avanzarEstado,
-    registrarContacto, convertirACliente,
-    convertirAVenta, generarPostventa,
+    leads,
+    loading,
+    error,
+    fetchLeads,
+    crearLead,
+    actualizarLead,
+    avanzarEstado,
+    registrarContacto,
+    convertirACliente,
+    convertirAVenta,
+    generarPostventa,
   }
 }
 
-// ── Actividades (usadas en LeadDetalle) ──────────────────────────
-export async function fetchActividades(leadId) {
-  const { data } = await supabase
+// ── Actividades usadas en LeadDetalle ────────────────────────────
+export async function fetchActividades(leadId, organizationIdParam = null) {
+  const scope = organizationIdParam
+    ? { organizationId: organizationIdParam }
+    : await getCurrentAuthScope()
+
+  await assertLeadInOrganization(leadId, scope.organizationId)
+
+  const { data, error } = await supabase
     .from('lead_actividades')
     .select('*, creado_por:perfiles(nombre_completo)')
     .eq('lead_id', leadId)
+    .eq('organization_id', scope.organizationId)
     .order('created_at', { ascending: false })
     .limit(50)
+
+  if (error) throw error
   return data || []
 }
 
-export async function agregarActividad(leadId, tipo, descripcion, datos = null) {
-  const { error } = await supabase.from('lead_actividades').insert({
-    lead_id: leadId, tipo, descripcion, datos,
-  })
+export async function agregarActividad(
+  leadId,
+  tipo,
+  descripcion,
+  datos = null,
+  organizationIdParam = null
+) {
+  const scope = organizationIdParam
+    ? { organizationId: organizationIdParam }
+    : await getCurrentAuthScope()
+
+  await assertLeadInOrganization(leadId, scope.organizationId)
+
+  const { error } = await supabase
+    .from('lead_actividades')
+    .insert({
+      organization_id: scope.organizationId,
+      lead_id: leadId,
+      tipo,
+      descripcion,
+      datos,
+    })
+
   if (error) throw error
 }
 
-// ── Tareas (usadas en LeadDetalle) ───────────────────────────────
-export async function fetchTareas(leadId) {
-  const { data } = await supabase
+// ── Tareas usadas en LeadDetalle ─────────────────────────────────
+export async function fetchTareas(leadId, organizationIdParam = null) {
+  const scope = organizationIdParam
+    ? { organizationId: organizationIdParam }
+    : await getCurrentAuthScope()
+
+  await assertLeadInOrganization(leadId, scope.organizationId)
+
+  const { data, error } = await supabase
     .from('lead_tareas')
     .select('*, asignado_a:perfiles(nombre_completo)')
     .eq('lead_id', leadId)
+    .eq('organization_id', scope.organizationId)
     .order('vencimiento', { ascending: true, nullsFirst: false })
+
+  if (error) throw error
   return data || []
 }
 
-export async function crearTarea(leadId, payload) {
-  const { error } = await supabase.from('lead_tareas').insert({ lead_id: leadId, ...payload })
+export async function crearTarea(leadId, payload, organizationIdParam = null) {
+  const scope = organizationIdParam
+    ? { organizationId: organizationIdParam }
+    : await getCurrentAuthScope()
+
+  await assertLeadInOrganization(leadId, scope.organizationId)
+
+  const { id: _ignoredId, organization_id: _ignoredOrg, ...safePayload } = payload
+
+  const { error } = await supabase
+    .from('lead_tareas')
+    .insert({
+      ...safePayload,
+      organization_id: scope.organizationId,
+      lead_id: leadId,
+    })
+
   if (error) throw error
-  await agregarActividad(leadId, 'tarea_creada', `Tarea creada: "${payload.titulo}"`)
+
+  await agregarActividad(
+    leadId,
+    'tarea_creada',
+    `Tarea creada: "${payload.titulo}"`,
+    null,
+    scope.organizationId
+  )
 }
 
-export async function completarTarea(tareaId, leadId) {
-  const { error } = await supabase.from('lead_tareas').update({ completada: true }).eq('id', tareaId)
+export async function completarTarea(tareaId, leadId, organizationIdParam = null) {
+  const scope = organizationIdParam
+    ? { organizationId: organizationIdParam }
+    : await getCurrentAuthScope()
+
+  await assertLeadInOrganization(leadId, scope.organizationId)
+
+  const { error } = await supabase
+    .from('lead_tareas')
+    .update({ completada: true })
+    .eq('id', tareaId)
+    .eq('lead_id', leadId)
+    .eq('organization_id', scope.organizationId)
+
   if (error) throw error
-  await agregarActividad(leadId, 'sistema', 'Tarea completada')
+
+  await agregarActividad(
+    leadId,
+    'sistema',
+    'Tarea completada',
+    null,
+    scope.organizationId
+  )
 }
