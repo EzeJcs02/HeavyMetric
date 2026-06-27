@@ -1,27 +1,35 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
-// Calcula estado de service en base a horómetro (sin depender de la vista maquinas_service)
+function getOrganizationId(auth) {
+  return (
+    auth?.profile?.organization_id ||
+    auth?.perfil?.organization_id ||
+    auth?.user?.user_metadata?.organization_id ||
+    auth?.organizationId ||
+    null
+  )
+}
+
 export function calcServiceState(m) {
   if (!m.frecuencia_service || !m.horometro_actual) return null
   const proximo = (m.ultimo_service_horas || 0) + (m.frecuencia_service || 250)
   const restantes = proximo - m.horometro_actual
   const pct = ((m.horometro_actual - (m.ultimo_service_horas || 0)) / m.frecuencia_service) * 100
-  if (pct >= 100) return { estado: 'vencido',  restantes, pct: Math.min(pct, 120), color: 'red' }
-  if (pct >= 90)  return { estado: 'urgente',  restantes, pct, color: 'red' }
-  if (pct >= 80)  return { estado: 'proximo',  restantes, pct, color: 'yellow' }
+  if (pct >= 100) return { estado: 'vencido', restantes, pct: Math.min(pct, 120), color: 'red' }
+  if (pct >= 90) return { estado: 'urgente', restantes, pct, color: 'red' }
+  if (pct >= 80) return { estado: 'proximo', restantes, pct, color: 'yellow' }
   return { estado: 'ok', restantes, pct, color: 'green' }
 }
 
-// Predice días hasta próximo service usando historial de horómetros
 export function predecirService(m, historial) {
   const service = calcServiceState(m)
   if (!service || service.estado === 'vencido') return null
   if (!historial || historial.length < 2) return null
 
-  // Calcular ritmo de uso: horas por día promedio (últimas 2 lecturas)
   const sorted = [...historial].sort((a, b) => new Date(b.fecha_lectura) - new Date(a.fecha_lectura))
-  const ultima  = sorted[0]
+  const ultima = sorted[0]
   const penultima = sorted[1]
   const dias = Math.max(1, Math.round((new Date(ultima.fecha_lectura) - new Date(penultima.fecha_lectura)) / 86400000))
   const deltaHoras = ultima.lectura_horas - penultima.lectura_horas
@@ -39,34 +47,62 @@ export function predecirService(m, historial) {
 }
 
 export function useCliente360(clienteId, isOpen) {
+  const auth = useAuth()
+  const organizationId = getOrganizationId(auth)
+
   const [data, setData] = useState({
-    flota:         [],
-    leads:         [],
-    cotizaciones:  [],
-    ots:           [],
+    flota: [],
+    leads: [],
+    cotizaciones: [],
+    ots: [],
     transacciones: [],
   })
+
   const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState(null)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!clienteId || !isOpen) return
+
     let cancelled = false
 
     const fetchAll = async () => {
       setLoading(true)
       setError(null)
+
       try {
+        if (!organizationId) {
+          setData({
+            flota: [],
+            leads: [],
+            cotizaciones: [],
+            ots: [],
+            transacciones: [],
+          })
+          return
+        }
+
+        const { data: cliente, error: clienteError } = await supabase
+          .from('clientes')
+          .select('id, organization_id')
+          .eq('id', clienteId)
+          .eq('organization_id', organizationId)
+          .single()
+
+        if (clienteError) throw clienteError
+        if (!cliente) throw new Error('Cliente no encontrado para la organización actual')
+
         const [
-          { data: flota,         error: e1 },
-          { data: leads,         error: e2 },
-          { data: cotizaciones,  error: e3 },
-          { data: ots,           error: e4 },
+          { data: flota, error: e1 },
+          { data: leads, error: e2 },
+          { data: cotizaciones, error: e3 },
+          { data: ots, error: e4 },
           { data: transacciones, error: e5 },
         ] = await Promise.all([
           supabase
             .from('maquinas')
             .select('id, nombre_unidad, marca, modelo, tipo, estado_operativo, horometro_actual, ultimo_service_horas, frecuencia_service, comunicacion_service, en_taller, en_alquiler, patente, anio')
+            .eq('organization_id', organizationId)
             .eq('cliente_id', clienteId)
             .eq('activa', true)
             .order('nombre_unidad'),
@@ -74,6 +110,7 @@ export function useCliente360(clienteId, isOpen) {
           supabase
             .from('leads')
             .select('id, nombre, empresa, estado, lead_grade, lead_score, pipeline, ultimo_contacto, created_at')
+            .eq('organization_id', organizationId)
             .eq('cliente_id', clienteId)
             .order('created_at', { ascending: false })
             .limit(20),
@@ -81,6 +118,7 @@ export function useCliente360(clienteId, isOpen) {
           supabase
             .from('cotizaciones')
             .select('id, numero_cotizacion, estado, total_usd, created_at, updated_at')
+            .eq('organization_id', organizationId)
             .eq('cliente_id', clienteId)
             .order('created_at', { ascending: false })
             .limit(30),
@@ -88,6 +126,7 @@ export function useCliente360(clienteId, isOpen) {
           supabase
             .from('ordenes_trabajo')
             .select('id, numero_ot, estado, fecha_ingreso, total_usd, total_repuestos_usd, total_mano_obra_usd, maquina:maquinas(nombre_unidad)')
+            .eq('organization_id', organizationId)
             .eq('cliente_id', clienteId)
             .order('fecha_ingreso', { ascending: false })
             .limit(30),
@@ -95,6 +134,7 @@ export function useCliente360(clienteId, isOpen) {
           supabase
             .from('transacciones')
             .select('id, numero_comprobante, tipo_documento, fecha_emision, monto_total_usd, estado_pago')
+            .eq('organization_id', organizationId)
             .eq('cliente_id', clienteId)
             .order('fecha_emision', { ascending: false })
             .limit(30),
@@ -105,33 +145,35 @@ export function useCliente360(clienteId, isOpen) {
         if (cancelled) return
 
         setData({
-          flota:         flota         || [],
-          leads:         leads         || [],
-          cotizaciones:  cotizaciones  || [],
-          ots:           ots           || [],
+          flota: flota || [],
+          leads: leads || [],
+          cotizaciones: cotizaciones || [],
+          ots: ots || [],
           transacciones: transacciones || [],
         })
       } catch (err) {
-        if (!cancelled) setError(err.message)
+        if (!cancelled) setError(err.message || 'Error al cargar Cliente 360')
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
 
     fetchAll()
-    return () => { cancelled = true }
-  }, [clienteId, isOpen])
 
-  // KPIs derivados
+    return () => {
+      cancelled = true
+    }
+  }, [clienteId, isOpen, organizationId])
+
   const kpis = {
-    flotaCount:       data.flota.length,
-    flotaDetenidos:   data.flota.filter(m => ['En taller','Fuera de servicio','Esperando repuesto'].includes(m.estado_operativo)).length,
-    leadsActivos:     data.leads.filter(l => !['Ganado','Perdido','Facturado'].includes(l.estado)).length,
-    cotsPendientes:   data.cotizaciones.filter(c => ['Borrador','Enviada'].includes(c.estado)).length,
-    cotsMontoTotal:   data.cotizaciones.filter(c => ['Borrador','Enviada'].includes(c.estado)).reduce((s, c) => s + Number(c.total_usd || 0), 0),
-    otsAbiertas:      data.ots.filter(o => ['borrador','en_progreso'].includes(o.estado)).length,
-    deudaPendiente:   data.transacciones.filter(t => t.estado_pago === 'pendiente').reduce((s, t) => s + Number(t.monto_total_usd || 0), 0),
-    facturadoTotal:   data.transacciones.reduce((s, t) => s + Number(t.monto_total_usd || 0), 0),
+    flotaCount: data.flota.length,
+    flotaDetenidos: data.flota.filter(m => ['En taller', 'Fuera de servicio', 'Esperando repuesto'].includes(m.estado_operativo)).length,
+    leadsActivos: data.leads.filter(l => !['Ganado', 'Perdido', 'Facturado'].includes(l.estado)).length,
+    cotsPendientes: data.cotizaciones.filter(c => ['Borrador', 'Enviada'].includes(c.estado)).length,
+    cotsMontoTotal: data.cotizaciones.filter(c => ['Borrador', 'Enviada'].includes(c.estado)).reduce((s, c) => s + Number(c.total_usd || 0), 0),
+    otsAbiertas: data.ots.filter(o => ['borrador', 'en_progreso'].includes(o.estado)).length,
+    deudaPendiente: data.transacciones.filter(t => t.estado_pago === 'pendiente').reduce((s, t) => s + Number(t.monto_total_usd || 0), 0),
+    facturadoTotal: data.transacciones.reduce((s, t) => s + Number(t.monto_total_usd || 0), 0),
   }
 
   return { ...data, kpis, loading, error }
