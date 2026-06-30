@@ -457,7 +457,11 @@ export default function Ventas() {
           ? supabase.from('sales_order_items').select('*').in('sales_order_id', orderIds)
           : Promise.resolve({ data: [] }),
         clienteIds.length
-          ? supabase.from('clientes').select('id, razon_social, nombre_comercial, cuit').in('id', clienteIds)
+          ? supabase
+              .from('clientes')
+              .select('id, razon_social, nombre_comercial, cuit')
+              .eq('organization_id', perfil.organization_id)
+              .in('id', clienteIds)
           : Promise.resolve({ data: [] }),
       ])
 
@@ -527,6 +531,19 @@ export default function Ventas() {
       return
     }
 
+    if (form.cliente_id) {
+      const { data: clienteCheck, error: clienteCheckError } = await supabase
+        .from('clientes')
+        .select('id, organization_id')
+        .eq('id', form.cliente_id)
+        .eq('organization_id', perfil.organization_id)
+        .single()
+
+      if (clienteCheckError || !clienteCheck) {
+        throw new Error('Acceso denegado: el cliente no pertenece a tu organización.')
+      }
+    }
+
     const payload = {
       organization_id: perfil.organization_id,
       cliente_id: form.cliente_id || null,
@@ -548,7 +565,7 @@ export default function Ventas() {
     if (editing) {
       const { data: orderCheck, error: checkError } = await supabase
         .from('sales_orders')
-        .select('id')
+        .select('id, organization_id')
         .eq('id', editing.id)
         .eq('organization_id', perfil.organization_id)
         .single()
@@ -647,6 +664,17 @@ export default function Ventas() {
     const { order, estado } = changingStatus
 
     try {
+      const { data: orderCheck, error: checkError } = await supabase
+        .from('sales_orders')
+        .select('id, organization_id')
+        .eq('id', order.id)
+        .eq('organization_id', perfil.organization_id)
+        .single()
+
+      if (checkError || !orderCheck) {
+        throw new Error('Acceso denegado: la orden de venta no pertenece a tu organización.')
+      }
+
       const { error } = await supabase
         .from('sales_orders')
         .update({ estado })
