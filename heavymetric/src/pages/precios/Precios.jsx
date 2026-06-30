@@ -7,6 +7,12 @@ import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 
+const CONFIG_PRICE_FIELDS = new Set([
+  'precio_hora_taller_usd',
+  'precio_hora_urgente_usd',
+  'tarifa_minima_alquiler_usd',
+])
+
 // ─── Sección editable de tarifa ──────────────────────────────────────────────
 function FilaTarifa({ label, campo, valor, onSave }) {
   const [editing, setEditing] = useState(false)
@@ -65,8 +71,9 @@ function FilaTarifa({ label, campo, valor, onSave }) {
 
 // ─── Módulo Precios (Solo Owner) ──────────────────────────────────────────────
 export default function Precios() {
-  const { isOwner, orgId } = useAuth()
+  const { isOwner, orgId, can } = useAuth()
   const { dolar, formatUSD } = useDolar()
+  const canManagePrices = isOwner && can('precios.approve')
 
   const [config, setConfig] = useState(null)
   const [maquinas, setMaquinas] = useState([])
@@ -76,43 +83,74 @@ export default function Precios() {
   const [savingKey, setSavingKey] = useState(false)
 
   useEffect(() => {
+    let active = true
+
     async function fetchData() {
-      if (!orgId) return
+      if (!orgId || !canManagePrices) {
+        setConfig(null)
+        setMaquinas([])
+        setAiKey('')
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       const [{ data: cfg }, { data: maq }, { data: org }] = await Promise.all([
-        supabase.from('config_sistema').select('*').limit(1).maybeSingle(),
-        supabase.from('maquinas').select('id, nombre_unidad, marca, modelo, tarifa_diaria_usd, activa').order('nombre_unidad'),
+        supabase.from('config_sistema').select('*').eq('organization_id', orgId).limit(1).maybeSingle(),
+        supabase.from('maquinas').select('id, nombre_unidad, marca, modelo, tarifa_diaria_usd, activa').eq('organization_id', orgId).order('nombre_unidad'),
         supabase.from('organizaciones').select('api_key_ia').eq('id', orgId).single()
       ])
+
+      if (!active) return
+
       setConfig(cfg)
       setMaquinas(maq || [])
       setAiKey(org?.api_key_ia || '')
       setLoading(false)
     }
+
     fetchData()
-  }, [orgId])
+    return () => { active = false }
+  }, [orgId, canManagePrices])
 
   const updateConfig = async (campo, valor) => {
-    const { error } = await supabase
+    if (!orgId || !canManagePrices || !config?.id) {
+      throw new Error('No tenes permisos para modificar precios')
+    }
+    if (!CONFIG_PRICE_FIELDS.has(campo)) {
+      throw new Error('Campo de configuracion no permitido')
+    }
+    if (!Number.isFinite(valor) || valor < 0) {
+      throw new Error('El precio debe ser un numero valido mayor o igual a cero')
+    }
+
+    const { data: updated, error } = await supabase
       .from('config_sistema')
       .update({ [campo]: valor })
       .eq('id', config.id)
+      .eq('organization_id', orgId)
+      .select('id')
+      .maybeSingle()
     if (error) throw error
+    if (!updated) throw new Error('No se encontro la configuracion de la organizacion')
     setConfig(prev => ({ ...prev, [campo]: valor }))
   }
 
   const updateAIKey = async () => {
-    if (!orgId) {
-      toast.error('No se pudo identificar el ID de tu empresa.')
+    if (!orgId || !canManagePrices) {
+      toast.error('No tenes permisos para modificar esta configuracion')
       return
     }
     setSavingKey(true)
     try {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from('organizaciones')
         .update({ api_key_ia: aiKey })
         .eq('id', orgId)
+        .select('id')
+        .maybeSingle()
       if (error) throw error
+      if (!updated) throw new Error('No se encontro la organizacion')
       toast.success('Llave de IA actualizada correctamente')
     } catch (err) {
       toast.error('Error al guardar: ' + err.message)
@@ -122,17 +160,28 @@ export default function Precios() {
   }
 
   const updateTarifaMaquina = async (maquinaId, tarifa) => {
-    const { error } = await supabase
+    if (!orgId || !canManagePrices) {
+      throw new Error('No tenes permisos para modificar tarifas')
+    }
+    if (!Number.isFinite(tarifa) || tarifa < 0) {
+      throw new Error('La tarifa debe ser un numero valido mayor o igual a cero')
+    }
+
+    const { data: updated, error } = await supabase
       .from('maquinas')
       .update({ tarifa_diaria_usd: tarifa })
       .eq('id', maquinaId)
+      .eq('organization_id', orgId)
+      .select('id')
+      .maybeSingle()
     if (error) throw error
+    if (!updated) throw new Error('No se encontro la maquina en la organizacion')
     setMaquinas(prev => prev.map(m => m.id === maquinaId ? { ...m, tarifa_diaria_usd: tarifa } : m))
     setEditingMaquina(null)
     toast.success('Tarifa de máquina actualizada')
   }
 
-  if (!isOwner) {
+  if (!canManagePrices) {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <Card className="p-8 text-center max-w-md">
@@ -268,8 +317,13 @@ function EditTarifaInline({ initial, onSave, onCancel }) {
 
   const handleSave = async () => {
     setLoading(true)
-    await onSave(Number(val))
-    setLoading(false)
+    try {
+      await onSave(Number(val))
+    } catch (err) {
+      toast.error('Error: ' + err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
