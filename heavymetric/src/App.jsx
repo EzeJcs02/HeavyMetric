@@ -99,7 +99,7 @@ function TitleUpdater() {
   return null
 }
 
-function Guard({ children, soloOwner, soloSupervisor, soloCliente, module }) {
+function Guard({ children, soloOwner, soloSupervisor, soloCliente, module, permission }) {
   const {
     user,
     perfil,
@@ -108,6 +108,7 @@ function Guard({ children, soloOwner, soloSupervisor, soloCliente, module }) {
     canEdit,
     isCliente,
     hasModule,
+    can,
   } = useAuth()
 
   const location = useLocation()
@@ -135,6 +136,7 @@ function Guard({ children, soloOwner, soloSupervisor, soloCliente, module }) {
   if (soloCliente && !isCliente) return <Navigate to="/app" replace />
 
   if (module && !isOwner && !hasModule(module)) return <Navigate to="/app" replace />
+  if (permission && !can(permission)) return <Navigate to="/app" replace />
 
   return children
 }
@@ -156,35 +158,35 @@ export default function App() {
                 <Route path="/" element={<Landing />} />
 
                 <Route path="/app" element={<Guard><Layout /></Guard>}>
-                  <Route index element={<Home />} />
-                  <Route path="mi-jornada" element={<Guard><MiJornada /></Guard>} />
-                  <Route path="dashboard" element={<Guard soloSupervisor><Dashboard /></Guard>} />
-                  <Route path="leads" element={<Guard soloSupervisor module="crm"><Leads /></Guard>} />
-                  <Route path="cotizaciones" element={<Guard soloSupervisor module="crm"><Cotizaciones /></Guard>} />
-                  <Route path="taller" element={<Guard module="taller"><Taller /></Guard>} />
+                  <Route index element={<Guard permission="home.view"><Home /></Guard>} />
+                  <Route path="mi-jornada" element={<Guard permission="mi_jornada.view"><MiJornada /></Guard>} />
+                  <Route path="dashboard" element={<Guard soloSupervisor permission="dashboard.view"><Dashboard /></Guard>} />
+                  <Route path="leads" element={<Guard soloSupervisor module="crm" permission="crm.view"><Leads /></Guard>} />
+                  <Route path="cotizaciones" element={<Guard soloSupervisor module="crm" permission="cotizaciones.view"><Cotizaciones /></Guard>} />
+                  <Route path="taller" element={<Guard module="taller" permission="taller.view"><Taller /></Guard>} />
                   <Route path="alquileres" element={<Guard soloSupervisor module="alquileres"><Alquileres /></Guard>} />
-                  <Route path="ventas" element={<Guard soloSupervisor module="ventas"><Ventas /></Guard>} />
-                  <Route path="repuestos" element={<Guard soloSupervisor module="inventario"><Repuestos /></Guard>} />
-                  <Route path="proveedores" element={<Guard soloSupervisor module="tesoreria"><Proveedores /></Guard>} />
+                  <Route path="ventas" element={<Guard soloSupervisor module="ventas" permission="ventas.view"><Ventas /></Guard>} />
+                  <Route path="repuestos" element={<Guard soloSupervisor module="inventario" permission="inventario.view"><Repuestos /></Guard>} />
+                  <Route path="proveedores" element={<Guard soloSupervisor module="tesoreria" permission="proveedores.view"><Proveedores /></Guard>} />
                   <Route path="ceo" element={<Guard soloOwner><CEODashboard /></Guard>} />
-                  <Route path="clientes" element={<Guard soloSupervisor><Clientes /></Guard>} />
+                  <Route path="clientes" element={<Guard soloSupervisor permission="clientes.view"><Clientes /></Guard>} />
                   <Route path="precios" element={<Guard soloOwner><Precios /></Guard>} />
-                  <Route path="facturacion" element={<Guard soloSupervisor><Facturacion /></Guard>} />
-                  <Route path="tesoreria" element={<Guard soloSupervisor module="tesoreria"><Tesoreria /></Guard>} />
+                  <Route path="facturacion" element={<Guard soloSupervisor permission="facturacion.view"><Facturacion /></Guard>} />
+                  <Route path="tesoreria" element={<Guard soloSupervisor module="tesoreria" permission="tesoreria.view"><Tesoreria /></Guard>} />
                   <Route path="usuarios" element={<Guard soloOwner><Usuarios /></Guard>} />
-                  <Route path="reportes" element={<Guard soloSupervisor><Reportes /></Guard>} />
+                  <Route path="reportes" element={<Guard soloSupervisor permission="reportes.view"><Reportes /></Guard>} />
                   <Route path="configuracion" element={<Guard soloOwner><Configuracion /></Guard>} />
                   <Route path="perfil" element={<Guard><Perfil /></Guard>} />
-                  <Route path="aprobaciones" element={<Guard soloSupervisor><Aprobaciones /></Guard>} />
-                  <Route path="remitos" element={<Guard soloSupervisor><Remitos /></Guard>} />
+                  <Route path="aprobaciones" element={<Guard soloSupervisor permission="aprobaciones.view"><Aprobaciones /></Guard>} />
+                  <Route path="remitos" element={<Guard soloSupervisor permission="remitos.view"><Remitos /></Guard>} />
 
-                  <Route path="activo360" element={<Guard soloSupervisor><Activo360 /></Guard>} />
+                  <Route path="activo360" element={<Guard soloSupervisor permission="activo.view"><Activo360 /></Guard>} />
                   <Route path="activos" element={<Navigate to="/app/activo360" replace />} />
 
                   <Route
                     path="postventa"
                     element={
-                      <Guard soloSupervisor>
+                      <Guard soloSupervisor permission="postventa.view">
                         <Placeholder
                           title="Postventa"
                           description="Seguimiento de servicios, garantías, oportunidades y atención posterior a la venta."
@@ -321,12 +323,12 @@ export default function App() {
                   <Route path="integraciones" element={<Guard soloOwner><Integraciones /></Guard>} />
                 </Route>
 
-                <Route path="/campo" element={<Guard module="campo"><AppCampo /></Guard>}>
+                <Route path="/campo" element={<Guard module="campo" permission="campo.view"><AppCampo /></Guard>}>
                   <Route index element={<OTMobileList />} />
                   <Route path="ot/:id" element={<OTMobileDetail />} />
                 </Route>
 
-                <Route path="portal" element={<Guard soloCliente><Portal /></Guard>} />
+                <Route path="portal" element={<Guard soloCliente permission="portal.view"><Portal /></Guard>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
