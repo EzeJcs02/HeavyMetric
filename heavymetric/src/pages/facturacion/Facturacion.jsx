@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
 import { useClientes } from '../../hooks/useClientes'
+import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { sendWhatsAppMessage } from '../../lib/integrations/whatsapp'
 import { sendEmail } from '../../lib/integrations/email'
@@ -18,6 +19,8 @@ import ClienteAutocomplete from '../../components/common/ClienteAutocomplete'
 const PER_PAGE = 10
 
 export default function Facturacion() {
+  const { can, canApprovePrice } = useAuth()
+  const canManageBilling = can('facturacion.create')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTx, setSelectedTx] = useState(null)
   const [txAAnular, setTxAAnular] = useState(null)
@@ -43,25 +46,38 @@ export default function Facturacion() {
   }, [searchQuery, clienteFiltro, filterStatus, periodo])
 
   const handleGuardarTC = async () => {
-    if (!tcForm.venta) {
+    if (!canApprovePrice) {
+      toast.error('No tenes permisos para actualizar el tipo de cambio')
+      return
+    }
+
+    const compra = Number(tcForm.compra) || 0
+    const venta = Number(tcForm.venta)
+
+    if (!Number.isFinite(venta) || venta <= 0) {
       toast.error('Ingresá el tipo de cambio venta')
+      return
+    }
+    if (!Number.isFinite(compra) || compra < 0) {
+      toast.error('El tipo de cambio compra no es valido')
       return
     }
 
     setSavingTC(true)
 
     try {
-      const { error: err } = await supabase.from('tipo_cambio').upsert(
+      const { data: updated, error: err } = await supabase.from('tipo_cambio').upsert(
         {
           fecha: new Date().toISOString().slice(0, 10),
-          compra: Number(tcForm.compra) || 0,
-          venta: Number(tcForm.venta),
+          compra,
+          venta,
           fuente: 'BNA',
         },
         { onConflict: 'fecha,fuente' }
-      )
+      ).select('id').maybeSingle()
 
       if (err) throw err
+      if (!updated) throw new Error('No se pudo verificar la actualizacion del tipo de cambio')
 
       toast.success('Tipo de cambio actualizado')
       setShowTC(false)
@@ -122,12 +138,39 @@ export default function Facturacion() {
   )
 
   const handleOpenModal = (tx) => {
+    if (!canManageBilling) {
+      toast.error('No tenes permisos para registrar cobros')
+      return
+    }
+    if (!tx || tx.estado_pago !== 'pendiente') {
+      toast.error('El comprobante ya no esta pendiente')
+      return
+    }
     setSelectedTx(tx)
     setIsModalOpen(true)
   }
 
+  const handleOpenAnular = (tx) => {
+    if (!canManageBilling) {
+      toast.error('No tenes permisos para anular comprobantes')
+      return
+    }
+    if (!tx || tx.estado_pago !== 'pendiente') {
+      toast.error('El comprobante ya no esta pendiente')
+      return
+    }
+    setTxAAnular(tx)
+  }
+
   const handleConfirmarAnular = async () => {
-    if (!txAAnular) return
+    if (!txAAnular || !canManageBilling) return
+
+    const currentTx = transacciones.find((tx) => tx.id === txAAnular.id)
+    if (!currentTx || currentTx.estado_pago !== 'pendiente') {
+      toast.error('El comprobante ya no esta pendiente')
+      setTxAAnular(null)
+      return
+    }
 
     setAnulando(true)
 
@@ -143,6 +186,10 @@ export default function Facturacion() {
   }
 
   const handleSendEmail = async (tx) => {
+    if (!canManageBilling) {
+      toast.error('No tenes permisos para enviar comprobantes')
+      return
+    }
     toast.info('Enviando email...')
 
     const res = await sendEmail(
@@ -157,6 +204,10 @@ export default function Facturacion() {
   }
 
   const handleSendWA = async (tx) => {
+    if (!canManageBilling) {
+      toast.error('No tenes permisos para enviar comprobantes')
+      return
+    }
     toast.info('Enviando WhatsApp...')
 
     const res = await sendWhatsAppMessage(
@@ -173,6 +224,17 @@ export default function Facturacion() {
   }
 
   const handleConfirmCobro = async (payload) => {
+    if (!selectedTx || !canManageBilling) {
+      toast.error('No tenes permisos para registrar cobros')
+      return
+    }
+
+    const currentTx = transacciones.find((tx) => tx.id === selectedTx.id)
+    if (!currentTx || currentTx.estado_pago !== 'pendiente') {
+      toast.error('El comprobante ya no esta pendiente')
+      return
+    }
+
     try {
       await registrarCobro(selectedTx.id, payload)
       toast.success('Cobro registrado correctamente')
@@ -617,7 +679,7 @@ export default function Facturacion() {
                             <Button
                               variant="outline"
                               className="px-3 py-1 text-xs border-red-800 text-red-400 hover:bg-red-900/20"
-                              onClick={() => setTxAAnular(tx)}
+                              onClick={() => handleOpenAnular(tx)}
                             >
                               ANULAR
                             </Button>
