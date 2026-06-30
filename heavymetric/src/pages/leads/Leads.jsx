@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CalendarClock,
@@ -64,6 +64,13 @@ function nextDateLabel(date) {
 
 function estadoVariant(estado) {
   return ESTADO_VARIANT[estado] || 'default'
+}
+
+function getAuthScope(perfil) {
+  return {
+    userId: perfil?.id || null,
+    organizationId: perfil?.organization_id || null,
+  }
 }
 
 function ModalLead({ isOpen, onClose, lead, onConfirm }) {
@@ -229,6 +236,7 @@ function ModalLead({ isOpen, onClose, lead, onConfirm }) {
 
 export default function Leads() {
   const { perfil, canEdit } = useAuth()
+  const { userId, organizationId } = getAuthScope(perfil)
 
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
@@ -241,29 +249,35 @@ export default function Leads() {
   const [convirtiendo, setConvirtiendo] = useState(null)
   const [savingConvert, setSavingConvert] = useState(false)
 
-  const fetchLeads = async () => {
+  const fetchLeads = useCallback(async () => {
     setLoading(true)
     setError(null)
 
     try {
+      if (!organizationId) {
+        setLeads([])
+        return
+      }
+
       const { data, error: fetchError } = await supabase
         .from('leads')
         .select('*')
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
 
       if (fetchError) throw fetchError
 
       setLeads(data || [])
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Error al cargar leads')
     } finally {
       setLoading(false)
     }
-  }
+  }, [organizationId])
 
   useEffect(() => {
     fetchLeads()
-  }, [])
+  }, [fetchLeads])
 
   const filtrados = useMemo(() => {
     const q = normalize(busqueda)
@@ -311,25 +325,42 @@ export default function Leads() {
   }, [filtrados])
 
   const handleSaveLead = async (form) => {
-    const payload = {
-      ...form,
-      organization_id: perfil?.organization_id || null,
-      created_by: perfil?.id || null,
+    if (!organizationId) {
+      throw new Error('No se pudo determinar la organización. Volvé a iniciar sesión.')
     }
+
+    const { id: _ignoredId, organization_id: _ignoredOrg, created_by: _ignoredCreatedBy, ...safeForm } = form
 
     if (editando) {
       const { error: updateError } = await supabase
         .from('leads')
-        .update(payload)
+        .update(safeForm)
         .eq('id', editando.id)
+        .eq('organization_id', organizationId)
 
       if (updateError) throw updateError
 
+      console.info('[HeavyMetric][Leads] Lead actualizado con trazabilidad operativa:', {
+        lead_id: editando.id,
+        organization_id: organizationId,
+      })
+
       toast.success('Lead actualizado')
     } else {
-      const { error: insertError } = await supabase.from('leads').insert(payload)
+      const { error: insertError } = await supabase
+        .from('leads')
+        .insert({
+          ...safeForm,
+          organization_id: organizationId,
+          created_by: userId,
+        })
 
       if (insertError) throw insertError
+
+      console.info('[HeavyMetric][Leads] Lead creado con trazabilidad operativa:', {
+        organization_id: organizationId,
+        created_by: userId,
+      })
 
       toast.success('Lead creado')
     }
@@ -341,12 +372,24 @@ export default function Leads() {
 
   const handleUpdateEstado = async (lead, estado) => {
     try {
+      if (!organizationId) {
+        throw new Error('No se pudo determinar la organización. Volvé a iniciar sesión.')
+      }
+
       const { error: updateError } = await supabase
         .from('leads')
         .update({ estado })
         .eq('id', lead.id)
+        .eq('organization_id', organizationId)
 
       if (updateError) throw updateError
+
+      console.info('[HeavyMetric][Leads] Estado de lead actualizado con trazabilidad operativa:', {
+        lead_id: lead.id,
+        estado_anterior: lead.estado,
+        estado_nuevo: estado,
+        organization_id: organizationId,
+      })
 
       toast.success(`Lead movido a ${estado}`)
       fetchLeads()
@@ -361,23 +404,48 @@ export default function Leads() {
     setSavingConvert(true)
 
     try {
-      const { error: insertError } = await supabase.from('clientes').insert({
-        organization_id: perfil?.organization_id || null,
-        razon_social: convirtiendo.empresa || convirtiendo.nombre,
-        nombre_comercial: convirtiendo.empresa || '',
-        contacto_nombre: convirtiendo.nombre || '',
-        email: convirtiendo.email || '',
-        telefono: convirtiendo.telefono || '',
-        rubro: convirtiendo.rubro || '',
-        propension_compra: 'B',
-      })
+      if (!organizationId) {
+        throw new Error('No se pudo determinar la organización. Volvé a iniciar sesión.')
+      }
+
+      const { data: leadCheck, error: leadCheckError } = await supabase
+        .from('leads')
+        .select('id, organization_id')
+        .eq('id', convirtiendo.id)
+        .eq('organization_id', organizationId)
+        .single()
+
+      if (leadCheckError || !leadCheck) {
+        throw new Error('Acceso denegado: el lead no pertenece a tu organización.')
+      }
+
+      const { error: insertError } = await supabase
+        .from('clientes')
+        .insert({
+          organization_id: organizationId,
+          razon_social: convirtiendo.empresa || convirtiendo.nombre,
+          nombre_comercial: convirtiendo.empresa || '',
+          contacto_nombre: convirtiendo.nombre || '',
+          email: convirtiendo.email || '',
+          telefono: convirtiendo.telefono || '',
+          rubro: convirtiendo.rubro || '',
+          propension_compra: 'B',
+        })
 
       if (insertError) throw insertError
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('leads')
         .update({ estado: 'Ganado' })
         .eq('id', convirtiendo.id)
+        .eq('organization_id', organizationId)
+
+      if (updateError) throw updateError
+
+      console.info('[HeavyMetric][Leads] Lead convertido a cliente con trazabilidad operativa:', {
+        lead_id: convirtiendo.id,
+        organization_id: organizationId,
+      })
 
       toast.success('Lead convertido a cliente')
       setConvirtiendo(null)
