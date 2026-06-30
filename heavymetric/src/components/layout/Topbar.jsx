@@ -14,10 +14,34 @@ function Initials({ name }) {
   return (parts.length >= 2 ? parts[0][0] + parts[1][0] : (name || '?').slice(0, 2)).toUpperCase()
 }
 
-const ROL_LABEL = { owner: 'Owner', supervisor: 'Supervisor', operativo: 'Operativo' }
+const ROL_LABEL = {
+  owner: 'Owner',
+  admin: 'Admin',
+  direccion: 'Dirección',
+  dirección: 'Dirección',
+  gerente_general: 'Gerencia General',
+  supervisor: 'Supervisor',
+  gerente: 'Gerente',
+  encargado: 'Encargado',
+  comercial: 'Comercial',
+  ventas: 'Ventas',
+  finanzas: 'Finanzas',
+  administracion: 'Administración',
+  administración: 'Administración',
+  compras: 'Compras',
+  postventa: 'Postventa',
+  tecnico: 'Técnico',
+  técnico: 'Técnico',
+  mecanico: 'Mecánico',
+  mecánico: 'Mecánico',
+  operativo: 'Operativo',
+  cliente: 'Cliente',
+  portal_cliente: 'Cliente',
+}
 
 export default function Topbar() {
-  const { user, perfil, orgId, isOwner, recargarPerfil } = useAuth()
+  const auth = useAuth()
+  const { user, perfil, orgId, isOwner, recargarPerfil } = auth
   const { tcVenta } = useDolar()
   const { theme, toggleTheme } = useTheme()
   const { taxonomia } = useRubro()
@@ -39,7 +63,8 @@ export default function Topbar() {
   const displayName = perfil?.nombre_completo || user?.email || ''
   const orgNombre = perfil?.organizaciones?.nombre_comercial || 'Mi empresa'
   const logoUrl = perfil?.organizaciones?.logo_url
-  const noLeidas = notificaciones.filter(n => !n.leido).length
+  const noLeidas = notificaciones.filter((n) => !n.leido).length
+  const rolNormalizado = auth?.rol || perfil?.rol || 'user'
 
   const activoPlural = taxonomia?.activoPlural || 'Activos'
   const ordenTrabajoPlural = taxonomia?.ordenTrabajoPlural || 'Órdenes'
@@ -49,33 +74,18 @@ export default function Topbar() {
   const routeContext = useMemo(() => {
     const path = location.pathname
 
-    if (path === '/app') {
-      return { section: 'Centro de Operaciones', detail: 'Vista general del sistema' }
-    }
-    if (path.includes('/taller')) {
-      return { section: moduloTaller, detail: ordenTrabajoPlural }
-    }
-    if (path.includes('/activo360')) {
-      return { section: activoPlural, detail: 'Estado operativo y trazabilidad' }
-    }
-    if (path.includes('/clientes')) {
-      return { section: 'Clientes', detail: 'Relación comercial y operativa' }
-    }
-    if (path.includes('/repuestos')) {
-      return { section: repuestoPlural, detail: 'Consumo, stock y disponibilidad' }
-    }
-    if (path.includes('/tesoreria')) {
-      return { section: 'Tesorería', detail: 'Caja, bancos y vencimientos' }
-    }
-    if (path.includes('/facturacion')) {
-      return { section: 'Facturación', detail: 'Comprobantes y ARCA' }
-    }
-    if (path.includes('/proveedores')) {
-      return { section: 'Proveedores', detail: 'Compras y cuentas por pagar' }
-    }
-    if (path.includes('/ceo')) {
-      return { section: 'Panel Dirección', detail: 'Indicadores ejecutivos' }
-    }
+    if (path === '/app') return { section: 'Centro de Operaciones', detail: 'Vista general del sistema' }
+    if (path.includes('/taller')) return { section: moduloTaller, detail: ordenTrabajoPlural }
+    if (path.includes('/activo360')) return { section: activoPlural, detail: 'Estado operativo y trazabilidad' }
+    if (path.includes('/clientes')) return { section: 'Clientes', detail: 'Relación comercial y operativa' }
+    if (path.includes('/repuestos')) return { section: repuestoPlural, detail: 'Consumo, stock y disponibilidad' }
+    if (path.includes('/tesoreria')) return { section: 'Tesorería', detail: 'Caja, bancos y vencimientos' }
+    if (path.includes('/facturacion')) return { section: 'Facturación', detail: 'Comprobantes y ARCA' }
+    if (path.includes('/proveedores')) return { section: 'Proveedores', detail: 'Compras y cuentas por pagar' }
+    if (path.includes('/ceo')) return { section: 'Panel Dirección', detail: 'Indicadores ejecutivos' }
+    if (path.includes('/leads')) return { section: 'CRM', detail: 'Oportunidades comerciales' }
+    if (path.includes('/ventas')) return { section: 'Ventas', detail: 'Órdenes y operaciones comerciales' }
+    if (path.includes('/alquileres')) return { section: 'Rental', detail: 'Contratos y disponibilidad' }
 
     return { section: 'HeavyMetric', detail: 'Sistema operativo empresarial' }
   }, [location.pathname, activoPlural, moduloTaller, ordenTrabajoPlural, repuestoPlural])
@@ -85,65 +95,147 @@ export default function Topbar() {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setOpen(false)
       if (notifRef.current && !notifRef.current.contains(e.target)) setOpenNotif(false)
     }
+
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
   useEffect(() => {
-    if (!orgId) return
+    if (!orgId) {
+      setNotificaciones([])
+      return undefined
+    }
+
     async function load() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('notificaciones')
         .select('*')
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
         .limit(10)
-      if (data) setNotificaciones(data)
+
+      if (error) {
+        console.error('[HeavyMetric][Topbar] Error cargando notificaciones:', error)
+        return
+      }
+
+      setNotificaciones(data || [])
     }
+
     load()
-    const sub = supabase.channel('topbar_notif')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notificaciones', filter: `organization_id=eq.${orgId}` },
-        p => setNotificaciones(prev => [p.new, ...prev].slice(0, 10)))
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notificaciones', filter: `organization_id=eq.${orgId}` },
-        p => setNotificaciones(prev => prev.map(n => n.id === p.new.id ? p.new : n)))
+
+    const sub = supabase.channel(`topbar_notif_${orgId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notificaciones', filter: `organization_id=eq.${orgId}` },
+        (payload) => setNotificaciones((prev) => [payload.new, ...prev].slice(0, 10))
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'notificaciones', filter: `organization_id=eq.${orgId}` },
+        (payload) => setNotificaciones((prev) => prev.map((n) => (n.id === payload.new.id ? payload.new : n)))
+      )
       .subscribe()
+
     return () => supabase.removeChannel(sub)
   }, [orgId])
 
   async function marcarLeida(id) {
-    await supabase.from('notificaciones').update({ leido: true }).eq('id', id)
-    setNotificaciones(prev => prev.map(n => n.id === id ? { ...n, leido: true } : n))
+    if (!orgId || !id) return
+
+    const { error } = await supabase
+      .from('notificaciones')
+      .update({ leido: true })
+      .eq('id', id)
+      .eq('organization_id', orgId)
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
+    setNotificaciones((prev) => prev.map((n) => (n.id === id ? { ...n, leido: true } : n)))
   }
 
   async function marcarTodasLeidas() {
-    const ids = notificaciones.filter(n => !n.leido).map(n => n.id)
+    if (!orgId) return
+
+    const ids = notificaciones.filter((n) => !n.leido).map((n) => n.id)
     if (!ids.length) return
-    await supabase.from('notificaciones').update({ leido: true }).in('id', ids)
-    setNotificaciones(prev => prev.map(n => ({ ...n, leido: true })))
+
+    const { error } = await supabase
+      .from('notificaciones')
+      .update({ leido: true })
+      .eq('organization_id', orgId)
+      .in('id', ids)
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
+    setNotificaciones((prev) => prev.map((n) => ({ ...n, leido: true })))
   }
 
   async function handleLogoUpload(e) {
     const file = e.target.files?.[0]
-    if (!file || !orgId) return
-    if (file.size > 2 * 1024 * 1024) { toast.error('El archivo no puede superar 2 MB'); return }
+    if (!file || !orgId || !isOwner) return
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('El archivo no puede superar 2 MB')
+      return
+    }
+
     setUploading(true)
+
     try {
       const ext = file.name.split('.').pop()
       const path = `${orgId}/logo.${ext}`
-      await supabase.storage.from('logos').upload(path, file, { upsert: true })
+
+      const { error: uploadError } = await supabase.storage
+        .from('logos')
+        .upload(path, file, { upsert: true })
+
+      if (uploadError) throw uploadError
+
       const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(path)
-      await supabase.from('organizaciones').update({ logo_url: publicUrl }).eq('id', orgId)
+
+      const { error: updateError } = await supabase
+        .from('organizaciones')
+        .update({ logo_url: publicUrl })
+        .eq('id', orgId)
+
+      if (updateError) throw updateError
+
       await recargarPerfil()
       toast.success('Logo actualizado')
-    } catch { toast.error('Error al subir el logo') }
-    finally { setUploading(false); e.target.value = '' }
+    } catch (error) {
+      toast.error(error?.message || 'Error al subir el logo')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
   }
 
   async function saveNombre() {
+    if (!orgId || !isOwner) return
+
     const t = nombreInput.trim()
-    if (!t || t === orgNombre) { setEditingNombre(false); return }
-    const { error } = await supabase.from('organizaciones').update({ nombre_comercial: t }).eq('id', orgId)
-    if (error) { toast.error(error.message); return }
+    if (!t || t === orgNombre) {
+      setEditingNombre(false)
+      return
+    }
+
+    const { error } = await supabase
+      .from('organizaciones')
+      .update({ nombre_comercial: t })
+      .eq('id', orgId)
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
     await recargarPerfil()
     setEditingNombre(false)
     toast.success('Nombre actualizado')
@@ -151,23 +243,21 @@ export default function Topbar() {
 
   return (
     <header className="h-11 shrink-0 flex items-center gap-3 border-b border-hm-border bg-hm-surface px-4 md:px-5 sticky top-0 z-20">
-
-      {/* Status badge */}
-      <Link to="/app"
-        className="hidden md:flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 hover:border-emerald-300 transition-colors shrink-0">
+      <Link
+        to="/app"
+        className="hidden md:flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 hover:border-emerald-300 transition-colors shrink-0"
+      >
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-blink" />
         <span className="font-mono text-[9px] uppercase tracking-widest text-emerald-700 font-semibold">Operativo</span>
       </Link>
 
       <div className="w-px h-5 bg-hm-border shrink-0 hidden md:block" />
 
-      {/* Page title slot — dynamic by route */}
       <div className="hidden md:block shrink-0">
         <div className="text-[12.5px] font-semibold text-hm-text leading-none">{routeContext.section}</div>
         <div className="font-mono text-[8.5px] text-hm-muted tracking-widest mt-0.5">{routeContext.detail}</div>
       </div>
 
-      {/* Search */}
       <div className="flex-1 flex justify-center px-2">
         <button className="flex w-full max-w-xs items-center gap-2 rounded-md border border-hm-border bg-hm-surface2 px-3 py-1.5 text-sm text-hm-muted hover:border-hm-accent/40 transition-colors">
           <svg className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -180,13 +270,11 @@ export default function Topbar() {
         </button>
       </div>
 
-      {/* ISO badge */}
       <div className="hidden sm:flex items-center gap-1.5 rounded border border-hm-border bg-hm-surface2 px-2 py-1 shrink-0">
         <span className="font-mono text-[8.5px] text-hm-muted">ISO</span>
         <span className="font-mono text-[8.5px] text-hm-blue font-semibold">TRACEABILITY ON</span>
       </div>
 
-      {/* BNA */}
       {tcVenta && (
         <div className="hidden sm:flex items-center gap-1.5 rounded border border-hm-border bg-hm-surface2 px-2 py-1 shrink-0">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -197,10 +285,9 @@ export default function Topbar() {
         </div>
       )}
 
-      {/* Notifications */}
       <div className="relative shrink-0" ref={notifRef}>
         <button
-          onClick={() => { setOpenNotif(o => !o); setOpen(false) }}
+          onClick={() => { setOpenNotif((o) => !o); setOpen(false) }}
           className="relative flex h-8 w-8 items-center justify-center rounded-md border border-hm-border bg-hm-surface text-hm-muted hover:border-hm-accent/40 hover:text-hm-text transition-colors"
         >
           <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -228,7 +315,7 @@ export default function Topbar() {
                 <div className="flex flex-col items-center justify-center gap-2 py-8 text-hm-muted text-sm">
                   Sin notificaciones
                 </div>
-              ) : notificaciones.map(n => (
+              ) : notificaciones.map((n) => (
                 <div
                   key={n.id}
                   onClick={() => !n.leido && marcarLeida(n.id)}
@@ -253,16 +340,15 @@ export default function Topbar() {
         )}
       </div>
 
-      {/* User dropdown */}
       <div className="relative shrink-0" ref={dropdownRef}>
         <button
-          onClick={() => { setOpen(o => !o); setOpenNotif(false) }}
+          onClick={() => { setOpen((o) => !o); setOpenNotif(false) }}
           className="flex items-center gap-2 rounded-md border border-hm-border bg-hm-surface px-2 py-1 hover:border-hm-accent/40 transition-colors"
         >
           <div className="hidden text-right sm:block">
             <div className="text-[11px] font-semibold text-hm-text leading-none">{displayName}</div>
             <div className="mt-0.5 font-mono text-[8px] uppercase tracking-wider text-hm-muted">
-              {ROL_LABEL[perfil?.rol] || perfil?.rol}
+              {ROL_LABEL[rolNormalizado] || perfil?.rol || 'user'}
             </div>
           </div>
           <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-hm-border bg-hm-surface2">
@@ -275,7 +361,6 @@ export default function Topbar() {
 
         {open && (
           <div className="absolute right-0 top-full mt-2 z-50 w-64 rounded-lg border border-hm-border bg-hm-surface shadow-card-md animate-fade-in overflow-hidden">
-            {/* Org */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-hm-border bg-hm-surface2/40">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-hm-border bg-hm-surface">
                 {logoUrl
@@ -289,8 +374,8 @@ export default function Topbar() {
                     <input
                       ref={nombreInputRef}
                       value={nombreInput}
-                      onChange={e => setNombreInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') saveNombre(); if (e.key === 'Escape') setEditingNombre(false) }}
+                      onChange={(e) => setNombreInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveNombre(); if (e.key === 'Escape') setEditingNombre(false) }}
                       className="flex-1 min-w-0 rounded border border-hm-accent/40 bg-hm-surface2 px-2 py-0.5 text-sm text-hm-text outline-none"
                     />
                     <button onClick={saveNombre} className="text-hm-green">
@@ -301,8 +386,10 @@ export default function Topbar() {
                   <div className="group flex items-center gap-1">
                     <span className="truncate text-sm font-semibold text-hm-text">{orgNombre}</span>
                     {isOwner && (
-                      <button onClick={() => { setNombreInput(orgNombre); setEditingNombre(true); setTimeout(() => nombreInputRef.current?.focus(), 0) }}
-                        className="shrink-0 text-hm-muted opacity-0 group-hover:opacity-100 hover:text-hm-accent transition-opacity">
+                      <button
+                        onClick={() => { setNombreInput(orgNombre); setEditingNombre(true); setTimeout(() => nombreInputRef.current?.focus(), 0) }}
+                        className="shrink-0 text-hm-muted opacity-0 group-hover:opacity-100 hover:text-hm-accent transition-opacity"
+                      >
                         <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                       </button>
                     )}
@@ -310,8 +397,11 @@ export default function Topbar() {
                 )}
                 {isOwner && (
                   <>
-                    <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-                      className="mt-0.5 text-[11px] text-hm-blue hover:underline disabled:opacity-50">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="mt-0.5 text-[11px] text-hm-blue hover:underline disabled:opacity-50"
+                    >
                       {uploading ? 'Subiendo…' : logoUrl ? 'Cambiar logo' : 'Subir logo'}
                     </button>
                     <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
@@ -320,31 +410,35 @@ export default function Topbar() {
               </div>
             </div>
 
-            {/* User info */}
             <div className="px-4 py-3 border-b border-hm-border">
               <div className="text-sm font-semibold text-hm-text">{displayName}</div>
               <div className="text-xs text-hm-muted mt-0.5">{user?.email}</div>
               <span className="mt-1.5 inline-block font-mono text-[9px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border border-hm-accent/30 bg-hm-accent/10 text-hm-accent">
-                {ROL_LABEL[perfil?.rol] || perfil?.rol}
+                {ROL_LABEL[rolNormalizado] || perfil?.rol || 'user'}
               </span>
             </div>
 
-            {/* Theme toggle */}
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-hm-border">
               <span className="text-sm text-hm-muted">{theme === 'dark' ? 'Modo oscuro' : 'Modo claro'}</span>
-              <button onClick={toggleTheme}
-                className={`relative h-5 w-9 rounded-full transition-colors duration-200 ${theme === 'light' ? 'bg-hm-accent' : 'bg-hm-border'}`}>
+              <button
+                onClick={toggleTheme}
+                className={`relative h-5 w-9 rounded-full transition-colors duration-200 ${theme === 'light' ? 'bg-hm-accent' : 'bg-hm-border'}`}
+              >
                 <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${theme === 'light' ? 'translate-x-4' : 'translate-x-0'}`} />
               </button>
             </div>
 
-            <button onClick={() => { setOpen(false); navigate('/perfil') }}
-              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-hm-muted hover:bg-hm-surface2/60 hover:text-hm-text transition-colors border-b border-hm-border">
+            <button
+              onClick={() => { setOpen(false); navigate('/perfil') }}
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-hm-muted hover:bg-hm-surface2/60 hover:text-hm-text transition-colors border-b border-hm-border"
+            >
               <svg className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
               Mi perfil
             </button>
-            <button onClick={() => supabase.auth.signOut()}
-              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-hm-muted hover:bg-red-50 hover:text-red-600 transition-colors">
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-hm-muted hover:bg-red-50 hover:text-red-600 transition-colors"
+            >
               <svg className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               Cerrar sesión
             </button>
