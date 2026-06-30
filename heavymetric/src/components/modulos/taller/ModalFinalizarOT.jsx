@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../../../lib/supabase'
 import Modal from '../../ui/Modal'
@@ -16,9 +16,12 @@ const CHECKLIST_BASE = [
   { key: 'cliente_informado', label: 'Cliente / responsable informado' },
 ]
 
+const ESTADOS_CIERRE_VALIDOS = ['completada', 'facturada']
+const ESTADOS_OT_CERRADOS = ['completada', 'facturada', 'cancelada', 'cerrada']
+
 export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
   const { formatUSD } = useDolar()
-  const { user, perfil } = useAuth()
+  const { user, perfil, orgId, can } = useAuth()
   const { taxonomia } = useRubro()
 
   const activoSingular = taxonomia?.activoSingular || 'Activo'
@@ -28,6 +31,9 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
   const medidorUnidad = taxonomia?.medidorUnidad || 'hrs'
 
   const [loading, setLoading] = useState(false)
+  const submitInProgressRef = useRef(false)
+  const initialRepuestoIdsRef = useRef(new Set())
+  const canFinalize = can('taller.finalizar')
   const [catalogoRep, setCatalogoRep] = useState([])
   const [repuestosUtilizados, setRepuestosUtilizados] = useState([])
   const [checklist, setChecklist] = useState(
@@ -57,6 +63,7 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
 
   useEffect(() => {
     if (!isOpen) return
+    let cancelled = false
 
     setFormData((prev) => ({
       ...prev,
@@ -72,33 +79,88 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
       CHECKLIST_BASE.reduce((acc, item) => ({ ...acc, [item.key]: false }), {})
     )
 
-    supabase
-      .from('repuestos')
-      .select('id, nombre, precio_usd, unidad')
-      .eq('activo', true)
-      .order('nombre')
-      .then(({ data }) => setCatalogoRep(data || []))
+    const otValidada =
+      canFinalize &&
+      orgId &&
+      ot?.id &&
+      ot?.organization_id === orgId
 
-    if (ot?.id) {
-      supabase
-        .from('ot_repuestos')
-        .select('*')
-        .eq('orden_trabajo_id', ot.id)
-        .then(({ data }) => {
-          if (data?.length) {
-            setRepuestosUtilizados(
-              data.map((r) => ({
-                repuesto_id: r.repuesto_id,
-                nombre: r.nombre,
-                cantidad: r.cantidad,
-                precio_unitario_usd: r.precio_unitario_usd,
-              }))
-            )
-          } else {
-            setRepuestosUtilizados([])
-          }
-        })
+    if (!otValidada) {
+      setCatalogoRep([])
+      setRepuestosUtilizados([])
+      initialRepuestoIdsRef.current = new Set()
+      return () => { cancelled = true }
     }
+
+    async function loadScopedData() {
+      const { data: otScope, error: otScopeError } = await supabase
+        .from('ordenes_trabajo')
+        .select('id, organization_id')
+        .eq('id', ot.id)
+        .eq('organization_id', orgId)
+        .single()
+
+      if (cancelled) return
+      if (otScopeError || !otScope) {
+        console.error('Error validando ownership de la OT:', otScopeError?.message)
+        setCatalogoRep([])
+        setRepuestosUtilizados([])
+        initialRepuestoIdsRef.current = new Set()
+        return
+      }
+
+      const [catalogoResult, repuestosResult] = await Promise.all([
+        supabase
+          .from('repuestos')
+          .select('id, nombre, precio_usd, unidad')
+          .eq('organization_id', orgId)
+          .eq('activo', true)
+          .order('nombre'),
+        supabase
+          .from('ot_repuestos')
+          .select('*')
+          .eq('orden_trabajo_id', otScope.id),
+      ])
+
+      if (cancelled) return
+
+      if (catalogoResult.error) {
+        console.error('Error cargando catalogo de repuestos:', catalogoResult.error.message)
+        setCatalogoRep([])
+      } else {
+        setCatalogoRep(catalogoResult.data || [])
+      }
+
+      if (repuestosResult.error) {
+        console.error('Error cargando repuestos de la OT:', repuestosResult.error.message)
+        setRepuestosUtilizados([])
+        initialRepuestoIdsRef.current = new Set()
+        return
+      }
+
+      const data = repuestosResult.data || []
+      initialRepuestoIdsRef.current = new Set(
+        data.filter((r) => r.repuesto_id).map((r) => String(r.repuesto_id))
+      )
+      setRepuestosUtilizados(
+        data.map((r) => ({
+          repuesto_id: r.repuesto_id,
+          nombre: r.nombre,
+          cantidad: r.cantidad,
+          precio_unitario_usd: r.precio_unitario_usd,
+        }))
+      )
+    }
+
+    loadScopedData().catch((error) => {
+      if (cancelled) return
+      console.error('Error cargando datos de cierre de la OT:', error)
+      setCatalogoRep([])
+      setRepuestosUtilizados([])
+      initialRepuestoIdsRef.current = new Set()
+    })
+
+    return () => { cancelled = true }
   }, [
     isOpen,
     ot?.id,
@@ -107,6 +169,9 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
     ot?.precio_hora_usd,
     ot?.notas_internas,
     ot?.criticidad,
+    ot?.organization_id,
+    orgId,
+    canFinalize,
     perfil?.nombre,
     user?.email,
   ])
@@ -181,6 +246,72 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
   const handleSubmit = async (event) => {
     event.preventDefault()
 
+    if (submitInProgressRef.current) return
+    if (!canFinalize) {
+      toast.error('No tenes permisos para finalizar ordenes de trabajo')
+      return
+    }
+    if (!orgId || !ot?.id || ot?.organization_id !== orgId) {
+      toast.error('No se pudo validar la orden de trabajo en la organizacion')
+      return
+    }
+    if (ESTADOS_OT_CERRADOS.includes(ot?.estado)) {
+      toast.error('La orden de trabajo ya se encuentra cerrada')
+      return
+    }
+    if (!ESTADOS_CIERRE_VALIDOS.includes(formData.estado)) {
+      toast.error('El estado de cierre no es valido')
+      return
+    }
+    if (typeof onConfirm !== 'function') {
+      toast.error('No se pudo iniciar el cierre de la orden')
+      return
+    }
+
+    const horometroFinal = Number(formData.horometro_final)
+    const horasManoObra = Number(formData.horas_mano_obra)
+    const precioHoraUsd = Number(formData.precio_hora_usd)
+    const horasFueraServicio = Number(formData.horas_fuera_servicio || 0)
+
+    if (![horometroFinal, horasManoObra, precioHoraUsd, horasFueraServicio].every(Number.isFinite)) {
+      toast.error('Los valores numericos del cierre no son validos')
+      return
+    }
+    if ([horometroFinal, horasManoObra, precioHoraUsd, horasFueraServicio].some((value) => value < 0)) {
+      toast.error('Los valores numericos no pueden ser negativos')
+      return
+    }
+
+    const catalogoIds = new Set(catalogoRep.map((r) => String(r.id)))
+    const repuestosValidos = repuestosUtilizados
+      .filter((r) => String(r.nombre || '').trim())
+      .map((r) => ({
+        ...r,
+        cantidad: Number(r.cantidad),
+        precio_unitario_usd: Number(r.precio_unitario_usd),
+      }))
+
+    const repuestoInvalido = repuestosValidos.some((r) =>
+      !Number.isFinite(r.cantidad) ||
+      r.cantidad <= 0 ||
+      !Number.isFinite(r.precio_unitario_usd) ||
+      r.precio_unitario_usd < 0 ||
+      (r.repuesto_id &&
+        !catalogoIds.has(String(r.repuesto_id)) &&
+        !initialRepuestoIdsRef.current.has(String(r.repuesto_id)))
+    )
+
+    if (repuestoInvalido) {
+      toast.error('Revisa las cantidades, precios y repuestos seleccionados')
+      return
+    }
+
+    const totalManoObraValidado = horasManoObra * precioHoraUsd
+    const totalRepuestosValidado = repuestosValidos.reduce(
+      (total, repuesto) => total + repuesto.cantidad * repuesto.precio_unitario_usd,
+      0
+    )
+
     if (!checklistCompleto) {
       toast.error('Completá el checklist operativo antes de cerrar la orden.')
       return
@@ -206,6 +337,7 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
       return
     }
 
+    submitInProgressRef.current = true
     setLoading(true)
 
     try {
@@ -229,18 +361,18 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
 
       await onConfirm({
         ...formData,
-        horometro_final: Number(formData.horometro_final || 0),
-        horas_mano_obra: Number(formData.horas_mano_obra || 0),
-        precio_hora_usd: Number(formData.precio_hora_usd || 0),
-        horas_fuera_servicio: Number(formData.horas_fuera_servicio || 0),
-        total_mano_obra_usd: totalManoObra,
-        total_repuestos_usd: totalRepuestos,
-        total_usd: totalOT,
+        horometro_final: horometroFinal,
+        horas_mano_obra: horasManoObra,
+        precio_hora_usd: precioHoraUsd,
+        horas_fuera_servicio: horasFueraServicio,
+        total_mano_obra_usd: totalManoObraValidado,
+        total_repuestos_usd: totalRepuestosValidado,
+        total_usd: totalManoObraValidado + totalRepuestosValidado,
         checklist_cierre: checklist,
         checklist_completo: checklistCompleto,
         responsable: formData.responsable_cierre,
         evidencias,
-        repuestosUtilizados: repuestosUtilizados.filter((r) => String(r.nombre || '').trim()),
+        repuestosUtilizados: repuestosValidos,
         iso_payload: {
           accion: 'cierre_orden_trabajo',
           entidad: 'orden_trabajo',
@@ -248,14 +380,14 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
           numero_ot: ot?.numero_ot || null,
           responsable: formData.responsable_cierre,
           usuario_id: user?.id || null,
-          organization_id: perfil?.organization_id || null,
+          organization_id: orgId,
           estado_anterior: ot?.estado || null,
           estado_nuevo: formData.estado,
           fecha_hora: new Date().toISOString(),
           activo_id: ot?.maquina_id || ot?.activo_id || null,
           cliente_id: ot?.cliente_id || ot?.cliente?.id || null,
           criticidad_cierre: formData.criticidad_cierre,
-          horas_fuera_servicio: Number(formData.horas_fuera_servicio || 0),
+          horas_fuera_servicio: horasFueraServicio,
           causa_raiz: formData.causa_raiz,
           accion_correctiva: formData.accion_correctiva,
           accion_preventiva: formData.accion_preventiva,
@@ -274,6 +406,7 @@ export default function ModalFinalizarOT({ isOpen, onClose, ot, onConfirm }) {
     } catch (error) {
       toast.error(`Error al cerrar la ${ordenTrabajo}: ${error.message}`)
     } finally {
+      submitInProgressRef.current = false
       setLoading(false)
     }
   }
