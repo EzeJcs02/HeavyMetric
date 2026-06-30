@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { useMaquinaDetalle } from '../../../hooks/useMaquinaDetalle'
 import { useMaquinas } from '../../../hooks/useMaquinas'
@@ -100,7 +100,7 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
   const { maquina, ots, contratos, stats, loading, error } = useMaquinaDetalle(maquinaId)
   const { deactivateMaquina } = useMaquinas()
   const { formatUSD } = useDolar()
-  const { isOwner } = useAuth()
+  const { isOwner, orgId, can } = useAuth()
   const { taxonomia, hasCapability } = useRubro()
 
   const [confirmBaja, setConfirmBaja] = useState(false)
@@ -113,6 +113,12 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
     observacion: '',
   })
   const [savingHoro, setSavingHoro] = useState(false)
+  const savingHoroRef = useRef(false)
+  const scopeRef = useRef({ maquinaId, orgId })
+  scopeRef.current = { maquinaId, orgId }
+  const canViewActivo = can('activo.view')
+  const canEditActivo = can('activo.edit')
+  const canRegisterReading = canEditActivo || can('taller.edit')
 
   const activoSingular = taxonomia?.activoSingular || 'Activo'
   const ordenTrabajoPlural = taxonomia?.ordenTrabajoPlural || 'Órdenes de Trabajo'
@@ -155,7 +161,20 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
     null
 
   useEffect(() => {
-    if (!maquinaId) return
+    let cancelled = false
+
+    const maquinaValidada =
+      isOpen &&
+      canViewActivo &&
+      orgId &&
+      maquina?.id === maquinaId &&
+      maquina?.organization_id === orgId
+
+    if (!maquinaValidada) {
+      setHorometros([])
+      setLoadingHoro(false)
+      return () => { cancelled = true }
+    }
 
     setLoadingHoro(true)
 
@@ -165,6 +184,7 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
       .eq('maquina_id', maquinaId)
       .order('fecha_lectura', { ascending: false })
       .then(({ data, error }) => {
+        if (cancelled) return
         if (error) {
           console.error('Error cargando historial de horómetros:', error.message)
           toast.error('No se pudo cargar el historial de lecturas')
@@ -174,14 +194,18 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
         setHorometros(data || [])
       })
       .catch((err) => {
+        if (cancelled) return
         console.error('Error inesperado cargando horómetros:', err)
         toast.error('No se pudo cargar el historial de lecturas')
         setHorometros([])
       })
       .finally(() => {
+        if (cancelled) return
         setLoadingHoro(false)
       })
-  }, [maquinaId])
+
+    return () => { cancelled = true }
+  }, [isOpen, maquinaId, maquina?.id, maquina?.organization_id, orgId, canViewActivo])
 
   useEffect(() => {
     if (!isOpen) return
@@ -194,14 +218,36 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
   const handleAddHorometro = async (e) => {
     e.preventDefault()
 
+    if (savingHoroRef.current) return
+    if (!canRegisterReading) {
+      toast.error('No tenes permisos para registrar lecturas')
+      return
+    }
+    if (!orgId || maquina?.id !== maquinaId || maquina?.organization_id !== orgId) {
+      toast.error('No se pudo validar el activo en la organizacion')
+      return
+    }
     if (!horoForm.horometro_valor) return
 
+    const lecturaHoras = Number(horoForm.horometro_valor)
+    if (!Number.isFinite(lecturaHoras) || lecturaHoras < 0) {
+      toast.error('La lectura debe ser un numero valido mayor o igual a cero')
+      return
+    }
+    if (!horoForm.fecha_lectura) {
+      toast.error('La fecha de lectura es obligatoria')
+      return
+    }
+
+    const targetMaquinaId = maquinaId
+    const targetOrgId = orgId
+    savingHoroRef.current = true
     setSavingHoro(true)
 
     try {
       const { error } = await supabase.from('historial_horometros').insert({
-        maquina_id: maquinaId,
-        lectura_horas: Number(horoForm.horometro_valor),
+        maquina_id: targetMaquinaId,
+        lectura_horas: lecturaHoras,
         fecha_lectura: horoForm.fecha_lectura,
         notas: horoForm.observacion || null,
       })
@@ -219,17 +265,21 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
       const { data: refreshData, error: refreshError } = await supabase
         .from('historial_horometros')
         .select('*')
-        .eq('maquina_id', maquinaId)
+        .eq('maquina_id', targetMaquinaId)
         .order('fecha_lectura', { ascending: false })
 
       if (refreshError) {
         console.warn('No se pudo recargar el historial tras insertar:', refreshError.message)
-      } else {
+      } else if (
+        scopeRef.current.maquinaId === targetMaquinaId &&
+        scopeRef.current.orgId === targetOrgId
+      ) {
         setHorometros(refreshData || [])
       }
     } catch (err) {
       toast.error(err.message)
     } finally {
+      savingHoroRef.current = false
       setSavingHoro(false)
     }
   }
@@ -237,6 +287,16 @@ export default function FichaMaquina({ isOpen, onClose, maquinaId }) {
   if (!maquinaId) return null
 
   const handleDarDeBaja = async () => {
+    if (loadingBaja) return
+    if (!isOwner || !canEditActivo) {
+      toast.error('No tenes permisos para dar de baja activos')
+      return
+    }
+    if (!orgId || maquina?.id !== maquinaId || maquina?.organization_id !== orgId) {
+      toast.error('No se pudo validar el activo en la organizacion')
+      return
+    }
+
     setLoadingBaja(true)
 
     try {
