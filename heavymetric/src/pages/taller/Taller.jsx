@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 import { useMaquinas } from '../../hooks/useMaquinas'
 import { useClientes } from '../../hooks/useClientes'
 import { useTaller } from '../../hooks/useTaller'
@@ -26,6 +27,16 @@ import ModalConfirm from '../../components/ui/ModalConfirm'
 const PER_PAGE = 10
 
 const ESTADOS_OT_CERRADOS = ['completada', 'facturada', 'cerrada', 'cancelada']
+
+function getOrganizationId(auth) {
+  return (
+    auth?.profile?.organization_id ||
+    auth?.perfil?.organization_id ||
+    auth?.user?.user_metadata?.organization_id ||
+    auth?.organizationId ||
+    null
+  )
+}
 
 const SkeletonRow = () => (
   <tr className="border-b border-hm-border">
@@ -75,6 +86,9 @@ export default function Taller() {
   const [pageMaq, setPageMaq] = useState(1)
   const [pageOT, setPageOT] = useState(1)
   const [generandoPdf, setGenerandoPdf] = useState(null)
+
+  const auth = useAuth()
+  const organizationId = getOrganizationId(auth)
 
   const { formatUSD } = useDolar()
   const { taxonomia, hasCapability } = useRubro()
@@ -304,6 +318,21 @@ export default function Taller() {
     try {
       const { repuestosUtilizados, ...otPayload } = payload
 
+      if (!organizationId) {
+        throw new Error('No se pudo determinar la organización. Volvé a iniciar sesión.')
+      }
+
+      const { data: otCheck, error: otCheckError } = await supabase
+        .from('ordenes_trabajo')
+        .select('id, organization_id')
+        .eq('id', selectedOT.id)
+        .eq('organization_id', organizationId)
+        .single()
+
+      if (otCheckError || !otCheck) {
+        throw new Error('Acceso denegado: la orden de trabajo no pertenece a tu organización.')
+      }
+
       if (repuestosUtilizados?.length > 0) {
         await supabase
           .from('ot_repuestos')
@@ -329,6 +358,7 @@ export default function Taller() {
           .from('ordenes_trabajo')
           .update({ total_repuestos_usd: totalRepuestos })
           .eq('id', selectedOT.id)
+          .eq('organization_id', organizationId)
       }
 
       await finalizarOT(selectedOT.id, otPayload)
@@ -452,10 +482,26 @@ export default function Taller() {
     try {
       const estadoAnterior = otToView?.estado || null
 
+      if (!organizationId) {
+        throw new Error('No se pudo determinar la organización. Volvé a iniciar sesión.')
+      }
+
+      const { data: otCheck, error: otCheckError } = await supabase
+        .from('ordenes_trabajo')
+        .select('id, organization_id')
+        .eq('id', id)
+        .eq('organization_id', organizationId)
+        .single()
+
+      if (otCheckError || !otCheck) {
+        throw new Error('Acceso denegado: la orden de trabajo no pertenece a tu organización.')
+      }
+
       await supabase
         .from('ordenes_trabajo')
         .update({ estado: nuevoEstado })
         .eq('id', id)
+        .eq('organization_id', organizationId)
 
       await registrarEventoISO(
         crearEventoISO({
