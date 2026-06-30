@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useRubro } from '../../../context/RubroContext'
+import { useAuth } from '../../../context/AuthContext'
 
 const EVENT_CONFIG = {
   nota: ['Nota', '●', 'text-zinc-300', 'bg-zinc-500/10', 'border-zinc-500/20'],
@@ -40,6 +41,7 @@ const CRITICIDAD = {
 export default function Timeline360({
   clienteId,
   activoId,
+  maquinaId,
   cotizacionId,
   ordenTrabajoId,
   ventaId,
@@ -49,10 +51,15 @@ export default function Timeline360({
   orgId,
 }) {
   const { taxonomia } = useRubro()
+  const { orgId: sessionOrgId, user, can } = useAuth()
+  const organizationId = !orgId || orgId === sessionOrgId ? sessionOrgId : null
+  const scopedActivoId = activoId || maquinaId || null
 
   const [eventos, setEventos] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const requestIdRef = useRef(0)
+  const savingRef = useRef(false)
 
   const [tipoEvento, setTipoEvento] = useState('nota')
   const [criticidad, setCriticidad] = useState('media')
@@ -62,18 +69,84 @@ export default function Timeline360({
   const ordenTrabajo = taxonomia?.ordenTrabajo || 'Orden de trabajo'
   const repuesto = taxonomia?.repuesto || 'Repuesto'
 
+  const ownershipTargets = useMemo(() => [
+    clienteId && { table: 'clientes', id: clienteId, view: 'clientes.view', edit: 'clientes.edit' },
+    scopedActivoId && { table: 'maquinas', id: scopedActivoId, view: 'activo.view', edit: 'activo.edit', alternateEdit: 'taller.edit' },
+    cotizacionId && { table: 'cotizaciones', id: cotizacionId, view: 'cotizaciones.view', edit: 'cotizaciones.edit' },
+    ordenTrabajoId && { table: 'ordenes_trabajo', id: ordenTrabajoId, view: 'taller.view', edit: 'taller.edit' },
+    ventaId && { table: 'sales_orders', id: ventaId, view: 'ventas.view', edit: 'ventas.edit' },
+    facturaId && { table: 'transacciones', id: facturaId, view: 'facturacion.view', edit: 'facturacion.create' },
+    proveedorId && { table: 'proveedores', id: proveedorId, view: 'proveedores.view', edit: 'proveedores.edit' },
+    repuestoId && { table: 'repuestos', id: repuestoId, view: 'inventario.view', edit: 'inventario.edit' },
+  ].filter(Boolean), [
+    clienteId,
+    scopedActivoId,
+    cotizacionId,
+    ordenTrabajoId,
+    ventaId,
+    facturaId,
+    proveedorId,
+    repuestoId,
+  ])
+
+  const canViewTimeline =
+    ownershipTargets.length > 0 &&
+    ownershipTargets.every((target) => can(target.view))
+
+  const canEditTimeline =
+    canViewTimeline &&
+    ownershipTargets.every((target) =>
+      can(target.edit) || (target.alternateEdit && can(target.alternateEdit))
+    )
+
+  const validateOwnership = async () => {
+    if (!organizationId || ownershipTargets.length === 0) return false
+
+    try {
+      const results = await Promise.all(
+        ownershipTargets.map((target) =>
+          supabase
+            .from(target.table)
+            .select('id')
+            .eq('id', target.id)
+            .eq('organization_id', organizationId)
+            .maybeSingle()
+        )
+      )
+
+      return results.every(({ data, error }) => !error && data?.id)
+    } catch (error) {
+      console.error('Error validando ownership de timeline:', error)
+      return false
+    }
+  }
+
   const cargarEventos = async () => {
-    if (!orgId) return
+    const requestId = ++requestIdRef.current
+
+    if (!organizationId || !canViewTimeline) {
+      setEventos([])
+      setLoading(false)
+      return
+    }
 
     setLoading(true)
+
+    const ownsEntities = await validateOwnership()
+    if (requestId !== requestIdRef.current) return
+    if (!ownsEntities) {
+      setEventos([])
+      setLoading(false)
+      return
+    }
 
     let query = supabase
       .from('timeline_eventos_360')
       .select('*')
-      .eq('organization_id', orgId)
+      .eq('organization_id', organizationId)
 
     if (clienteId) query = query.eq('cliente_id', clienteId)
-    if (activoId) query = query.eq('activo_id', activoId)
+    if (scopedActivoId) query = query.eq('activo_id', scopedActivoId)
     if (cotizacionId) query = query.eq('cotizacion_id', cotizacionId)
     if (ordenTrabajoId) query = query.eq('orden_trabajo_id', ordenTrabajoId)
     if (ventaId) query = query.eq('venta_id', ventaId)
@@ -83,17 +156,24 @@ export default function Timeline360({
 
     const { data, error } = await query.order('fecha', { ascending: false })
 
+    if (requestId !== requestIdRef.current) return
     if (!error) setEventos(data || [])
+    else {
+      console.error('Error cargando timeline:', error.message)
+      setEventos([])
+    }
     setLoading(false)
   }
 
   useEffect(() => {
     cargarEventos()
+    return () => { requestIdRef.current += 1 }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    orgId,
+    organizationId,
+    canViewTimeline,
     clienteId,
-    activoId,
+    scopedActivoId,
     cotizacionId,
     ordenTrabajoId,
     ventaId,
@@ -114,52 +194,69 @@ export default function Timeline360({
 
   const agregarEvento = async (e) => {
     e.preventDefault()
-    if (!descripcion.trim() || !orgId) return
+    if (savingRef.current) return
 
+    const descripcionSanitizada = descripcion.trim()
+    if (!descripcionSanitizada || descripcionSanitizada.length > 5000) return
+    if (!organizationId || !user?.id || !canEditTimeline) return
+    if (!EVENT_TYPES.has(tipoEvento) || !CRITICIDAD_VALUES.has(criticidad)) return
+
+    savingRef.current = true
     setSaving(true)
 
-    const user = await supabase.auth.getUser()
-    const currentUser = user?.data?.user
+    try {
+      const ownsEntities = await validateOwnership()
+      if (!ownsEntities) {
+        console.error('No se pudo validar ownership para insertar en timeline')
+        return
+      }
 
-    const payload = {
-      organization_id: orgId,
+      const payload = {
+        organization_id: organizationId,
 
-      cliente_id: clienteId || null,
-      activo_id: activoId || null,
-      cotizacion_id: cotizacionId || null,
-      orden_trabajo_id: ordenTrabajoId || null,
-      venta_id: ventaId || null,
-      factura_id: facturaId || null,
-      proveedor_id: proveedorId || null,
-      repuesto_id: repuestoId || null,
+        cliente_id: clienteId || null,
+        activo_id: scopedActivoId,
+        cotizacion_id: cotizacionId || null,
+        orden_trabajo_id: ordenTrabajoId || null,
+        venta_id: ventaId || null,
+        factura_id: facturaId || null,
+        proveedor_id: proveedorId || null,
+        repuesto_id: repuestoId || null,
 
-      autor_id: currentUser?.id || null,
-      tipo_evento: tipoEvento,
-      descripcion: descripcion.trim(),
-      criticidad,
-      origen: 'manual',
-      fecha: new Date().toISOString(),
+        autor_id: user.id,
+        tipo_evento: tipoEvento,
+        descripcion: descripcionSanitizada,
+        criticidad,
+        origen: 'manual',
+        fecha: new Date().toISOString(),
 
-      metadata_iso: {
-        origen: 'timeline_manual',
-        fecha_hora: new Date().toISOString(),
-        responsable: currentUser?.email || null,
-        trazabilidad: true,
-      },
-    }
+        metadata_iso: {
+          origen: 'timeline_manual',
+          fecha_hora: new Date().toISOString(),
+          responsable: user.email || null,
+          trazabilidad: true,
+        },
+      }
 
-    const { error } = await supabase
-      .from('timeline_notas')
-      .insert(payload)
+      const { error } = await supabase
+        .from('timeline_notas')
+        .insert(payload)
 
-    if (!error) {
+      if (error) {
+        console.error('Error insertando evento de timeline:', error.message)
+        return
+      }
+
       setDescripcion('')
       setTipoEvento('nota')
       setCriticidad('media')
-      cargarEventos()
+      await cargarEventos()
+    } catch (error) {
+      console.error('Error inesperado insertando evento de timeline:', error)
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
-
-    setSaving(false)
   }
 
   const eventOptions = [
@@ -342,3 +439,11 @@ export default function Timeline360({
     </div>
   )
 }
+
+const EVENT_TYPES = new Set([
+  'nota', 'llamada', 'whatsapp', 'correo', 'reunion',
+  'cotizacion_seguimiento', 'cotizacion_enviada', 'reclamo', 'postventa',
+  'apertura_ot', 'cierre_ot', 'factura_emitida', 'pago_recibido',
+])
+
+const CRITICIDAD_VALUES = new Set(['baja', 'media', 'alta', 'critica'])
