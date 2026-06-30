@@ -18,11 +18,128 @@ const SUPERVISOR_ROLES = ['supervisor', 'gerente', 'encargado', 'administracion'
 const OPERATIVO_ROLES = ['operativo', 'tecnico', 'técnico', 'mecanico', 'mecánico', 'vendedor', 'administrativo']
 const CLIENTE_ROLES = ['cliente', 'portal_cliente']
 
+const ROLE_ALIASES = {
+  direccion: 'owner',
+  dirección: 'owner',
+  dueno: 'owner',
+  dueño: 'owner',
+  gerente_general: 'owner',
+  admin: 'owner',
+
+  gerente: 'supervisor',
+  encargado: 'supervisor',
+  administracion: 'supervisor',
+  administración: 'supervisor',
+  compras: 'supervisor',
+  ventas: 'supervisor',
+  postventa: 'supervisor',
+
+  tecnico: 'operativo',
+  técnico: 'operativo',
+  mecanico: 'operativo',
+  mecánico: 'operativo',
+  vendedor: 'operativo',
+  administrativo: 'operativo',
+
+  portal_cliente: 'cliente',
+}
+
+const OWNER_PERMISSIONS = ['*']
+
+const SUPERVISOR_PERMISSIONS = [
+  'home.view',
+  'dashboard.view',
+  'mi_jornada.view',
+  'activo.view',
+  'activo.create',
+  'activo.edit',
+  'taller.view',
+  'taller.create',
+  'taller.edit',
+  'taller.finalizar',
+  'taller.cancelar',
+  'postventa.view',
+  'inventario.view',
+  'inventario.create',
+  'inventario.edit',
+  'crm.view',
+  'crm.create',
+  'crm.edit',
+  'crm.convertir',
+  'clientes.view',
+  'clientes.create',
+  'clientes.edit',
+  'cotizaciones.view',
+  'cotizaciones.create',
+  'cotizaciones.edit',
+  'ventas.view',
+  'ventas.create',
+  'ventas.edit',
+  'facturacion.view',
+  'facturacion.create',
+  'tesoreria.view',
+  'tesoreria.create',
+  'tesoreria.edit',
+  'proveedores.view',
+  'proveedores.create',
+  'proveedores.edit',
+  'aprobaciones.view',
+  'aprobaciones.approve',
+  'reportes.view',
+  'remitos.view',
+  'remitos.create',
+  'remitos.edit',
+  'campo.view',
+]
+
+const OPERATIVO_PERMISSIONS = [
+  'home.view',
+  'mi_jornada.view',
+  'activo.view',
+  'taller.view',
+  'taller.edit',
+  'inventario.view',
+  'campo.view',
+  'remitos.view',
+]
+
+const CLIENTE_PERMISSIONS = [
+  'portal.view',
+]
+
+const ROLE_PERMISSIONS = {
+  owner: OWNER_PERMISSIONS,
+  supervisor: SUPERVISOR_PERMISSIONS,
+  operativo: OPERATIVO_PERMISSIONS,
+  cliente: CLIENTE_PERMISSIONS,
+}
+
 function normalizeRole(role) {
   return String(role || '')
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '_')
+}
+
+function canonicalRole(role) {
+  const normalized = normalizeRole(role)
+  return ROLE_ALIASES[normalized] || normalized || 'operativo'
+}
+
+function normalizePermissions(value) {
+  if (!value) return []
+  if (Array.isArray(value)) return value.filter(Boolean).map(String)
+  if (typeof value === 'string') return value.split(',').map((p) => p.trim()).filter(Boolean)
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([, enabled]) => enabled === true)
+      .map(([permission]) => permission)
+  }
+  return []
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))]
 }
 
 export function AuthProvider({ children }) {
@@ -31,7 +148,10 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let mounted = true
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return
       setUser(session?.user ?? null)
 
       if (session?.user) {
@@ -43,6 +163,7 @@ export function AuthProvider({ children }) {
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return
       setUser(session?.user ?? null)
 
       if (session?.user) {
@@ -53,7 +174,10 @@ export function AuthProvider({ children }) {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   async function cargarPerfil(userId) {
@@ -82,11 +206,12 @@ export function AuthProvider({ children }) {
   const value = useMemo(() => {
     const rawRole = perfil?.rol
     const rol = normalizeRole(rawRole)
+    const rolCanonico = canonicalRole(rawRole)
 
-    const isOwner = OWNER_ROLES.includes(rol)
-    const isSupervisor = SUPERVISOR_ROLES.includes(rol)
-    const isOperativo = OPERATIVO_ROLES.includes(rol)
-    const isCliente = CLIENTE_ROLES.includes(rol)
+    const isOwner = OWNER_ROLES.includes(rol) || rolCanonico === 'owner'
+    const isSupervisor = SUPERVISOR_ROLES.includes(rol) || rolCanonico === 'supervisor'
+    const isOperativo = OPERATIVO_ROLES.includes(rol) || rolCanonico === 'operativo'
+    const isCliente = CLIENTE_ROLES.includes(rol) || rolCanonico === 'cliente'
 
     const orgId =
       perfil?.organization_id ||
@@ -102,27 +227,62 @@ export function AuthProvider({ children }) {
       ...(perfil?.organizaciones?.modulos_activos || {}),
     }
 
+    const basePermissions = isOwner
+      ? OWNER_PERMISSIONS
+      : ROLE_PERMISSIONS[rolCanonico] || ROLE_PERMISSIONS.operativo
+
+    const perfilPermissions = normalizePermissions(
+      perfil?.permisos || perfil?.permissions || perfil?.permisos_extra
+    )
+
+    const blockedPermissions = normalizePermissions(
+      perfil?.permisos_bloqueados || perfil?.blocked_permissions
+    )
+
+    const permissions = unique([...basePermissions, ...perfilPermissions])
+
     const hasModule = (modulo) => {
       if (isOwner) return true
       return modulos_activos?.[modulo] !== false
     }
 
-    const canEdit = isOwner || isSupervisor
-    const canApprovePrice = isOwner
-    const canViewFacturacion = isOwner || isSupervisor
+    const hasPermission = (permission) => {
+      if (!permission) return false
+      if (permissions.includes('*')) return !blockedPermissions.includes(permission)
+      if (blockedPermissions.includes(permission)) return false
+      return permissions.includes(permission)
+    }
+
+    const can = hasPermission
+
+    const canAny = (permissionList = []) => permissionList.some((permission) => hasPermission(permission))
+    const canAll = (permissionList = []) => permissionList.every((permission) => hasPermission(permission))
+
+    const canEdit = isOwner || isSupervisor || hasPermission('global.edit')
+    const canApprovePrice = isOwner || hasPermission('precios.approve')
+    const canViewFacturacion = isOwner || hasPermission('facturacion.view')
 
     return {
       user,
       perfil,
       loading,
       orgId,
+      organizationId: orgId,
       recargarPerfil,
 
       rol,
+      rolCanonico,
       rawRole,
       rubro,
       modulos_activos,
       hasModule,
+
+      permissions,
+      blockedPermissions,
+      hasPermission,
+      can,
+      canAny,
+      canAll,
 
       isOwner,
       isSupervisor,
