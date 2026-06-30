@@ -12,6 +12,153 @@ const cacheStore = localforage.createInstance({
   storeName: 'cache_data' // Datos cacheados desde el server (OTs, inventario)
 });
 
+const ORGANIZATION_CACHE_KEY = 'current_organization_id'
+const FORBIDDEN_PAYLOAD_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
+
+// Únicas mutaciones utilizadas actualmente por la aplicación de campo.
+const MUTATION_RULES = Object.freeze({
+  ordenes_trabajo: {
+    types: ['UPDATE'],
+    fields: ['id', 'organization_id', 'estado', 'iso_cierre_campo'],
+  },
+  ot_tiempos: {
+    types: ['INSERT'],
+    fields: ['organization_id', 'orden_trabajo_id', 'tecnico_id', 'accion', 'latitud', 'longitud', 'created_at', 'iso_evento'],
+  },
+  ot_checklists: {
+    types: ['INSERT', 'UPDATE'],
+    fields: ['id', 'organization_id', 'orden_trabajo_id', 'categoria', 'item', 'estado', 'updated_at'],
+  },
+  ot_evidencias: {
+    types: ['INSERT'],
+    fields: ['organization_id', 'orden_trabajo_id', 'tecnico_id', 'descripcion', 'observaciones', 'latitud', 'longitud', 'created_at', 'origen', 'estado_sync'],
+  },
+  ot_firmas: {
+    types: ['INSERT'],
+    fields: ['organization_id', 'orden_trabajo_id', 'tipo', 'nombre_firmante', 'firma_base64', 'latitud', 'longitud', 'created_at'],
+  },
+})
+
+let _organizationIdCache = null
+
+const sanitizeValue = (value, depth = 0) => {
+  if (depth > 10) return undefined
+  if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) return value
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => sanitizeValue(item, depth + 1))
+      .filter((item) => item !== undefined)
+  }
+
+  if (typeof value !== 'object') return undefined
+
+  const sanitized = {}
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (FORBIDDEN_PAYLOAD_KEYS.has(key)) continue
+    const cleanValue = sanitizeValue(nestedValue, depth + 1)
+    if (cleanValue !== undefined) sanitized[key] = cleanValue
+  }
+  return sanitized
+}
+
+const getOrganizationFromCachedOT = async (payload = {}) => {
+  const otId = payload.orden_trabajo_id || payload.id
+  if (!otId) return null
+
+  const ots = await cacheStore.getItem('my_ots')
+  const ot = Array.isArray(ots)
+    ? ots.find((item) => String(item?.id) === String(otId))
+    : null
+
+  return ot?.organization_id || null
+}
+
+const cacheOrganizationId = async (organizationId) => {
+  if (!organizationId) return
+  _organizationIdCache = organizationId
+  await cacheStore.setItem(ORGANIZATION_CACHE_KEY, organizationId)
+}
+
+const getServerOrganizationId = async () => {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError) throw sessionError
+  if (!session?.user?.id) throw new Error('Usuario no autenticado')
+
+  const { data: perfil, error: perfilError } = await supabase
+    .from('perfiles')
+    .select('organization_id')
+    .eq('id', session.user.id)
+    .single()
+
+  if (perfilError) throw perfilError
+  if (!perfil?.organization_id) throw new Error('No se pudo determinar la organización del usuario')
+
+  await cacheOrganizationId(perfil.organization_id)
+  return perfil.organization_id
+}
+
+const getOrganizationIdForQueue = async (payload) => {
+  if (navigator.onLine) {
+    try {
+      return await getServerOrganizationId()
+    } catch (error) {
+      console.warn('syncQueue: no se pudo refrescar la organización desde el servidor:', error.message)
+    }
+  }
+
+  const cachedOTOrganizationId = await getOrganizationFromCachedOT(payload)
+  if (cachedOTOrganizationId) {
+    await cacheOrganizationId(cachedOTOrganizationId)
+    return cachedOTOrganizationId
+  }
+
+  if (_organizationIdCache) return _organizationIdCache
+  return cacheStore.getItem(ORGANIZATION_CACHE_KEY)
+}
+
+const sanitizeMutation = (mutation, organizationId) => {
+  if (!mutation || typeof mutation !== 'object' || Array.isArray(mutation)) {
+    throw new Error('Formato de mutación inválido')
+  }
+
+  const table = String(mutation.table || '')
+  const type = String(mutation.type || '').toUpperCase()
+  const rule = MUTATION_RULES[table]
+
+  if (!rule || !rule.types.includes(type)) {
+    throw new Error(`Mutación no autorizada: ${type || 'SIN_TIPO'} ${table || 'SIN_TABLA'}`)
+  }
+
+  if (!organizationId) throw new Error('organization_id es obligatorio')
+  if (!mutation.payload || typeof mutation.payload !== 'object' || Array.isArray(mutation.payload)) {
+    throw new Error('Payload de mutación inválido')
+  }
+
+  const payload = {}
+  for (const field of rule.fields) {
+    if (field === 'organization_id' || !Object.prototype.hasOwnProperty.call(mutation.payload, field)) continue
+    const cleanValue = sanitizeValue(mutation.payload[field])
+    if (cleanValue !== undefined) payload[field] = cleanValue
+  }
+
+  // Nunca confiar en organization_id provisto por el llamador.
+  payload.organization_id = organizationId
+
+  if (type === 'UPDATE' && !payload.id) {
+    throw new Error(`UPDATE ${table} sin id`)
+  }
+
+  return {
+    type,
+    table,
+    ...(type === 'UPDATE' ? { pk: 'id' } : {}),
+    payload,
+    ...(mutation.id ? { id: sanitizeValue(mutation.id) } : {}),
+    ...(mutation.timestamp ? { timestamp: sanitizeValue(mutation.timestamp) } : {}),
+  }
+}
+
 // Guardar datos en caché (lectura)
 export const setCache = async (key, data) => {
   try {
@@ -35,9 +182,11 @@ export const getCache = async (key) => {
 // mutation = { id: uuid, type: 'INSERT|UPDATE', table: 'string', payload: object, timestamp: number }
 export const queueMutation = async (mutation) => {
   try {
+    const organizationId = await getOrganizationIdForQueue(mutation?.payload)
+    const safeMutation = sanitizeMutation(mutation, organizationId)
     const key = `mut_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    await pendingMutationsStore.setItem(key, mutation)
-    console.log(`Mutación encolada: ${key}`, mutation)
+    await pendingMutationsStore.setItem(key, safeMutation)
+    console.log(`Mutación encolada: ${key}`, safeMutation)
 
     // Intentar sincronizar inmediatamente si hay conexión.
     // Sin await: queueMutation no espera al sync completo para resolver.
@@ -81,6 +230,11 @@ export const syncAllToSupabase = async () => {
 
   try {
     const keys = await pendingMutationsStore.keys()
+    if (keys.length === 0) return
+
+    // El tenant se obtiene nuevamente del servidor. Además, esto migra de
+    // forma segura las mutaciones antiguas que todavía no lo almacenaban.
+    const organizationId = await getServerOrganizationId()
     // Ordenar cronológicamente si es necesario, o basarse en el timestamp guardado
 
     for (const key of keys) {
@@ -89,20 +243,31 @@ export const syncAllToSupabase = async () => {
 
       let success = false;
 
+      let safeMutation
+      try {
+        safeMutation = sanitizeMutation(mutation, organizationId)
+      } catch (error) {
+        console.warn(`syncQueue: se descarta la mutación no autorizada ${key}:`, error.message)
+        await pendingMutationsStore.removeItem(key)
+        continue
+      }
+
       // Dependiendo de la tabla y tipo
-      if (mutation.type === 'INSERT') {
-        const { error } = await supabase.from(mutation.table).insert(mutation.payload)
+      if (safeMutation.type === 'INSERT') {
+        const { error } = await supabase.from(safeMutation.table).insert(safeMutation.payload)
         if (!error) success = true;
-        else console.error(`Sincronización fallida [INSERT ${mutation.table}]:`, error)
-      } else if (mutation.type === 'UPDATE') {
-        // Necesitamos saber la primary key para hacer el match
-        const pKey = mutation.pk || 'id'
-        const pValue = mutation.payload[pKey]
+        else console.error(`Sincronización fallida [INSERT ${safeMutation.table}]:`, error)
+      } else if (safeMutation.type === 'UPDATE') {
+        const pValue = safeMutation.payload.id
 
         if (pValue) {
-          const { error } = await supabase.from(mutation.table).update(mutation.payload).eq(pKey, pValue)
+          const { error } = await supabase
+            .from(safeMutation.table)
+            .update(safeMutation.payload)
+            .eq('id', pValue)
+            .eq('organization_id', organizationId)
           if (!error) success = true;
-          else console.error(`Sincronización fallida [UPDATE ${mutation.table}]:`, error)
+          else console.error(`Sincronización fallida [UPDATE ${safeMutation.table}]:`, error)
         }
       }
 
@@ -125,6 +290,11 @@ export const syncAllToSupabase = async () => {
 // No afecta ninguna otra función ni ningún consumidor existente.
 export const clearPendingMutationsByTable = async (table, matchFn) => {
   try {
+    if (!MUTATION_RULES[table] || typeof matchFn !== 'function') {
+      console.warn(`syncQueue: no se permite limpiar mutaciones de la tabla ${table}`)
+      return
+    }
+
     const keys = await pendingMutationsStore.keys()
     for (const key of keys) {
       const mutation = await pendingMutationsStore.getItem(key)
