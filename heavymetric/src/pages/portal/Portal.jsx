@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useDolar } from '../../context/DolarContext'
@@ -34,25 +34,35 @@ function EmptyState({ text }) {
 }
 
 export default function Portal() {
-  const { perfil, clienteId } = useAuth()
+  const { perfil, clienteId, orgId, can, isCliente } = useAuth()
   const { formatUSD } = useDolar()
   const [data, setData] = useState({ maquinas: [], ots: [], cotizaciones: [], contratos: [], facturas: [] })
   const [loading, setLoading] = useState(true)
+  const requestIdRef = useRef(0)
+  const canAccessPortal = isCliente && can('portal.view')
 
   useEffect(() => {
-    if (!clienteId) return
+    if (!clienteId || !orgId || !canAccessPortal) {
+      requestIdRef.current += 1
+      setData({ maquinas: [], ots: [], cotizaciones: [], contratos: [], facturas: [] })
+      setLoading(false)
+      return
+    }
     fetchAll()
-  }, [clienteId])
+  }, [clienteId, orgId, canAccessPortal])
 
   const fetchAll = async () => {
+    if (!clienteId || !orgId || !canAccessPortal) return
+    const requestId = ++requestIdRef.current
     setLoading(true)
     const [maqRes, otRes, cotRes, ctrRes, facRes] = await Promise.all([
-      supabase.from('maquinas').select('id, nombre_unidad, marca, modelo, horometro_actual, en_taller, en_alquiler').eq('cliente_id', clienteId).eq('activa', true),
-      supabase.from('ordenes_trabajo').select('id, numero_ot, fecha_ingreso, descripcion_trabajo, estado, total_usd, maquina:maquinas(nombre_unidad)').eq('cliente_id', clienteId).order('created_at', { ascending: false }).limit(10),
-      supabase.from('cotizaciones').select('id, numero_cotizacion, titulo, estado, total_usd, fecha_vencimiento, created_at').eq('cliente_id', clienteId).order('created_at', { ascending: false }).limit(10),
-      supabase.from('contratos_alquiler').select('id, numero_contrato, fecha_inicio, fecha_fin, estado, total_contrato_usd, maquina:maquinas(nombre_unidad)').eq('cliente_id', clienteId).eq('estado', 'activo'),
-      supabase.from('transacciones').select('id, tipo_documento, numero_comprobante, origen_tipo, monto_total_usd, estado_pago, fecha_emision, fecha_cobro').eq('cliente_id', clienteId).order('fecha_emision', { ascending: false }).limit(20),
+      supabase.from('maquinas').select('id, nombre_unidad, marca, modelo, horometro_actual, en_taller, en_alquiler').eq('organization_id', orgId).eq('cliente_id', clienteId).eq('activa', true),
+      supabase.from('ordenes_trabajo').select('id, numero_ot, fecha_ingreso, descripcion_trabajo, estado, total_usd, maquina:maquinas(nombre_unidad)').eq('organization_id', orgId).eq('cliente_id', clienteId).order('created_at', { ascending: false }).limit(10),
+      supabase.from('cotizaciones').select('id, numero_cotizacion, titulo, estado, total_usd, fecha_vencimiento, created_at').eq('organization_id', orgId).eq('cliente_id', clienteId).order('created_at', { ascending: false }).limit(10),
+      supabase.from('contratos_alquiler').select('id, numero_contrato, fecha_inicio, fecha_fin, estado, total_contrato_usd, maquina:maquinas(nombre_unidad)').eq('organization_id', orgId).eq('cliente_id', clienteId).eq('estado', 'activo'),
+      supabase.from('transacciones').select('id, tipo_documento, numero_comprobante, origen_tipo, monto_total_usd, estado_pago, fecha_emision, fecha_cobro').eq('organization_id', orgId).eq('cliente_id', clienteId).order('fecha_emision', { ascending: false }).limit(20),
     ])
+    if (requestId !== requestIdRef.current) return
     setData({
       maquinas:     maqRes.data  || [],
       ots:          otRes.data   || [],
@@ -64,17 +74,45 @@ export default function Portal() {
   }
 
   const handleAceptarCotizacion = async (id) => {
-    const { error } = await supabase.from('cotizaciones').update({ estado: 'aceptada' }).eq('id', id)
+    if (!clienteId || !orgId || !canAccessPortal) {
+      toast.error('No tenés permisos para realizar esta operación')
+      return
+    }
+
+    const { data: updated, error } = await supabase
+      .from('cotizaciones')
+      .update({ estado: 'aceptada' })
+      .eq('id', id)
+      .eq('organization_id', orgId)
+      .eq('cliente_id', clienteId)
+      .eq('estado', 'enviada')
+      .select('id')
+      .maybeSingle()
     if (error) { toast.error(error.message); return }
+    if (!updated) { toast.error('La cotización ya fue respondida o no está disponible'); return }
     toast.success('Cotización aceptada')
-    fetchAll()
+    await fetchAll()
   }
 
   const handleRechazarCotizacion = async (id) => {
-    const { error } = await supabase.from('cotizaciones').update({ estado: 'rechazada' }).eq('id', id)
+    if (!clienteId || !orgId || !canAccessPortal) {
+      toast.error('No tenés permisos para realizar esta operación')
+      return
+    }
+
+    const { data: updated, error } = await supabase
+      .from('cotizaciones')
+      .update({ estado: 'rechazada' })
+      .eq('id', id)
+      .eq('organization_id', orgId)
+      .eq('cliente_id', clienteId)
+      .eq('estado', 'enviada')
+      .select('id')
+      .maybeSingle()
     if (error) { toast.error(error.message); return }
+    if (!updated) { toast.error('La cotización ya fue respondida o no está disponible'); return }
     toast.success('Cotización rechazada')
-    fetchAll()
+    await fetchAll()
   }
 
   const estadoOT  = { en_progreso: { label: 'En taller', v: 'warn' }, completada: { label: 'Completado', v: 'ok' }, facturada: { label: 'Facturado', v: 'blue' }, cancelada: { label: 'Cancelado', v: 'danger' } }
