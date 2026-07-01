@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
-import { useFinanzas } from '../../hooks/useFinanzas'
+import { useTransacciones, useFinanzasKpis, useFinanzasAcciones, useTesoreriaData } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
 import { useClientesOptions } from '../../hooks/useClientes'
 import { useAuth } from '../../context/AuthContext'
@@ -35,12 +35,31 @@ export default function Facturacion() {
 
   const { formatUSD, formatARS } = useDolar()
   const { opciones: clientes } = useClientesOptions()
-  const { transacciones, tipoCambio, loading, error, registrarCobro, anularTransaccion } = useFinanzas()
+
+  const {
+    transacciones,
+    totalCount,
+    loading: loadingTx,
+    error: errorTx,
+  } = useTransacciones({
+    page,
+    pageSize: PER_PAGE,
+    search: searchQuery,
+    clienteFiltro,
+    filterStatus,
+    periodo,
+  })
+
+  const { kpis, loading: loadingKpis } = useFinanzasKpis({ periodo })
+  const { registrarCobro, anularTransaccion } = useFinanzasAcciones()
+  const { tipoCambio } = useTesoreriaData() // Solo para el TC
 
   const [showTC, setShowTC] = useState(false)
   const [tcForm, setTcForm] = useState({ compra: '', venta: '' })
   const [savingTC, setSavingTC] = useState(false)
 
+  // Ya no reseteamos page acá porque React Query se encarga de re-fetchear
+  // pero si cambian los filtros, volvemos a page 1
   useEffect(() => {
     setPage(1)
   }, [searchQuery, clienteFiltro, filterStatus, periodo])
@@ -88,54 +107,9 @@ export default function Facturacion() {
     }
   }
 
-  const transaccionesFiltradas = useMemo(() => {
-    if (!transacciones) return []
-
-    const now = new Date()
-    const currentMonth = now.getMonth()
-    const currentYear = now.getFullYear()
-
-    return transacciones.filter((tx) => {
-      const txDate = new Date(tx.fecha_emision)
-      const txMonth = txDate.getMonth()
-      const txYear = txDate.getFullYear()
-      let matchPeriodo = true
-
-      if (periodo === 'este_mes') {
-        matchPeriodo = txMonth === currentMonth && txYear === currentYear
-      } else if (periodo === 'mes_pasado') {
-        const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1
-        const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear
-        matchPeriodo = txMonth === lastMonth && txYear === lastMonthYear
-      } else if (periodo === 'ano_actual') {
-        matchPeriodo = txYear === currentYear
-      }
-
-      if (!matchPeriodo) return false
-
-      const matchCliente = !clienteFiltro || tx.cliente_id === clienteFiltro || tx.cliente?.id === clienteFiltro
-      if (!matchCliente) return false
-
-      const q = searchQuery.trim().toLowerCase()
-
-      const matchSearch =
-        !q ||
-        tx.cliente?.razon_social?.toLowerCase().includes(q) ||
-        tx.cliente?.nombre_comercial?.toLowerCase().includes(q) ||
-        tx.cliente?.cuit?.toLowerCase().includes(q) ||
-        (tx.numero_comprobante || '').toLowerCase().includes(q) ||
-        (tx.tipo_documento || '').toLowerCase().includes(q)
-
-      const matchStatus = filterStatus === 'todos' || tx.estado_pago === filterStatus
-
-      return matchSearch && matchStatus
-    })
-  }, [transacciones, periodo, searchQuery, clienteFiltro, filterStatus])
-
-  const txPaginadas = useMemo(
-    () => transaccionesFiltradas.slice((page - 1) * PER_PAGE, page * PER_PAGE),
-    [transaccionesFiltradas, page]
-  )
+  // OTs paginadas server-side
+  const transaccionesFiltradas = transacciones
+  const txPaginadas = transacciones
 
   const handleOpenModal = (tx) => {
     if (!canManageBilling) {
@@ -323,12 +297,12 @@ export default function Facturacion() {
     }
   }
 
-  if (error) {
+  if (errorTx) {
     return (
       <div className="p-6">
         <Card className="p-6 border-red-800 bg-red-900/20 text-red-400">
           <h2 className="font-bold mb-2">Error cargando módulo</h2>
-          <p className="font-mono text-sm">{error}</p>
+          <p className="font-mono text-sm">{errorTx}</p>
         </Card>
       </div>
     )
@@ -513,7 +487,7 @@ export default function Facturacion() {
             EMITIDO ({periodo.replace('_', ' ').toUpperCase()})
           </div>
           <div className="text-2xl font-bold">
-            {formatUSD(transaccionesFiltradas.reduce((acc, tx) => acc + Number(tx.monto_total_usd), 0))}
+            {loadingKpis ? '...' : formatUSD(kpis.emitido)}
           </div>
         </Card>
 
@@ -522,11 +496,7 @@ export default function Facturacion() {
             COBRADO ({periodo.replace('_', ' ').toUpperCase()})
           </div>
           <div className="text-2xl font-bold text-green-400">
-            {formatUSD(
-              transaccionesFiltradas
-                .filter((t) => t.estado_pago === 'cobrado')
-                .reduce((acc, tx) => acc + Number(tx.monto_total_usd), 0)
-            )}
+            {loadingKpis ? '...' : formatUSD(kpis.cobrado)}
           </div>
         </Card>
 
@@ -535,11 +505,7 @@ export default function Facturacion() {
             PENDIENTE ({periodo.replace('_', ' ').toUpperCase()})
           </div>
           <div className="text-2xl font-bold text-red-400">
-            {formatUSD(
-              transaccionesFiltradas
-                .filter((t) => t.estado_pago === 'pendiente')
-                .reduce((acc, tx) => acc + Number(tx.monto_total_usd), 0)
-            )}
+            {loadingKpis ? '...' : formatUSD(kpis.pendiente)}
           </div>
         </Card>
       </div>
@@ -561,7 +527,7 @@ export default function Facturacion() {
             </thead>
 
             <tbody>
-              {loading ? (
+              {loadingTx ? (
                 <tr>
                   <td colSpan="8" className="p-4">
                     <div className="h-4 bg-hm-surface2 rounded animate-pulse w-full"></div>
@@ -694,7 +660,7 @@ export default function Facturacion() {
           </table>
 
           <Pagination
-            total={transaccionesFiltradas.length}
+            total={totalCount}
             page={page}
             perPage={PER_PAGE}
             onPageChange={setPage}
