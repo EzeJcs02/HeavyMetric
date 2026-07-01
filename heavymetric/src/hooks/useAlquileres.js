@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -32,21 +32,18 @@ async function assertContratoInOrganization(contratoId, organizationId) {
 
 export function useAlquileres() {
   const auth = useAuth()
+  const queryClient = useQueryClient()
   const organizationId = getOrganizationId(auth)
 
-  const [contratos, setContratos] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  const fetchContratos = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      if (!organizationId) {
-        setContratos([])
-        return
-      }
+  const {
+    data: contratos = [],
+    isLoading: loading,
+    error: queryError,
+    refetch: fetchContratos,
+  } = useQuery({
+    queryKey: ['contratos_alquiler', organizationId],
+    queryFn: async () => {
+      if (!organizationId) return []
 
       const { data, error: err } = await supabase
         .from('alquileres_activos')
@@ -55,16 +52,14 @@ export function useAlquileres() {
         .order('fecha_inicio', { ascending: false })
 
       if (err) throw err
-      setContratos(data || [])
-    } catch (err) {
-      setError(err.message || 'Error al cargar contratos de alquiler')
-    } finally {
-      setLoading(false)
-    }
-  }, [organizationId])
+      return data || []
+    },
+    enabled: !!organizationId,
+    staleTime: 1000 * 30, // 30 segundos
+  })
 
-  const createContrato = async (contratoData) => {
-    try {
+  const createContratoMutation = useMutation({
+    mutationFn: async (contratoData) => {
       if (!organizationId) throw new Error('No se pudo determinar la organización')
 
       const hoy = new Date().toISOString().split('T')[0]
@@ -142,13 +137,12 @@ export function useAlquileres() {
         organization_id: organizationId,
       })
 
-      await fetchContratos()
       return data
-    } catch (err) {
-      setError(err.message || 'Error al crear contrato de alquiler')
-      throw err
-    }
-  }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contratos_alquiler', organizationId] })
+    },
+  })
 
   const calcularTotalSugerido = (fechaInicio, fechaFin, tarifaDiaria) => {
     if (!fechaInicio || !fechaFin) return 0
@@ -160,8 +154,8 @@ export function useAlquileres() {
     return dias * tarifaDiaria
   }
 
-  const cancelarContrato = async (contratoId) => {
-    try {
+  const cancelarContratoMutation = useMutation({
+    mutationFn: async (contratoId) => {
       if (!organizationId) throw new Error('No se pudo determinar la organización')
 
       const contrato = await assertContratoInOrganization(contratoId, organizationId)
@@ -187,16 +181,14 @@ export function useAlquileres() {
         maquina_id: contrato.maquina_id,
         organization_id: organizationId,
       })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contratos_alquiler', organizationId] })
+    },
+  })
 
-      await fetchContratos()
-    } catch (err) {
-      setError(err.message || 'Error al cancelar contrato de alquiler')
-      throw err
-    }
-  }
-
-  const finalizarContrato = async (contratoId) => {
-    try {
+  const finalizarContratoMutation = useMutation({
+    mutationFn: async (contratoId) => {
       if (!organizationId) throw new Error('No se pudo determinar la organización')
 
       const contrato = await assertContratoInOrganization(contratoId, organizationId)
@@ -213,22 +205,33 @@ export function useAlquileres() {
         resultado: data,
       })
 
-      await fetchContratos()
       return data
-    } catch (err) {
-      setError(err.message || 'Error al finalizar contrato de alquiler')
-      throw err
-    }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contratos_alquiler', organizationId] })
+    },
+  })
+
+  const createContrato = async (contratoData) => {
+    return createContratoMutation.mutateAsync(contratoData)
   }
 
-  useEffect(() => {
-    fetchContratos()
-  }, [fetchContratos])
+  const cancelarContrato = async (contratoId) => {
+    return cancelarContratoMutation.mutateAsync(contratoId)
+  }
+
+  const finalizarContrato = async (contratoId) => {
+    return finalizarContratoMutation.mutateAsync(contratoId)
+  }
 
   return {
     contratos,
     loading,
-    error,
+    error: queryError ? queryError.message : (
+      createContratoMutation.error?.message ||
+      cancelarContratoMutation.error?.message ||
+      finalizarContratoMutation.error?.message || null
+    ),
     fetchContratos,
     createContrato,
     calcularTotalSugerido,
