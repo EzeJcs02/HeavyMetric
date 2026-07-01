@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useMaquinas } from '../../hooks/useMaquinas'
 import { useClientesOptions } from '../../hooks/useClientes'
-import { useTaller } from '../../hooks/useTaller'
+import { useTaller, useTallerKpis } from '../../hooks/useTaller'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
 import { useRubro } from '../../context/RubroContext'
@@ -113,12 +113,20 @@ export default function Taller() {
 
   const {
     ots,
+    totalCount,
     loading: loadingOT,
     error: errorOT,
     finalizarOT,
     createOT,
     cancelarOT,
-  } = useTaller()
+    refetchOts,
+  } = useTaller({
+    page: pageOT,
+    pageSize: PER_PAGE,
+    search: activeTab === 'ots' ? searchQuery : ''
+  })
+
+  const { kpis, loading: loadingKpis } = useTallerKpis()
 
   const { crearFacturaDesdeOT } = useFinanzas()
 
@@ -232,23 +240,9 @@ export default function Taller() {
     [maquinasFiltradas, pageMaq]
   )
 
-  const otsFiltradas = useMemo(() => {
-    const query = normalizarTexto(searchQuery)
-
-    return ots.filter((ot) => {
-      return (
-        !query ||
-        String(ot.numero_ot || '').includes(query) ||
-        normalizarTexto(ot.maquina?.nombre_unidad).includes(query) ||
-        normalizarTexto(ot.cliente?.razon_social).includes(query)
-      )
-    })
-  }, [ots, searchQuery])
-
-  const otsPaginadas = useMemo(
-    () => otsFiltradas.slice((pageOT - 1) * PER_PAGE, pageOT * PER_PAGE),
-    [otsFiltradas, pageOT]
-  )
+  // OTs paginadas server-side
+  const otsFiltradas = ots
+  const otsPaginadas = ots
 
   const filtrosActivos = useMemo(() => {
     const filtros = [
@@ -648,7 +642,7 @@ export default function Taller() {
             {ordenTrabajoPlural} Abiertas
           </div>
           <div className="text-lg font-bold">
-            {ots.filter((ot) => !ESTADOS_OT_CERRADOS.includes(ot.estado)).length}
+            {loadingKpis ? '...' : kpis.abiertas}
           </div>
         </Card>
 
@@ -673,11 +667,7 @@ export default function Taller() {
             Costo Promedio {ordenTrabajo}
           </div>
           <div className="text-lg font-bold text-hm-accent">
-            {formatUSD(
-              ots.length
-                ? ots.reduce((acc, ot) => acc + getTotalOT(ot), 0) / ots.length
-                : 0
-            )}
+            {loadingKpis ? '...' : formatUSD(kpis.costoPromedio)}
           </div>
         </Card>
       </div>
@@ -952,7 +942,7 @@ export default function Taller() {
           </table>
 
           <Pagination
-            total={otsFiltradas.length}
+            total={totalCount}
             page={pageOT}
             perPage={PER_PAGE}
             onPageChange={setPageOT}

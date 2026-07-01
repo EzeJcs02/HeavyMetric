@@ -30,44 +30,70 @@ async function assertOTInOrganization(otId, organizationId) {
   return data
 }
 
-export function useTaller() {
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+
+export function useTaller({ page = 1, pageSize = 10, search = '' } = {}) {
   const auth = useAuth()
   const organizationId = getOrganizationId(auth)
+  const queryClient = useQueryClient()
 
-  const [ots, setOts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const { data, isLoading: loading, error: queryError } = useQuery({
+    queryKey: ['ordenes_trabajo', organizationId, page, pageSize, search],
+    queryFn: async () => {
+      if (!organizationId) return { data: [], count: 0 }
 
-  const fetchOts = useCallback(async () => {
-    if (!organizationId) {
-      setOts([])
-      setLoading(false)
-      return
-    }
-
-    try {
-      setLoading(true)
-      setError(null)
-
-      const { data, error: err } = await supabase
+      let query = supabase
         .from('ordenes_trabajo')
         .select(`
           *,
           maquina:maquinas(nombre_unidad, marca, modelo),
           cliente:clientes(razon_social),
           repuestos:ot_repuestos(*)
-        `)
+        `, { count: 'exact' })
         .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false })
 
+      if (search && search.trim() !== '') {
+        const q = search.trim()
+        const isNum = !isNaN(Number(q))
+
+        const [clientesRes, maquinasRes] = await Promise.all([
+          supabase.from('clientes').select('id').ilike('razon_social', `%${q}%`).eq('organization_id', organizationId),
+          supabase.from('maquinas').select('id').ilike('nombre_unidad', `%${q}%`).eq('organization_id', organizationId)
+        ])
+        
+        const clienteIds = (clientesRes.data || []).map(c => c.id)
+        const maquinaIds = (maquinasRes.data || []).map(m => m.id)
+        
+        const filters = []
+        if (isNum) filters.push(`numero_ot.eq.${Number(q)}`)
+        if (clienteIds.length > 0) filters.push(`cliente_id.in.(${clienteIds.join(',')})`)
+        if (maquinaIds.length > 0) filters.push(`maquina_id.in.(${maquinaIds.join(',')})`)
+        
+        if (filters.length > 0) {
+           query = query.or(filters.join(','))
+        } else {
+           query = query.eq('id', '00000000-0000-0000-0000-000000000000') // force empty
+        }
+      }
+
+      const from = (page - 1) * pageSize
+      const to = from + pageSize - 1
+      query = query.range(from, to).order('created_at', { ascending: false })
+
+      const { data, count, error: err } = await query
       if (err) throw err
-      setOts(data || [])
-    } catch (err) {
-      setError(err.message || 'Error al cargar órdenes de trabajo')
-    } finally {
-      setLoading(false)
-    }
-  }, [organizationId])
+      return { data: data || [], count: count || 0 }
+    },
+    staleTime: 1000 * 30, // 30 seconds
+  })
+
+  const ots = data?.data || []
+  const totalCount = data?.count || 0
+  const error = queryError?.message || null
+
+  const invalidateOts = () => {
+    queryClient.invalidateQueries({ queryKey: ['ordenes_trabajo', organizationId] })
+  }
 
   const createOT = async (otData) => {
     if (!organizationId) {
@@ -140,10 +166,9 @@ export function useTaller() {
         organization_id: organizationId,
       })
 
-      await fetchOts()
+      invalidateOts()
       return data
     } catch (err) {
-      setError(err.message || 'Error al crear orden de trabajo')
       throw err
     }
   }
@@ -210,10 +235,9 @@ export function useTaller() {
         organization_id: organizationId,
       })
 
-      await fetchOts()
+      invalidateOts()
       return repuesto
     } catch (err) {
-      setError(err.message || 'Error al agregar repuesto a la OT')
       throw err
     }
   }
@@ -271,9 +295,8 @@ export function useTaller() {
         organization_id: organizationId,
       })
 
-      await fetchOts()
+      invalidateOts()
     } catch (err) {
-      setError(err.message || 'Error al actualizar mano de obra')
       throw err
     }
   }
@@ -311,9 +334,8 @@ export function useTaller() {
         organization_id: organizationId,
       })
 
-      await fetchOts()
+      invalidateOts()
     } catch (err) {
-      setError(err.message || 'Error al cancelar orden de trabajo')
       throw err
     }
   }
@@ -354,27 +376,82 @@ export function useTaller() {
         resultado: data,
       })
 
-      await fetchOts()
+      invalidateOts()
       return data
     } catch (err) {
-      setError(err.message || 'Error al finalizar orden de trabajo')
       throw err
     }
   }
 
-  useEffect(() => {
-    fetchOts()
-  }, [fetchOts])
-
   return {
     ots,
+    totalCount,
     loading,
     error,
-    fetchOts,
     createOT,
     addRepuesto,
     updateManoObra,
     finalizarOT,
     cancelarOT,
+    refetchOts: invalidateOts
   }
+}
+
+export function useTallerKpis() {
+  const auth = useAuth()
+  const organizationId = getOrganizationId(auth)
+
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['taller_kpis', organizationId],
+    queryFn: async () => {
+      if (!organizationId) return { abiertas: 0, costoPromedio: 0 }
+
+      const baseQuery = () => supabase.from('ordenes_trabajo').select('id, total_usd').eq('organization_id', organizationId)
+
+      const { data: abiertasData } = await baseQuery().not('estado', 'in', '("completada","facturada","cerrada","cancelada")')
+      const { data: todasData } = await baseQuery()
+
+      const abiertas = abiertasData?.length || 0
+      
+      const totalCosto = (todasData || []).reduce((acc, ot) => acc + Number(ot.total_usd || 0), 0)
+      const costoPromedio = todasData?.length > 0 ? totalCosto / todasData.length : 0
+
+      return { abiertas, costoPromedio }
+    },
+    staleTime: 1000 * 60,
+  })
+
+  return { 
+    kpis: data || { abiertas: 0, costoPromedio: 0 }, 
+    loading 
+  }
+}
+
+export function useOrdenesTrabajoOptions() {
+  const auth = useAuth()
+  const organizationId = getOrganizationId(auth)
+
+  const { data: opciones, isLoading: loading } = useQuery({
+    queryKey: ['ordenes_trabajo_options', organizationId],
+    queryFn: async () => {
+      if (!organizationId) return []
+
+      const { data, error } = await supabase
+        .from('ordenes_trabajo')
+        .select(`
+          id,
+          numero_ot,
+          estado,
+          cliente:clientes(razon_social)
+        `)
+        .eq('organization_id', organizationId)
+        .order('numero_ot', { ascending: false })
+
+      if (error) throw error
+      return data || []
+    },
+    staleTime: 1000 * 60, // 1 min cache
+  })
+
+  return { opciones: opciones || [], loading }
 }
