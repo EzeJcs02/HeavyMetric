@@ -18,43 +18,12 @@ const ESTADOS = [
   'nueva', 'asignada', 'en_diagnostico', 'esperando_repuestos',
   'en_reparacion', 'en_prueba', 'finalizada', 'facturada', 'cerrada', 'cancelada'
 ]
-
-// Base Checklists
-const CHECKLIST_BASE = [
-  { id: 'b1', label: 'Seguridad perimetral / EPP', check: false },
-  { id: 'b2', label: 'Revisión visual general', check: false },
-  { id: 'b3', label: 'Limpieza / Lavado post-servicio', check: false },
-  { id: 'b4', label: 'Validación operativa final', check: false }
-]
-
-const CHECKLIST_MAQUINA = [
-  { id: 'm1', label: 'Sistema Hidráulico (presión)', check: false },
-  { id: 'm2', label: 'Control de Fugas', check: false },
-  { id: 'm3', label: 'Filtros y Lubricación', check: false },
-  { id: 'm4', label: 'Toma de Horómetro Real', check: false }
-]
-
-const CHECKLIST_VEHICULO = [
-  { id: 'v1', label: 'Niveles de Aceite', check: false },
-  { id: 'v2', label: 'Frenos (pastillas/discos)', check: false },
-  { id: 'v3', label: 'Presión de Cubiertas', check: false },
-  { id: 'v4', label: 'Sistema de Luces', check: false },
-  { id: 'v5', label: 'Odómetro Real', check: false }
-]
+// Removed mock checklists
 
 export default function FichaOT({ isOpen, onClose, ot, onUpdateEstado }) {
   const [activeTab, setActiveTab] = useState('resumen')
   const { formatUSD } = useDolar()
-  
-  // Mocks de estado para Evidencias y Checklists
-  const [firmado, setFirmado] = useState(false)
-  const [checklist, setChecklist] = useState([...CHECKLIST_BASE, ...CHECKLIST_MAQUINA])
-
   if (!isOpen || !ot) return null
-
-  const handleToggleCheck = (id) => {
-    setChecklist(prev => prev.map(c => c.id === id ? { ...c, check: !c.check } : c))
-  }
 
   const renderTab = () => {
     switch (activeTab) {
@@ -129,49 +98,19 @@ export default function FichaOT({ isOpen, onClose, ot, onUpdateEstado }) {
 
       case 'checklists':
         return (
-          <div className="space-y-4">
-            <div className="text-xs font-mono text-hm-muted uppercase">Checklist Híbrido: Base + Maquinaria Pesada</div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {checklist.map(chk => (
-                <div key={chk.id} onClick={() => handleToggleCheck(chk.id)} className={`p-4 rounded-lg border cursor-pointer flex items-center justify-between transition-colors ${chk.check ? 'bg-green-500/10 border-green-500/30' : 'bg-[#111] border-white/10 hover:border-white/30'}`}>
-                  <span className={`text-sm font-medium ${chk.check ? 'text-green-400' : 'text-gray-300'}`}>{chk.label}</span>
-                  {chk.check && <span className="text-green-400">✅</span>}
-                </div>
-              ))}
-            </div>
+          <div className="flex flex-col items-center justify-center p-10 text-center border border-dashed border-white/10 rounded-xl bg-white/[0.02]">
+            <span className="text-4xl mb-3">📋</span>
+            <div className="text-sm font-bold text-neutral-300">Sin Checklists</div>
+            <div className="text-xs text-neutral-500 mt-1">No hay checklists asociados a esta orden de trabajo.</div>
           </div>
         )
 
       case 'evidencias':
         return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="p-4 border-dashed border-2 border-white/10 flex flex-col items-center justify-center min-h-[200px] hover:border-hm-accent/50 transition-colors cursor-pointer group">
-                <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">📷</span>
-                <span className="text-sm font-bold text-hm-muted group-hover:text-white">Subir Fotografía</span>
-                <span className="text-xs text-gray-500 mt-1">(Preparado para Supabase Storage)</span>
-              </Card>
-              
-              <Card className="p-4 border border-white/10 flex flex-col min-h-[200px] relative">
-                <div className="text-xs font-mono text-hm-muted mb-4 uppercase">Firma del Técnico/Cliente</div>
-                {firmado ? (
-                  <div className="flex-1 flex flex-col items-center justify-center">
-                    <span className="text-4xl text-hm-accent mb-2">✍️</span>
-                    <span className="text-sm font-bold text-green-400">Documento Firmado Digitalmente</span>
-                    <span className="text-xs text-hm-muted">ID: HM-SIG-9941</span>
-                  </div>
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center gap-4">
-                    <div className="w-full h-24 bg-white/5 rounded border border-white/10 flex items-center justify-center text-hm-muted text-xs">
-                      [Canvas de Firma Mock]
-                    </div>
-                    <button onClick={() => setFirmado(true)} className="px-4 py-2 bg-hm-accent text-black font-bold text-xs rounded hover:bg-hm-accent/80 transition-colors">
-                      Guardar Firma
-                    </button>
-                  </div>
-                )}
-              </Card>
-            </div>
+          <div className="flex flex-col items-center justify-center p-10 text-center border border-dashed border-white/10 rounded-xl bg-white/[0.02]">
+            <span className="text-4xl mb-3">📷</span>
+            <div className="text-sm font-bold text-neutral-300">Sin Evidencias o Firmas</div>
+            <div className="text-xs text-neutral-500 mt-1">No se han subido documentos o firmas para esta orden de trabajo.</div>
           </div>
         )
 
@@ -332,33 +271,10 @@ export default function FichaOT({ isOpen, onClose, ot, onUpdateEstado }) {
 
       case 'timeline':
         return (
-          <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-white/10 before:to-transparent">
-            {/* Mock Timeline Entries */}
-            <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-hm-bg bg-hm-accent text-black shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-lg shadow-hm-accent/20 z-10">
-                ⚡
-              </div>
-              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-white/10 bg-[#161616] shadow">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="font-bold text-sm text-hm-accent">OT Abierta</div>
-                  <time className="font-mono text-xs text-hm-muted">14 Oct, 09:00</time>
-                </div>
-                <div className="text-sm text-gray-300">Juan Pérez creó la OT desde portal web.</div>
-              </div>
-            </div>
-
-            <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-hm-bg bg-blue-500 text-white shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-lg shadow-blue-500/20 z-10">
-                🔧
-              </div>
-              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-white/10 bg-[#161616] shadow">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="font-bold text-sm text-blue-400">Estado: En Diagnóstico</div>
-                  <time className="font-mono text-xs text-hm-muted">14 Oct, 10:30</time>
-                </div>
-                <div className="text-sm text-gray-300">Técnico asignado comenzó revisión de fluidos.</div>
-              </div>
-            </div>
+          <div className="flex flex-col items-center justify-center p-10 text-center border border-dashed border-white/10 rounded-xl bg-white/[0.02]">
+            <span className="text-4xl mb-3">⏱️</span>
+            <div className="text-sm font-bold text-neutral-300">Historial Vacío</div>
+            <div className="text-xs text-neutral-500 mt-1">Aún no hay eventos registrados en la línea de tiempo.</div>
           </div>
         )
       

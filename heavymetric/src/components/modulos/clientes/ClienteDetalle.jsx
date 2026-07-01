@@ -692,7 +692,6 @@ export default function ClienteDetalle({ cliente, isOpen, onClose, onEdit }) {
                             { label: 'Estado',        value: m.estado_operativo || 'Operativo', color: ESTADO_OP_COLOR[m.estado_operativo] || 'text-neutral-400' },
                             { label: 'Disponibilidad', value: `${scoreDisp}%`,                  color: scoreDisp < 80 ? 'text-red-400' : 'text-emerald-400' },
                             { label: 'Downtime',       value: `${m.tiempo_detenido_horas || 0} hs`, color: 'text-orange-400' },
-                            { label: 'Garantía',       value: 'Vigente (3m)',                    color: 'text-emerald-400', badge: 'demo' },
                           ].map(({ label, value, color, badge }) => (
                             <div key={label} className="flex flex-col items-end">
                               <div className="flex items-center gap-1">
