@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { logAudit } from '../lib/auditLog'
@@ -11,6 +11,25 @@ function getOrganizationId(auth) {
     auth?.organizationId ||
     null
   )
+}
+
+function waitForQuery(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      const error = new Error('Query cancelada')
+      error.name = 'AbortError'
+      reject(error)
+    }
+
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+
+    if (signal?.aborted) onAbort()
+    else signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 async function getCurrentAuthScope() {
@@ -74,23 +93,17 @@ async function assertCompraInOrganization(compraId, organizationId) {
 export function useProveedores({ page = 1, pageSize = 12, search = '', estado = 'todos' } = {}) {
   const auth = useAuth()
   const organizationId = getOrganizationId(auth)
+  const queryClient = useQueryClient()
 
-  const [proveedores, setProveedores] = useState([])
-  const [totalCount, setTotalCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  const fetchProveedores = useCallback(async () => {
-    if (!organizationId) {
-      setProveedores([])
-      setTotalCount(0)
-      setLoading(false)
-      return
-    }
-
-    try {
-      setLoading(true)
-      setError(null)
+  const {
+    data = { proveedores: [], totalCount: 0 },
+    isLoading: loading,
+    error: queryError,
+    refetch: fetchProveedores,
+  } = useQuery({
+    queryKey: ['proveedores', organizationId, page, pageSize, search, estado],
+    queryFn: async ({ signal }) => {
+      await waitForQuery(400, signal)
 
       let query = supabase
         .from('proveedores')
@@ -119,15 +132,22 @@ export function useProveedores({ page = 1, pageSize = 12, search = '', estado = 
       const { data, count, error: err } = await query
 
       if (err) throw err
-      
-      setProveedores(data || [])
-      setTotalCount(count || 0)
-    } catch (err) {
-      setError(err.message || 'Error al cargar proveedores')
-    } finally {
-      setLoading(false)
-    }
-  }, [organizationId, page, pageSize, search, estado])
+
+      return {
+        proveedores: data || [],
+        totalCount: count || 0,
+      }
+    },
+    enabled: !!organizationId,
+  })
+
+  const invalidateProveedorQueries = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['proveedores', organizationId] }),
+      queryClient.invalidateQueries({ queryKey: ['proveedores_kpis', organizationId] }),
+      queryClient.invalidateQueries({ queryKey: ['proveedores_options', organizationId] }),
+    ])
+  }
 
   const createProveedor = async (payload) => {
     if (!organizationId) {
@@ -152,7 +172,7 @@ export function useProveedores({ page = 1, pageSize = 12, search = '', estado = 
       descripcion: `Proveedor creado: ${safePayload.empresa}`,
     })
 
-    await fetchProveedores()
+    await invalidateProveedorQueries()
     return data
   }
 
@@ -181,7 +201,7 @@ export function useProveedores({ page = 1, pageSize = 12, search = '', estado = 
       descripcion: `Proveedor actualizado: ${safePayload.empresa || antes?.empresa || id}`,
     })
 
-    await fetchProveedores()
+    await invalidateProveedorQueries()
   }
 
   const deactivateProveedor = async (id) => {
@@ -208,21 +228,14 @@ export function useProveedores({ page = 1, pageSize = 12, search = '', estado = 
       descripcion: `Proveedor desactivado: ${antes?.empresa || id}`,
     })
 
-    await fetchProveedores()
+    await invalidateProveedorQueries()
   }
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchProveedores()
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [fetchProveedores])
-
   return {
-    proveedores,
-    totalCount,
+    proveedores: data.proveedores,
+    totalCount: data.totalCount,
     loading,
-    error,
+    error: queryError ? (queryError.message || 'Error al cargar proveedores') : null,
     fetchProveedores,
     createProveedor,
     updateProveedor,
@@ -233,46 +246,37 @@ export function useProveedores({ page = 1, pageSize = 12, search = '', estado = 
 export function useProveedoresKpis() {
   const auth = useAuth()
   const organizationId = getOrganizationId(auth)
-  
-  const [kpis, setKpis] = useState({ total: 0, preferidos: 0, riesgosos: 0 })
-  const [loading, setLoading] = useState(true)
 
-  const fetchKpis = useCallback(async () => {
-    if (!organizationId) {
-      setLoading(false)
-      return
-    }
-
-    try {
-      setLoading(true)
-
+  const {
+    data: kpis = { total: 0, preferidos: 0, riesgosos: 0 },
+    isLoading: loading,
+    refetch: fetchKpis,
+  } = useQuery({
+    queryKey: ['proveedores_kpis', organizationId],
+    queryFn: async () => {
       const baseQuery = () => supabase.from('proveedores').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('activo', true)
 
       const [
-        { count: total },
-        { count: preferidos },
-        { count: riesgosos },
+        { count: total, error: totalError },
+        { count: preferidos, error: preferidosError },
+        { count: riesgosos, error: riesgososError },
       ] = await Promise.all([
         baseQuery(),
         baseQuery().eq('estado', 'preferido'),
         baseQuery().eq('estado', 'riesgoso'),
       ])
 
-      setKpis({
+      const error = totalError || preferidosError || riesgososError
+      if (error) throw error
+
+      return {
         total: total || 0,
         preferidos: preferidos || 0,
         riesgosos: riesgosos || 0,
-      })
-    } catch (error) {
-      console.error('Error fetching Proveedores KPIs:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [organizationId])
-
-  useEffect(() => {
-    fetchKpis()
-  }, [fetchKpis])
+      }
+    },
+    enabled: !!organizationId,
+  })
 
   return { kpis, loading, fetchKpis }
 }
@@ -281,18 +285,13 @@ export function useProveedoresOptions() {
   const auth = useAuth()
   const organizationId = getOrganizationId(auth)
 
-  const [opciones, setOpciones] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  const fetchOptions = useCallback(async () => {
-    if (!organizationId) {
-      setOpciones([])
-      setLoading(false)
-      return
-    }
-
-    try {
-      setLoading(true)
+  const {
+    data: opciones = [],
+    isLoading: loading,
+    refetch: fetchOptions,
+  } = useQuery({
+    queryKey: ['proveedores_options', organizationId],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('proveedores')
         .select('id, empresa, cuit')
@@ -301,18 +300,10 @@ export function useProveedoresOptions() {
         .order('empresa')
 
       if (error) throw error
-      setOpciones(data || [])
-    } catch (error) {
-      console.error('Error fetching proveedores options:', error)
-      setOpciones([])
-    } finally {
-      setLoading(false)
-    }
-  }, [organizationId])
-
-  useEffect(() => {
-    fetchOptions()
-  }, [fetchOptions])
+      return data || []
+    },
+    enabled: !!organizationId,
+  })
 
   return { opciones, loading, fetchOptions }
 }
