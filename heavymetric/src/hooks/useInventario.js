@@ -18,11 +18,12 @@ function getOrganizationId(auth) {
   )
 }
 
-export function useInventario() {
+export function useInventario({ page = 1, pageSize = 12, search = '' } = {}) {
   const auth = useAuth()
   const organizationId = getOrganizationId(auth)
 
   const [items, setItems] = useState([])
+  const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -33,24 +34,37 @@ export function useInventario() {
 
       if (!organizationId) {
         setItems([])
+        setTotalCount(0)
         return
       }
 
-      const { data, error: err } = await supabase
-        .from('inventario')
-        .select('*')
+      let query = supabase
+        .from('repuestos')
+        .select('*', { count: 'exact' })
         .eq('organization_id', organizationId)
         .eq('activo', true)
-        .order('nombre_repuesto')
+
+      if (search && search.trim() !== '') {
+        const q = search.trim()
+        query = query.or(`nombre.ilike.%${q}%,sku.ilike.%${q}%`)
+      }
+
+      // Pagination
+      const from = (page - 1) * pageSize
+      const to = from + pageSize - 1
+      query = query.range(from, to).order('nombre')
+
+      const { data, count, error: err } = await query
 
       if (err) throw err
       setItems(data || [])
+      setTotalCount(count || 0)
     } catch (err) {
       setError(err.message || 'Error al cargar inventario')
     } finally {
       setLoading(false)
     }
-  }, [organizationId])
+  }, [organizationId, page, pageSize, search])
 
   const ajustarStock = async (itemId, cantidad, tipo) => {
     try {
@@ -65,8 +79,8 @@ export function useInventario() {
       }
 
       const { data: item, error: errItem } = await supabase
-        .from('inventario')
-        .select('id, organization_id, nombre_repuesto, stock_actual')
+        .from('repuestos')
+        .select('id, organization_id, nombre, stock_actual')
         .eq('id', itemId)
         .eq('organization_id', organizationId)
         .single()
@@ -84,7 +98,7 @@ export function useInventario() {
       }
 
       const { error: err } = await supabase
-        .from('inventario')
+        .from('repuestos')
         .update({ stock_actual: nuevoStock })
         .eq('id', itemId)
         .eq('organization_id', organizationId)
@@ -93,7 +107,7 @@ export function useInventario() {
 
       console.info('[HeavyMetric][Inventario] Ajuste de stock con trazabilidad operativa:', {
         item_id: itemId,
-        repuesto: item.nombre_repuesto,
+        repuesto: item.nombre,
         tipo,
         cantidad: cantidadNumerica,
         stock_anterior: stockActual,
@@ -118,8 +132,8 @@ export function useInventario() {
       }
 
       const { error: err } = await supabase
-        .from('inventario')
-        .update({ precio_base_usd: precioNumerico })
+        .from('repuestos')
+        .update({ precio_usd: precioNumerico })
         .eq('id', itemId)
         .eq('organization_id', organizationId)
 
@@ -127,7 +141,7 @@ export function useInventario() {
 
       console.info('[HeavyMetric][Inventario] Precio actualizado con trazabilidad operativa:', {
         item_id: itemId,
-        precio_base_usd: precioNumerico,
+        precio_usd: precioNumerico,
         organization_id: organizationId,
       })
 
@@ -145,7 +159,7 @@ export function useInventario() {
       const { id: _ignoredId, organization_id: _ignoredOrg, ...safeItemData } = itemData
 
       const { data, error: err } = await supabase
-        .from('inventario')
+        .from('repuestos')
         .insert([{
           ...safeItemData,
           organization_id: organizationId,
@@ -158,7 +172,7 @@ export function useInventario() {
 
       console.info('[HeavyMetric][Inventario] Item creado con trazabilidad operativa:', {
         item_id: data.id,
-        repuesto: data.nombre_repuesto,
+        repuesto: data.nombre,
         organization_id: organizationId,
       })
 
@@ -169,13 +183,32 @@ export function useInventario() {
       throw err
     }
   }
+  
+  const updateItem = async (id, payload) => {
+    try {
+      if (!organizationId) throw new Error('No se pudo determinar la organización')
+
+      const { error: err } = await supabase
+        .from('repuestos')
+        .update(payload)
+        .eq('id', id)
+        .eq('organization_id', organizationId)
+
+      if (err) throw err
+
+      await fetchItems()
+    } catch (err) {
+      setError(err.message || 'Error al actualizar item')
+      throw err
+    }
+  }
 
   const archivarItem = async (itemId) => {
     try {
       if (!organizationId) throw new Error('No se pudo determinar la organización')
 
       const { error: err } = await supabase
-        .from('inventario')
+        .from('repuestos')
         .update({ activo: false })
         .eq('id', itemId)
         .eq('organization_id', organizationId)
@@ -195,17 +228,115 @@ export function useInventario() {
   }
 
   useEffect(() => {
-    fetchItems()
+    const timer = setTimeout(() => {
+      fetchItems()
+    }, 400)
+    return () => clearTimeout(timer)
   }, [fetchItems])
 
   return {
     items,
+    totalCount,
     loading,
     error,
     fetchItems,
     ajustarStock,
     updatePrecio,
     crearItem,
+    updateItem,
     archivarItem,
   }
+}
+
+export function useInventarioKpis() {
+  const auth = useAuth()
+  const organizationId = getOrganizationId(auth)
+  
+  const [kpis, setKpis] = useState({ total: 0, sin_disponibilidad: 0, bajo_minimo: 0 })
+  const [loading, setLoading] = useState(true)
+
+  const fetchKpis = useCallback(async () => {
+    if (!organizationId) {
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+
+      const baseQuery = () => supabase.from('repuestos').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('activo', true)
+
+      // Workaround for comparing two columns (stock_actual <= stock_minimo) without RPC is difficult in Supabase head queries unless we use raw sql or rpc. 
+      // But we can just fetch the minimal data and count it if RPC is not an option.
+      // Since we need `stock_actual <= stock_minimo`, let's just do a lightweight fetch of those two columns.
+      
+      const [
+        { count: total },
+        { count: sin_disponibilidad },
+        { data: allItems }
+      ] = await Promise.all([
+        baseQuery(),
+        baseQuery().lte('stock_actual', 0),
+        supabase.from('repuestos').select('stock_actual, stock_minimo').eq('organization_id', organizationId).eq('activo', true).gt('stock_actual', 0)
+      ])
+
+      const bajo_minimo = allItems?.filter(i => Number(i.stock_actual) <= Number(i.stock_minimo)).length || 0
+
+      setKpis({
+        total: total || 0,
+        sin_disponibilidad: sin_disponibilidad || 0,
+        bajo_minimo: bajo_minimo || 0,
+      })
+    } catch (error) {
+      console.error('Error fetching Inventario KPIs:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [organizationId])
+
+  useEffect(() => {
+    fetchKpis()
+  }, [fetchKpis])
+
+  return { kpis, loading, fetchKpis }
+}
+
+export function useInventarioOptions() {
+  const auth = useAuth()
+  const organizationId = getOrganizationId(auth)
+
+  const [opciones, setOpciones] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchOptions = useCallback(async () => {
+    if (!organizationId) {
+      setOpciones([])
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('repuestos')
+        .select('id, nombre, sku, stock_actual, precio_usd, costo_usd, unidad')
+        .eq('organization_id', organizationId)
+        .eq('activo', true)
+        .order('nombre')
+
+      if (error) throw error
+      setOpciones(data || [])
+    } catch (error) {
+      console.error('Error fetching inventario options:', error)
+      setOpciones([])
+    } finally {
+      setLoading(false)
+    }
+  }, [organizationId])
+
+  useEffect(() => {
+    fetchOptions()
+  }, [fetchOptions])
+
+  return { opciones, loading, fetchOptions }
 }

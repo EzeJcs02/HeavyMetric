@@ -11,6 +11,10 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
+import Pagination from '../../components/ui/Pagination'
+import { useInventario, useInventarioKpis } from '../../hooks/useInventario'
+
+const PER_PAGE = 12
 
 const EMPTY_FORM = {
   sku: '',
@@ -39,9 +43,17 @@ export default function Repuestos() {
   const { perfil } = useAuth()
   const { formatUSD } = useDolar()
 
-  const [repuestos, setRepuestos] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+
+  const { items: repuestos, totalCount, loading, error, crearItem, updateItem, archivarItem, fetchItems } = useInventario({
+    page,
+    pageSize: PER_PAGE,
+    search
+  })
+
+  const { kpis } = useInventarioKpis()
+
   const [editando, setEditando] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [movModal, setMovModal] = useState(null)
@@ -51,43 +63,7 @@ export default function Repuestos() {
   const [movForm, setMovForm] = useState({ tipo: 'entrada', cantidad: '', notas: '' })
   const [saving, setSaving] = useState(false)
 
-  const fetchRepuestos = async () => {
-    if (!perfil?.organization_id) {
-      setRepuestos([])
-      setLoading(false)
-      return
-    }
-
-    setLoading(true)
-
-    const { data, error } = await supabase
-      .from('repuestos')
-      .select('*')
-      .eq('organization_id', perfil.organization_id)
-      .eq('activo', true)
-      .order('nombre')
-
-    if (error) toast.error(error.message)
-
-    setRepuestos(data || [])
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    fetchRepuestos()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perfil?.organization_id])
-
-  const filtrados = useMemo(() => {
-    const q = search.toLowerCase()
-
-    return repuestos.filter((item) => {
-      return (
-        item.nombre.toLowerCase().includes(q) ||
-        (item.sku || '').toLowerCase().includes(q)
-      )
-    })
-  }, [repuestos, search])
+  useEffect(() => { setPage(1) }, [search])
 
   const handleOpenNuevo = () => {
     setEditando(null)
@@ -138,27 +114,14 @@ export default function Repuestos() {
       }
 
       if (editando) {
-        const { error } = await supabase
-          .from('repuestos')
-          .update(payload)
-          .eq('id', editando.id)
-          .eq('organization_id', perfil.organization_id)
-
-        if (error) throw error
-
+        await updateItem(editando.id, payload)
         toast.success('Ítem actualizado')
       } else {
-        const { error } = await supabase
-          .from('repuestos')
-          .insert({ ...payload, organization_id: perfil.organization_id })
-
-        if (error) throw error
-
+        await crearItem(payload)
         toast.success('Ítem creado')
       }
 
       setModalOpen(false)
-      fetchRepuestos()
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -189,7 +152,7 @@ export default function Repuestos() {
       toast.success('Movimiento registrado')
       setMovModal(null)
       setMovForm({ tipo: 'entrada', cantidad: '', notas: '' })
-      fetchRepuestos()
+      fetchItems()
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -219,28 +182,21 @@ export default function Repuestos() {
   const handleEliminar = async (item) => {
     if (!confirm(`¿Dar de baja "${item.nombre}"?`)) return
 
-    const { error } = await supabase
-      .from('repuestos')
-      .update({ activo: false })
-      .eq('id', item.id)
-      .eq('organization_id', perfil.organization_id)
-
-    if (error) {
-      toast.error(error.message)
-      return
+    try {
+      await archivarItem(item.id)
+      toast.success('Ítem dado de baja')
+    } catch (err) {
+      toast.error(err.message)
     }
-
-    toast.success('Ítem dado de baja')
-    fetchRepuestos()
   }
 
   const handleExport = () => {
-    if (!filtrados.length) {
-      toast.error('Sin datos para exportar')
+    if (!repuestos.length) {
+      toast.error('Sin datos para exportar en esta página')
       return
     }
 
-    const rows = filtrados.map((item) => ({
+    const rows = repuestos.map((item) => ({
       SKU: item.sku || '—',
       NOMBRE: item.nombre,
       UNIDAD: item.unidad,
@@ -298,25 +254,21 @@ export default function Repuestos() {
           <span>
             Total:{' '}
             <span className="text-hm-text font-bold">
-              {repuestos.length}
+              {kpis.total}
             </span>
           </span>
 
           <span className="text-red-400">
             Sin disponibilidad:{' '}
             <span className="font-bold">
-              {repuestos.filter((item) => Number(item.stock_actual) <= 0).length}
+              {kpis.sin_disponibilidad}
             </span>
           </span>
 
           <span className="text-yellow-400">
             Bajo mínimo:{' '}
             <span className="font-bold">
-              {
-                repuestos.filter((item) => {
-                  return Number(item.stock_actual) > 0 && Number(item.stock_actual) <= Number(item.stock_minimo)
-                }).length
-              }
+              {kpis.bajo_minimo}
             </span>
           </span>
         </div>
@@ -348,14 +300,14 @@ export default function Repuestos() {
                   ))}
                 </tr>
               ))
-            ) : filtrados.length === 0 ? (
+            ) : repuestos.length === 0 ? (
               <tr>
                 <td colSpan="8" className="p-10 text-center text-hm-muted font-mono text-sm">
                   No hay ítems cargados en inventario.
                 </td>
               </tr>
             ) : (
-              filtrados.map((item) => (
+              repuestos.map((item) => (
                 <tr
                   key={item.id}
                   className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors"
@@ -451,6 +403,7 @@ export default function Repuestos() {
             )}
           </tbody>
         </table>
+        <Pagination total={totalCount} page={page} perPage={PER_PAGE} onPageChange={setPage} />
       </Card>
 
       <Modal
