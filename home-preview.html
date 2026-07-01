@@ -1,0 +1,1089 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HeavyMetric — Centro de Operaciones</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #04060a;
+      --surface:   #07090d;
+      --surface2:  #080b10;
+      --card:      #0d1016;
+      --border:    rgba(255,255,255,0.05);
+      --border-h:  rgba(0,212,255,0.2);
+      --fg:        #ffffff;
+      --muted:     #737373;
+      --muted2:    #404040;
+      --cyan:      #67e8f9;
+      --cyan-dim:  rgba(0,212,255,0.55);
+      --emerald:   #6ee7b7;
+      --amber:     #fcd34d;
+      --red:       #fca5a5;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ── */
+    .app {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 0;
+    }
+    .sidebar-brand {
+      padding: 0 18px 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .sidebar-brand-name {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--cyan);
+    }
+    .sidebar-brand-sub {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .nav-group-label {
+      padding: 6px 18px 4px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted2);
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 18px;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      text-decoration: none;
+      border-radius: 0;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--fg); }
+    .nav-item.active {
+      background: rgba(0,212,255,0.07);
+      color: var(--cyan);
+    }
+    .nav-item .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+      opacity: 0.5;
+    }
+    .nav-item.active .dot { opacity: 1; box-shadow: 0 0 8px currentColor; }
+
+    /* ── Main area ── */
+    .main-wrap {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Topbar ── */
+    .topbar {
+      height: 52px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 28px;
+      gap: 16px;
+    }
+    .topbar-breadcrumb {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .topbar-sep { color: var(--muted2); margin: 0 4px; }
+    .topbar-breadcrumb span { color: var(--fg); }
+    .topbar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .dolar-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.25);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .dolar-pill .val { color: var(--cyan); font-weight: 700; }
+    .avatar {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #1e3a5f 0%, #0e4d3a 100%);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 900;
+      color: var(--cyan);
+    }
+
+    /* ── Page content ── */
+    .page {
+      flex: 1;
+      padding: 28px;
+      position: relative;
+    }
+    .ambient {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(0,212,255,0.07) 0%, transparent 35%),
+        radial-gradient(circle at 85% 20%, rgba(0,245,160,0.04) 0%, transparent 35%);
+    }
+    .content { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 24px; }
+
+    /* ── Hero ── */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      border-radius: 28px;
+      border: 1px solid var(--border);
+      background: #07090d;
+      padding: 36px 40px;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        linear-gradient(rgba(0,212,255,0.016) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.016) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+    .hero::after {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse at top left, rgba(0,212,255,0.055) 0%, transparent 45%),
+        radial-gradient(ellipse at bottom right, rgba(0,245,160,0.035) 0%, transparent 45%),
+        radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.75) 100%);
+    }
+    .hero-inner {
+      position: relative; z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 32px;
+    }
+    .hero-left { flex: 1; }
+    .hero-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .badge-green {
+      border: 1px solid rgba(110,231,183,0.2);
+      background: rgba(110,231,183,0.1);
+      color: var(--emerald);
+    }
+    .badge-muted {
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.25);
+      color: var(--muted);
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.green { background: #34d399; box-shadow: 0 0 8px #34d399; }
+    .status-dot.amber { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
+    .status-dot.red   { background: #f87171; box-shadow: 0 0 8px #f87171; }
+    .status-dot.cyan  { background: #22d3ee; box-shadow: 0 0 8px #22d3ee; }
+
+    .hero-title {
+      font-size: 38px;
+      font-weight: 900;
+      letter-spacing: -0.025em;
+      color: var(--fg);
+      line-height: 1.1;
+    }
+    .hero-sub {
+      margin-top: 12px;
+      max-width: 480px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 20px;
+    }
+    .qa-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      font-size: 12px;
+      font-weight: 500;
+      color: #a3a3a3;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+    .qa-btn:hover { border-color: var(--border-h); background: #11151c; color: #fff; }
+    .qa-btn svg { color: rgba(0,212,255,0.6); flex-shrink: 0; }
+    .qa-btn:hover svg { color: var(--cyan); }
+
+    /* ── Pulse module ── */
+    .pulse-module {
+      flex-shrink: 0;
+      width: 220px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.25);
+      padding: 20px;
+    }
+    .pulse-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .pulse-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .refresh-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--muted2);
+      transition: color 0.15s;
+      display: flex; align-items: center;
+    }
+    .refresh-btn:hover { color: var(--cyan); }
+    .pulse-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 0;
+    }
+    .pulse-key {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted2);
+    }
+    .pulse-val {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 900;
+      tabular-nums: auto;
+    }
+    .pulse-val.cyan   { color: var(--cyan); }
+    .pulse-val.amber  { color: var(--amber); }
+    .pulse-val.emerald{ color: var(--emerald); }
+    .pulse-val.red    { color: var(--red); }
+
+    /* ── KPI row ── */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .kpi-card {
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: rgba(13,16,22,0.9);
+      padding: 20px;
+      transition: all 0.25s;
+      cursor: default;
+    }
+    .kpi-card:hover {
+      border-color: var(--border-h);
+      background: #11151c;
+      transform: translateY(-2px);
+    }
+    .kpi-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .kpi-icon {
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.3);
+      padding: 8px;
+      color: #525252;
+      transition: color 0.25s;
+      display: flex;
+    }
+    .kpi-card:hover .kpi-icon { color: var(--cyan); }
+    .kpi-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted2);
+    }
+    .kpi-value {
+      font-family: var(--font-mono);
+      font-size: 30px;
+      font-weight: 900;
+      tabular-nums: auto;
+      margin-top: 6px;
+      line-height: 1;
+    }
+    .kpi-detail {
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .kpi-value.cyan   { color: var(--cyan); }
+    .kpi-value.emerald{ color: var(--emerald); }
+    .kpi-value.amber  { color: var(--amber); }
+    .kpi-value.red    { color: var(--red); }
+
+    /* ── Main grid ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 0.72fr;
+      gap: 24px;
+    }
+    .panel {
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      padding: 24px;
+    }
+
+    /* ── Eyebrow ── */
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: rgba(0,212,255,0.5);
+      margin-bottom: 8px;
+    }
+    .eyebrow::before {
+      content: '';
+      display: block;
+      width: 24px; height: 1px;
+      background: rgba(0,212,255,0.3);
+    }
+    .panel-title {
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: -0.015em;
+      color: var(--fg);
+    }
+    .panel-sub {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .panel-header { margin-bottom: 20px; }
+
+    /* ── Command grid ── */
+    .command-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .cmd-card {
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: rgba(13,16,22,0.85);
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.25s;
+      text-decoration: none;
+      display: block;
+    }
+    .cmd-card:hover {
+      border-color: var(--border-h);
+      background: #11151c;
+      transform: translateY(-2px);
+    }
+    .cmd-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .cmd-icon {
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.3);
+      padding: 8px;
+      color: rgba(0,212,255,0.6);
+      transition: color 0.25s;
+      display: flex;
+    }
+    .cmd-card:hover .cmd-icon { color: var(--cyan); }
+    .cmd-chevron { color: #404040; transition: all 0.25s; display: flex; }
+    .cmd-card:hover .cmd-chevron { color: var(--cyan); transform: translateX(2px); }
+    .cmd-title { font-size: 13px; font-weight: 900; color: var(--fg); }
+    .cmd-desc { font-size: 11.5px; color: #525252; margin-top: 6px; min-height: 34px; line-height: 1.55; }
+    .cmd-status {
+      margin-top: 16px;
+      display: inline-flex;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.25);
+      padding: 3px 10px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted2);
+    }
+
+    /* ── Right column ── */
+    .right-col { display: flex; flex-direction: column; gap: 20px; }
+
+    /* ── Alert row ── */
+    .alert-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      border-radius: 16px;
+      border: 1px solid;
+      background: rgba(0,0,0,0.2);
+      padding: 14px;
+    }
+    .alert-row.critical { border-color: rgba(252,165,165,0.25); color: var(--red); }
+    .alert-row.high     { border-color: rgba(252,211,77,0.25);  color: var(--amber); }
+    .alert-row.medium   { border-color: rgba(0,212,255,0.2);    color: var(--cyan); }
+    .alert-row svg { flex-shrink: 0; margin-top: 1px; }
+    .alert-title { font-size: 13px; font-weight: 700; color: var(--fg); line-height: 1.3; }
+    .alert-desc  { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+    .alerts-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .count-pill {
+      border-radius: 999px;
+      border: 1px solid rgba(252,165,165,0.2);
+      background: rgba(252,165,165,0.1);
+      padding: 2px 8px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--red);
+    }
+
+    .panel-sub-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    /* ── Service alerts ── */
+    .service-section { margin-top: 16px; }
+    .service-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(252,211,77,0.6);
+      margin-bottom: 8px;
+    }
+    .service-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-radius: 12px;
+      border: 1px solid rgba(252,211,77,0.15);
+      background: rgba(0,0,0,0.15);
+      padding: 10px 14px;
+      margin-bottom: 8px;
+    }
+    .service-name { font-size: 11.5px; font-weight: 700; color: #e5e5e5; }
+    .service-client { font-family: var(--font-mono); font-size: 9px; color: var(--muted2); margin-top: 2px; }
+    .service-hours { font-family: var(--font-mono); font-size: 11.5px; font-weight: 900; color: var(--amber); }
+    .service-hours-label { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted2); }
+
+    /* ── Transaction row ── */
+    .tx-list { display: flex; flex-direction: column; }
+    .tx-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .tx-row:last-child { border-bottom: none; }
+    .tx-icon {
+      width: 28px; height: 28px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.3);
+      display: flex; align-items: center; justify-content: center;
+      color: rgba(0,212,255,0.5);
+    }
+    .tx-info { flex: 1; min-width: 0; }
+    .tx-top { display: flex; align-items: center; gap: 8px; }
+    .tx-name { font-size: 11.5px; font-weight: 600; color: #e5e5e5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-pill {
+      flex-shrink: 0;
+      border-radius: 999px;
+      padding: 2px 6px;
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .tx-pill.paid    { background: rgba(110,231,183,0.1); color: #6ee7b7; }
+    .tx-pill.pending { background: rgba(252,211,77,0.1);  color: #fcd34d; }
+    .tx-date { font-family: var(--font-mono); font-size: 9px; color: var(--muted2); margin-top: 2px; }
+    .tx-amount { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: #e5e5e5; flex-shrink: 0; }
+
+    .see-all {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 14px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(0,212,255,0.5);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .see-all:hover { color: var(--cyan); }
+
+    /* ── SVG icons (inline) ── */
+    svg { display: inline-block; vertical-align: middle; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── SIDEBAR ── -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-name">HeavyMetric</div>
+      <div class="sidebar-brand-sub">Knock S.A. · Operaciones</div>
+    </div>
+
+    <div class="nav-group-label">Principal</div>
+    <a href="#" class="nav-item active">
+      <span class="dot"></span> Inicio
+    </a>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> CEO Dashboard
+    </a>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Reportes
+    </a>
+
+    <div class="nav-group-label" style="margin-top:12px">Operaciones</div>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Taller / OT
+    </a>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Clientes
+    </a>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Activos
+    </a>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Cotizaciones
+    </a>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Alquileres
+    </a>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Leads / CRM
+    </a>
+
+    <div class="nav-group-label" style="margin-top:12px">Finanzas</div>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Facturación
+    </a>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Tesorería
+    </a>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Proveedores
+    </a>
+
+    <div class="nav-group-label" style="margin-top:12px">Logística</div>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Repuestos
+    </a>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> Remitos
+    </a>
+    <a href="#" class="nav-item">
+      <span class="dot"></span> App Campo
+    </a>
+  </nav>
+
+  <!-- ── MAIN ── -->
+  <div class="main-wrap">
+
+    <!-- ── TOPBAR ── -->
+    <header class="topbar">
+      <div class="topbar-breadcrumb">
+        HeavyMetric <span class="topbar-sep">/</span> <span>Inicio</span>
+      </div>
+      <div class="topbar-right">
+        <div class="dolar-pill">
+          USD oficial <span class="val">$1.075</span>
+        </div>
+        <div class="dolar-pill">
+          Blue <span class="val" style="color:#fcd34d">$1.280</span>
+        </div>
+        <div class="avatar">EA</div>
+      </div>
+    </header>
+
+    <!-- ── PAGE ── -->
+    <main class="page">
+      <div class="ambient"></div>
+      <div class="content">
+
+        <!-- ── HERO ── -->
+        <section class="hero">
+          <div class="hero-inner">
+            <div class="hero-left">
+              <div class="hero-badges">
+                <span class="badge badge-green">
+                  <span class="status-dot green"></span>
+                  Sistema activo
+                </span>
+                <span class="badge badge-muted">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  Centro de operaciones
+                </span>
+              </div>
+
+              <h1 class="hero-title">Buenos días, Ezequiel</h1>
+              <p class="hero-sub">
+                Seguimiento ejecutivo de activos, taller, stock y tesorería.
+                Detectá riesgos, priorizá el trabajo y sostené la operación diaria.
+              </p>
+
+              <div class="quick-actions">
+                <a href="#" class="qa-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Nueva OT
+                </a>
+                <a href="#" class="qa-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Nueva cotización
+                </a>
+                <a href="#" class="qa-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  Aprobaciones
+                </a>
+                <a href="#" class="qa-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                  CEO Dashboard
+                </a>
+              </div>
+            </div>
+
+            <!-- Pulse module -->
+            <div class="pulse-module">
+              <div class="pulse-header">
+                <span class="pulse-label">Pulso operativo</span>
+                <button class="refresh-btn" title="Actualizar">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                </button>
+              </div>
+              <div class="pulse-row">
+                <span class="pulse-key">Flota activa</span>
+                <span class="pulse-val cyan">24</span>
+              </div>
+              <div class="pulse-row">
+                <span class="pulse-key">OTs abiertas</span>
+                <span class="pulse-val amber">7</span>
+              </div>
+              <div class="pulse-row">
+                <span class="pulse-key">Leads activos</span>
+                <span class="pulse-val" style="color:#d4d4d4">12</span>
+              </div>
+              <div class="pulse-row">
+                <span class="pulse-key">Alertas activas</span>
+                <span class="pulse-val red">3</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── KPI ROW ── -->
+        <section class="kpi-row">
+          <!-- OT activas -->
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <div class="kpi-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+              </div>
+              <span class="status-dot amber"></span>
+            </div>
+            <div class="kpi-label">OT activas</div>
+            <div class="kpi-value amber">7</div>
+            <div class="kpi-detail">En curso o borrador</div>
+          </div>
+
+          <!-- Service urgente -->
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <div class="kpi-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <span class="status-dot red"></span>
+            </div>
+            <div class="kpi-label">Service urgente</div>
+            <div class="kpi-value red">2</div>
+            <div class="kpi-detail">5 máquinas en alerta</div>
+          </div>
+
+          <!-- Facturado mes -->
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <div class="kpi-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              </div>
+              <span class="status-dot cyan"></span>
+            </div>
+            <div class="kpi-label">Facturado mes</div>
+            <div class="kpi-value cyan">$48.2K</div>
+            <div class="kpi-detail">Ingresos de mayo</div>
+          </div>
+
+          <!-- Cobranza pendiente -->
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <div class="kpi-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+              </div>
+              <span class="status-dot red"></span>
+            </div>
+            <div class="kpi-label">Cobranza pendiente</div>
+            <div class="kpi-value red">$31.7K</div>
+            <div class="kpi-detail">Facturas sin cobrar</div>
+          </div>
+        </section>
+
+        <!-- ── MAIN GRID ── -->
+        <section class="main-grid">
+
+          <!-- Left: module map -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="eyebrow">Módulos críticos</div>
+              <h2 class="panel-title">Mapa operativo</h2>
+              <p class="panel-sub">Accesos principales para ejecutar y controlar la operación.</p>
+            </div>
+            <div class="command-grid">
+
+              <a href="#" class="cmd-card">
+                <div class="cmd-top">
+                  <div class="cmd-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                  </div>
+                  <span class="cmd-chevron">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </span>
+                </div>
+                <div class="cmd-title">Cliente 360</div>
+                <div class="cmd-desc">Historial comercial, deuda, activos, OTs y oportunidades.</div>
+                <span class="cmd-status">Operativo</span>
+              </a>
+
+              <a href="#" class="cmd-card">
+                <div class="cmd-top">
+                  <div class="cmd-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                  </div>
+                  <span class="cmd-chevron">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </span>
+                </div>
+                <div class="cmd-title">Activo 360</div>
+                <div class="cmd-desc">Máquinas, horómetros, disponibilidad y continuidad operativa.</div>
+                <span class="cmd-status">Operativo</span>
+              </a>
+
+              <a href="#" class="cmd-card">
+                <div class="cmd-top">
+                  <div class="cmd-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  </div>
+                  <span class="cmd-chevron">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </span>
+                </div>
+                <div class="cmd-title">OT 360</div>
+                <div class="cmd-desc">Taller, técnicos, repuestos, garantías y estados de servicio.</div>
+                <span class="cmd-status">Operativo</span>
+              </a>
+
+              <a href="#" class="cmd-card">
+                <div class="cmd-top">
+                  <div class="cmd-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  </div>
+                  <span class="cmd-chevron">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </span>
+                </div>
+                <div class="cmd-title">Tesorería</div>
+                <div class="cmd-desc">Caja, bancos, pagos, cobranzas, mora y flujo proyectado.</div>
+                <span class="cmd-status">En control</span>
+              </a>
+
+              <a href="#" class="cmd-card">
+                <div class="cmd-top">
+                  <div class="cmd-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                  </div>
+                  <span class="cmd-chevron">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </span>
+                </div>
+                <div class="cmd-title">Stock</div>
+                <div class="cmd-desc">Mínimos, rotación, inmovilizado y alertas de reposición.</div>
+                <span class="cmd-status" style="color:#fcd34d;border-color:rgba(252,211,77,0.2);background:rgba(252,211,77,0.05)">Alertas activas</span>
+              </a>
+
+              <a href="#" class="cmd-card">
+                <div class="cmd-top">
+                  <div class="cmd-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                  </div>
+                  <span class="cmd-chevron">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </span>
+                </div>
+                <div class="cmd-title">App Campo</div>
+                <div class="cmd-desc">Operación offline-first, partes, fotos, GPS y firma digital.</div>
+                <span class="cmd-status">Base preparada</span>
+              </a>
+
+            </div>
+          </div>
+
+          <!-- Right: alerts + transactions -->
+          <div class="right-col">
+
+            <!-- Alerts panel -->
+            <div class="panel">
+              <div class="panel-sub-header">
+                <div>
+                  <div class="eyebrow">Riesgo operativo</div>
+                  <h2 class="panel-title" style="font-size:15px">Alertas prioritarias</h2>
+                </div>
+                <span class="count-pill">3</span>
+              </div>
+
+              <div class="alerts-list">
+                <div class="alert-row critical">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <div>
+                    <div class="alert-title">Compresor CAT 325 — Service vencido</div>
+                    <div class="alert-desc">Superó límite de 500 h. Requiere revisión inmediata.</div>
+                  </div>
+                </div>
+                <div class="alert-row high">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <div>
+                    <div class="alert-title">Repuesto filtro KAESER — Stock crítico</div>
+                    <div class="alert-desc">Quedan 2 unidades. Punto de reorden: 5.</div>
+                  </div>
+                </div>
+                <div class="alert-row medium">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <div>
+                    <div class="alert-title">Factura FC-0000218 — Vence en 3 días</div>
+                    <div class="alert-desc">Metalúrgica del Sur · $4.800 USD pendiente.</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Service próximo -->
+              <div class="service-section">
+                <div class="service-eyebrow">Service próximo</div>
+                <div class="service-row">
+                  <div>
+                    <div class="service-name">Sullair 750 · Unidad 07</div>
+                    <div class="service-client">Construcciones Patagónicas</div>
+                  </div>
+                  <div style="text-align:right">
+                    <div class="service-hours">38 h</div>
+                    <div class="service-hours-label">restantes</div>
+                  </div>
+                </div>
+                <div class="service-row">
+                  <div>
+                    <div class="service-name">Atlas Copco XA375 · U-12</div>
+                    <div class="service-client">Minera Río Turbio</div>
+                  </div>
+                  <div style="text-align:right">
+                    <div class="service-hours">92 h</div>
+                    <div class="service-hours-label">restantes</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent transactions -->
+            <div class="panel">
+              <div class="panel-header">
+                <div class="eyebrow">Actividad reciente</div>
+                <h2 class="panel-title" style="font-size:15px">Últimas transacciones</h2>
+              </div>
+              <div class="tx-list">
+                <div class="tx-row">
+                  <div class="tx-icon">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+                  </div>
+                  <div class="tx-info">
+                    <div class="tx-top">
+                      <span class="tx-name">Factura FC-0000231</span>
+                      <span class="tx-pill paid">cobrado</span>
+                    </div>
+                    <div class="tx-date">22 may</div>
+                  </div>
+                  <div class="tx-amount">$12.400</div>
+                </div>
+                <div class="tx-row">
+                  <div class="tx-icon">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+                  </div>
+                  <div class="tx-info">
+                    <div class="tx-top">
+                      <span class="tx-name">Factura FC-0000228</span>
+                      <span class="tx-pill pending">pendiente</span>
+                    </div>
+                    <div class="tx-date">20 may</div>
+                  </div>
+                  <div class="tx-amount">$8.750</div>
+                </div>
+                <div class="tx-row">
+                  <div class="tx-icon">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+                  </div>
+                  <div class="tx-info">
+                    <div class="tx-top">
+                      <span class="tx-name">Presupuesto PR-0000089</span>
+                      <span class="tx-pill pending">pendiente</span>
+                    </div>
+                    <div class="tx-date">18 may</div>
+                  </div>
+                  <div class="tx-amount">$21.000</div>
+                </div>
+                <div class="tx-row">
+                  <div class="tx-icon">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+                  </div>
+                  <div class="tx-info">
+                    <div class="tx-top">
+                      <span class="tx-name">Recibo RC-0000044</span>
+                      <span class="tx-pill paid">cobrado</span>
+                    </div>
+                    <div class="tx-date">15 may</div>
+                  </div>
+                  <div class="tx-amount">$6.200</div>
+                </div>
+                <div class="tx-row">
+                  <div class="tx-icon">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+                  </div>
+                  <div class="tx-info">
+                    <div class="tx-top">
+                      <span class="tx-name">NC NC-0000007</span>
+                      <span class="tx-pill paid">cobrado</span>
+                    </div>
+                    <div class="tx-date">12 may</div>
+                  </div>
+                  <div class="tx-amount">−$1.100</div>
+                </div>
+              </div>
+              <a href="#" class="see-all">
+                Ver todas
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </a>
+            </div>
+
+          </div><!-- /right-col -->
+        </section>
+
+      </div><!-- /content -->
+    </main>
+  </div><!-- /main-wrap -->
+</div><!-- /app -->
+</body>
+</html>

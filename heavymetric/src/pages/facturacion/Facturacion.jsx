@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
-import { useClientes } from '../../hooks/useClientes'
+import { useClientesOptions } from '../../hooks/useClientes'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { sendWhatsAppMessage } from '../../lib/integrations/whatsapp'
@@ -34,7 +34,7 @@ export default function Facturacion() {
   const [exportandoExcel, setExportandoExcel] = useState(false)
 
   const { formatUSD, formatARS } = useDolar()
-  const { clientes } = useClientes()
+  const { opciones: clientes } = useClientesOptions()
   const { transacciones, tipoCambio, loading, error, registrarCobro, anularTransaccion } = useFinanzas()
 
   const [showTC, setShowTC] = useState(false)

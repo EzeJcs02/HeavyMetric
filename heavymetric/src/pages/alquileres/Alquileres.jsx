@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useAlquileres } from '../../hooks/useAlquileres'
 import { useMaquinas } from '../../hooks/useMaquinas'
-import { useClientes } from '../../hooks/useClientes'
+import { useClientesOptions } from '../../hooks/useClientes'
 import { useDolar } from '../../context/DolarContext'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import ModalNuevoContrato from '../../components/modulos/alquileres/ModalNuevoContrato'
@@ -45,7 +45,7 @@ export default function Alquileres() {
 
   const { crearFacturaDesdeAlquiler } = useFinanzas()
   const { maquinas, loading: loadingMaq, error: errorMaq } = useMaquinas()
-  const { clientes, error: errorCli } = useClientes()
+  const { opciones: clientes, error: errorCli } = useClientesOptions()
 
   const handleFacturar = async (contrato) => {
     try {

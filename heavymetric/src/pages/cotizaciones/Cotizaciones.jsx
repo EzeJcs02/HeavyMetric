@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useCotizaciones } from '../../hooks/useCotizaciones'
-import { useClientes } from '../../hooks/useClientes'
+import { useClientesOptions } from '../../hooks/useClientes'
 import { useLeads } from '../../hooks/useLeads'
 import { useMaquinas } from '../../hooks/useMaquinas'
 import { useAuth } from '../../context/AuthContext'
@@ -329,7 +329,7 @@ function ModalCotizacion({ isOpen, onClose, cotizacion, clientes, leads, onConfi
 
 export default function Cotizaciones() {
   const { cotizaciones, loading, error, crearCotizacion, actualizarCotizacion, actualizarEstado } = useCotizaciones()
-  const { clientes } = useClientes()
+  const { opciones: clientes } = useClientesOptions()
   const { leads } = useLeads()
   const { formatUSD } = useDolar()
   const { canEdit, perfil } = useAuth()

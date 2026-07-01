@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useRemitos } from '../../hooks/useRemitos'
-import { useClientes } from '../../hooks/useClientes'
+import { useClientesOptions } from '../../hooks/useClientes'
 import { useAuth } from '../../context/AuthContext'
 import Modal from '../../components/ui/Modal'
 import ModalConfirm from '../../components/ui/ModalConfirm'
@@ -225,7 +225,7 @@ function ModalRemito({ isOpen, onClose, clientes, onConfirm }) {
 
 export default function Remitos() {
   const { remitos, loading, error, crearRemito, actualizarEstado } = useRemitos()
-  const { clientes } = useClientes()
+  const { opciones: clientes } = useClientesOptions()
   const { canEdit } = useAuth()
 
   const [filtroEstado, setFiltroEstado] = useState('todos')

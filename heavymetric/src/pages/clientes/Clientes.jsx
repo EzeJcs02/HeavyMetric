@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { toast } from 'sonner'
 import { isValidCuit, formatCuit } from '../../lib/cuitValidator'
 import * as XLSX from 'xlsx'
-import { useClientes } from '../../hooks/useClientes'
+import { useClientes, useClientesKpis } from '../../hooks/useClientes'
 import { useAuth } from '../../context/AuthContext'
 import { useAIInsights } from '../../hooks/useAIInsights'
 import { lookupCuit } from '../../lib/integrations/arca'
@@ -254,11 +254,11 @@ function ModalCliente({ isOpen, onClose, cliente, onConfirm }) {
 }
 
 export default function Clientes() {
-  const { clientes, loading, error, createCliente, updateCliente, archiveCliente } = useClientes()
-  const { isOwner } = useAuth()
+  const { isOwner, perfil } = useAuth()
   const { clienteRisk } = useAIInsights()
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCliente, setEditingCliente] = useState(null)
   const [clienteAArchivar, setClienteAArchivar] = useState(null)
@@ -266,47 +266,22 @@ export default function Clientes() {
   const [page, setPage] = useState(1)
   const [detalleCliente, setDetalleCliente] = useState(null)
 
-  const clientesBase = Array.isArray(clientes) ? clientes : []
-
   useEffect(() => {
-    setPage(1)
+    const timer = setTimeout(() => {
+      setSearchTerm(searchQuery)
+      setPage(1)
+    }, 400)
+    return () => clearTimeout(timer)
   }, [searchQuery])
 
-  const clientesFiltrados = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
+  const { clientes, total, loading, error, createCliente, updateCliente, archiveCliente } = useClientes({
+    page,
+    pageSize: PER_PAGE,
+    search: searchTerm
+  })
 
-    if (!query) return clientesBase
+  const { kpis } = useClientesKpis()
 
-    return clientesBase.filter((cliente) => {
-      const razonSocial = cliente.razon_social || ''
-      const nombreComercial = cliente.nombre_comercial || ''
-      const cuit = cliente.cuit || ''
-      const email = cliente.email || ''
-      const contacto = cliente.contacto_nombre || ''
-
-      return (
-        razonSocial.toLowerCase().includes(query) ||
-        nombreComercial.toLowerCase().includes(query) ||
-        email.toLowerCase().includes(query) ||
-        contacto.toLowerCase().includes(query) ||
-        cuit.includes(query)
-      )
-    })
-  }, [clientesBase, searchQuery])
-
-  const clientesPaginados = useMemo(
-    () => clientesFiltrados.slice((page - 1) * PER_PAGE, page * PER_PAGE),
-    [clientesFiltrados, page]
-  )
-
-  const kpis = useMemo(() => {
-    return {
-      total: clientesBase.length,
-      alta: clientesBase.filter((cliente) => cliente.propension_compra === 'A').length,
-      conCuit: clientesBase.filter((cliente) => Boolean(cliente.cuit)).length,
-      conContacto: clientesBase.filter((cliente) => Boolean(cliente.email || cliente.telefono || cliente.contacto_nombre)).length,
-    }
-  }, [clientesBase])
 
   const handleArchive = async () => {
     if (!clienteAArchivar?.id) return
@@ -342,13 +317,24 @@ export default function Clientes() {
     }
   }
 
-  const handleExportExcel = () => {
-    if (!clientesFiltrados.length) {
+  const handleExportExcel = async () => {
+    if (!perfil?.organization_id) return
+    const { supabase } = await import('../../lib/supabase')
+    let query = supabase.from('clientes').select('*').eq('organization_id', perfil.organization_id).eq('activo', true)
+    
+    if (searchTerm) {
+      const q = `%${searchTerm.trim()}%`
+      query = query.or(`razon_social.ilike.${q},nombre_comercial.ilike.${q},cuit.ilike.${q},email.ilike.${q},contacto_nombre.ilike.${q}`)
+    }
+
+    const { data: exportData } = await query
+
+    if (!exportData || !exportData.length) {
       toast.error('No hay datos para exportar')
       return
     }
 
-    const rows = clientesFiltrados.map((cliente) => ({
+    const rows = exportData.map((cliente) => ({
       'RAZÓN SOCIAL': safeText(cliente.razon_social),
       'NOMBRE COMERCIAL': safeText(cliente.nombre_comercial),
       CUIT: safeText(cliente.cuit),
@@ -478,14 +464,14 @@ export default function Clientes() {
                     <td className="p-4" />
                   </tr>
                 ))
-              ) : clientesFiltrados.length === 0 ? (
+              ) : clientes.length === 0 ? (
                 <tr>
                   <td colSpan="8" className="p-8 text-center text-hm-muted font-mono text-sm">
                     No se encontraron clientes.
                   </td>
                 </tr>
               ) : (
-                clientesPaginados.map((cliente) => {
+                clientes.map((cliente) => {
                   const risk = clienteRisk(cliente.id)
 
                   return (
@@ -565,7 +551,7 @@ export default function Clientes() {
         </div>
 
         <Pagination
-          total={clientesFiltrados.length}
+          total={total}
           page={page}
           perPage={PER_PAGE}
           onPageChange={setPage}

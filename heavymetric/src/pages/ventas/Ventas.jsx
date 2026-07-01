@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useDolar } from '../../context/DolarContext'
-import { useClientes } from '../../hooks/useClientes'
+import { useClientesOptions } from '../../hooks/useClientes'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -421,7 +421,7 @@ function ModalOrdenVenta({ isOpen, onClose, onConfirm, clientes, orden }) {
 export default function Ventas() {
   const { perfil } = useAuth()
   const { formatUSD } = useDolar()
-  const { clientes } = useClientes()
+  const { opciones: clientes } = useClientesOptions()
 
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)

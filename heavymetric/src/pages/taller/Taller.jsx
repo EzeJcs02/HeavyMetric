@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useMaquinas } from '../../hooks/useMaquinas'
-import { useClientes } from '../../hooks/useClientes'
+import { useClientesOptions } from '../../hooks/useClientes'
 import { useTaller } from '../../hooks/useTaller'
 import { useFinanzas } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'
@@ -109,7 +109,7 @@ export default function Taller() {
     updateMaquina,
   } = useMaquinas()
 
-  const { clientes } = useClientes()
+  const { opciones: clientes } = useClientesOptions()
 
   const {
     ots,

@@ -16,7 +16,7 @@ export default function ActivoServicePanel({
   const ordenTrabajo =
     taxonomia?.ordenTrabajo || 'Orden de trabajo'
 
-  if (!activo) return null
+
 
   const medidorActual =
     Number(
@@ -71,6 +71,8 @@ export default function ActivoServicePanel({
       color: 'bg-green-500/10 border-green-500/20 text-green-400',
     }
   }, [restante, frecuenciaService])
+
+  if (!activo) return null
 
   const abiertas =
     ots.filter(

@@ -1,0 +1,426 @@
+
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HeavyMetric — Centro de Operaciones</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #04060a;
+      --surface:      #07090d;
+      --surface2:     #080b10;
+      --card:         #0d1016;
+      --card-h:       #11151c;
+      --border:       rgba(255,255,255,0.05);
+      --border-h:     rgba(0,212,255,0.22);
+      --fg:           #ffffff;
+      --fg-2:         #e5e5e5;
+      --muted:        #737373;
+      --muted2:       #404040;
+      --muted3:       #525252;
+      --cyan:         #67e8f9;
+      --cyan-glow:    rgba(0,212,255,0.55);
+      --cyan-faint:   rgba(0,212,255,0.07);
+      --emerald:      #6ee7b7;
+      --emerald-faint:rgba(110,231,183,0.1);
+      --amber:        #fcd34d;
+      --amber-faint:  rgba(252,211,77,0.1);
+      --red:          #fca5a5;
+      --red-faint:    rgba(252,165,165,0.1);
+      --violet:       #c4b5fd;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      --r-sm: 12px;
+      --r-md: 20px;
+      --r-lg: 24px;
+      --r-xl: 28px;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+    .app { display: flex; min-height: 100vh; }
+
+    .sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+    .sidebar-brand { padding: 0 18px 20px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+    .brand-name { font-family: var(--font-mono); font-size: 13px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cyan); }
+    .brand-sub  { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+    .nav-group  { padding: 6px 18px 4px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted2); margin-top: 10px; }
+    .nav-item   { display: flex; align-items: center; gap: 9px; padding: 7.5px 18px; font-size: 12.5px; font-weight: 500; color: var(--muted); cursor: pointer; transition: background 0.12s, color 0.12s; text-decoration: none; border: none; background: none; width: 100%; }
+    .nav-item:hover { background: rgba(255,255,255,0.035); color: var(--fg-2); }
+    .nav-item.active { background: var(--cyan-faint); color: var(--cyan); }
+    .nav-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; opacity: 0.45; }
+    .nav-item.active .nav-dot { opacity: 1; box-shadow: 0 0 7px currentColor; }
+    .nav-badge { margin-left: auto; border-radius: 999px; background: var(--amber-faint); color: var(--amber); font-family: var(--font-mono); font-size: 8.5px; padding: 1px 6px; font-weight: 700; }
+    .nav-badge.red { background: var(--red-faint); color: var(--red); }
+
+    .sidebar-footer { margin-top: auto; padding: 16px 18px 0; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+    .sf-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg,#1e3a5f,#0e4d3a); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 9px; font-weight: 900; color: var(--cyan); flex-shrink: 0; }
+    .sf-name { font-size: 12px; font-weight: 600; color: var(--fg-2); }
+    .sf-role { font-family: var(--font-mono); font-size: 9px; color: var(--muted); }
+
+    .main-wrap { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-width: 0; }
+
+    .topbar { height: 52px; flex-shrink: 0; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 28px; gap: 16px; backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 10; }
+    .tb-crumb { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+    .tb-crumb span { color: var(--fg-2); }
+    .tb-sep { color: var(--muted2); margin: 0 4px; }
+    .tb-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .dolar-pill { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: rgba(0,0,0,0.25); font-family: var(--font-mono); font-size: 10px; color: var(--muted); cursor: default; transition: border-color 0.15s; }
+    .dolar-pill:hover { border-color: var(--border-h); }
+    .dolar-pill .dval { color: var(--cyan); font-weight: 700; }
+    .dolar-pill .dval.blue { color: var(--amber); }
+    .tb-avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg,#1e3a5f,#0e4d3a); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 10px; font-weight: 900; color: var(--cyan); }
+    .tb-notify { position: relative; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); background: rgba(0,0,0,0.2); color: var(--muted); cursor: pointer; transition: all 0.15s; }
+    .tb-notify:hover { border-color: var(--border-h); color: var(--cyan); }
+    .tb-notify-dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--red); border: 1.5px solid var(--surface); }
+
+    .page { flex: 1; padding: 28px; position: relative; }
+    .ambient { position: fixed; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(circle at 12% 8%,rgba(0,212,255,0.07),transparent 32%),radial-gradient(circle at 88% 18%,rgba(0,245,160,0.04),transparent 32%); }
+    .content { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 20px; }
+
+    .hero { position: relative; overflow: hidden; border-radius: var(--r-xl); border: 1px solid var(--border); background: var(--surface); padding: 36px 40px; }
+    .hero-grid { position: absolute; inset: 0; background: linear-gradient(rgba(0,212,255,0.014) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.014) 1px,transparent 1px); background-size: 48px 48px; }
+    .hero-glow { position: absolute; inset: 0; background: radial-gradient(ellipse at top left,rgba(0,212,255,0.05),transparent 42%),radial-gradient(ellipse at bottom right,rgba(0,245,160,0.03),transparent 42%),radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,0.7) 100%); }
+    .hero-inner { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 32px; }
+    .hero-text { flex: 1; }
+    .hero-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700; }
+    .badge-green  { border: 1px solid rgba(110,231,183,0.22); background: var(--emerald-faint); color: var(--emerald); }
+    .badge-muted  { border: 1px solid var(--border); background: rgba(0,0,0,0.25); color: var(--muted); }
+    .badge-violet { border: 1px solid rgba(196,181,253,0.2); background: rgba(196,181,253,0.08); color: var(--violet); }
+    .sdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .sdot.green { background: #34d399; box-shadow: 0 0 6px #34d399; }
+    .hero-title { font-size: 36px; font-weight: 900; letter-spacing: -0.024em; color: var(--fg); line-height: 1.1; }
+    .hero-sub { margin-top: 10px; max-width: 460px; font-size: 13px; color: var(--muted); line-height: 1.65; }
+    .quick-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+    .qa-btn { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: var(--r-sm); border: 1px solid var(--border); background: rgba(0,0,0,0.2); font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.15s; text-decoration: none; }
+    .qa-btn:hover { border-color: var(--border-h); background: var(--card-h); color: var(--fg); }
+    .qa-btn svg { color: var(--cyan-glow); flex-shrink: 0; transition: color 0.15s; }
+    .qa-btn:hover svg { color: var(--cyan); }
+    .qa-btn.primary { border-color: rgba(0,212,255,0.25); background: rgba(0,212,255,0.07); color: var(--cyan); }
+    .qa-btn.primary:hover { background: rgba(0,212,255,0.13); border-color: rgba(0,212,255,0.4); }
+
+    .pulse { flex-shrink: 0; width: 210px; border-radius: var(--r-md); border: 1px solid var(--border); background: rgba(0,0,0,0.3); padding: 18px; }
+    .pulse-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .pulse-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
+    .refresh-btn { background: none; border: none; cursor: pointer; color: var(--muted2); transition: color 0.15s; display: flex; align-items: center; padding: 0; }
+    .refresh-btn:hover { color: var(--cyan); }
+    .pulse-chart { height: 36px; margin-bottom: 12px; }
+    .pulse-rows { display: flex; flex-direction: column; gap: 1px; }
+    .pulse-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+    .pulse-key { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted2); }
+    .pulse-val { font-family: var(--font-mono); font-size: 12px; font-weight: 900; }
+    .pulse-val.cyan    { color: var(--cyan); }
+    .pulse-val.amber   { color: var(--amber); }
+    .pulse-val.red     { color: var(--red); }
+
+    .ai-strip { border-radius: var(--r-lg); border: 1px solid rgba(196,181,253,0.15); background: linear-gradient(135deg, rgba(196,181,253,0.04) 0%, rgba(0,212,255,0.03) 100%); padding: 14px 20px; display: flex; align-items: center; gap: 14px; }
+    .ai-icon { width: 32px; height: 32px; border-radius: 10px; border: 1px solid rgba(196,181,253,0.2); background: rgba(196,181,253,0.08); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--violet); }
+    .ai-label { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(196,181,253,0.6); margin-bottom: 2px; }
+    .ai-text { font-size: 12.5px; color: var(--fg-2); line-height: 1.5; }
+    .ai-text strong { color: var(--violet); }
+    .ai-dismiss { margin-left: auto; background: none; border: none; color: var(--muted2); cursor: pointer; display: flex; transition: color 0.15s; padding: 0; flex-shrink: 0; }
+    .ai-dismiss:hover { color: var(--muted); }
+
+    .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+    .kpi-card { border-radius: var(--r-md); border: 1px solid var(--border); background: rgba(13,16,22,0.9); padding: 18px 20px; transition: all 0.22s; cursor: default; }
+    .kpi-card:hover { border-color: var(--border-h); background: var(--card-h); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .kpi-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .kpi-icon { border-radius: 10px; border: 1px solid var(--border); background: rgba(0,0,0,0.3); padding: 7px; color: var(--muted3); transition: color 0.22s; display: flex; }
+    .kpi-card:hover .kpi-icon { color: var(--cyan); }
+    .kpi-delta { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 999px; font-weight: 700; }
+    .kpi-delta.up   { background: var(--emerald-faint); color: var(--emerald); }
+    .kpi-delta.down { background: var(--red-faint); color: var(--red); }
+    .kpi-delta.warn { background: var(--amber-faint); color: var(--amber); }
+    .kpi-label  { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted2); }
+    .kpi-value  { font-family: var(--font-mono); font-size: 28px; font-weight: 900; margin-top: 4px; line-height: 1; }
+    .kpi-detail { font-size: 11px; color: var(--muted); margin-top: 5px; }
+    .kpi-spark  { height: 28px; margin-top: 10px; width: 100%; }
+    .kpi-value.cyan    { color: var(--cyan); }
+    .kpi-value.emerald { color: var(--emerald); }
+    .kpi-value.amber   { color: var(--amber); }
+    .kpi-value.red     { color: var(--red); }
+
+    .main-grid { display: grid; grid-template-columns: 1fr 0.7fr; gap: 20px; }
+    .panel { border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface2); padding: 22px; }
+    .eyebrow { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(0,212,255,0.5); margin-bottom: 6px; }
+    .eyebrow::before { content: ''; display: block; width: 20px; height: 1px; background: rgba(0,212,255,0.3); }
+    .panel-title { font-size: 17px; font-weight: 900; letter-spacing: -0.015em; color: var(--fg); }
+    .panel-sub   { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .command-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
+    .cmd-card { border-radius: var(--r-md); border: 1px solid var(--border); background: rgba(13,16,22,0.85); padding: 18px; cursor: pointer; transition: all 0.22s; text-decoration: none; display: block; }
+    .cmd-card:hover { border-color: var(--border-h); background: var(--card-h); transform: translateY(-2px); }
+    .cmd-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .cmd-icon { border-radius: 10px; border: 1px solid var(--border); background: rgba(0,0,0,0.3); padding: 7px; color: var(--cyan-glow); transition: color 0.22s; display: flex; }
+    .cmd-card:hover .cmd-icon { color: var(--cyan); }
+    .cmd-chevron { color: var(--muted2); transition: all 0.22s; display: flex; }
+    .cmd-card:hover .cmd-chevron { color: var(--cyan); transform: translateX(2px); }
+    .cmd-title  { font-size: 13px; font-weight: 900; color: var(--fg); }
+    .cmd-desc   { font-size: 11.5px; color: var(--muted3); margin-top: 5px; min-height: 32px; line-height: 1.5; }
+    .cmd-status { margin-top: 14px; display: inline-flex; border-radius: 999px; border: 1px solid var(--border); background: rgba(0,0,0,0.25); padding: 2px 9px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted2); }
+    .cmd-status.alert { border-color: rgba(252,211,77,0.2); background: rgba(252,211,77,0.05); color: var(--amber); }
+
+    .right-col { display: flex; flex-direction: column; gap: 16px; }
+
+    .tab-panel { border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface2); overflow: hidden; }
+    .tab-nav { display: flex; border-bottom: 1px solid var(--border); }
+    .tab-btn { flex: 1; padding: 12px 0; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); background: none; border: none; cursor: pointer; transition: all 0.15s; border-bottom: 2px solid transparent; }
+    .tab-btn:hover { color: var(--fg-2); background: rgba(255,255,255,0.02); }
+    .tab-btn.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+    .tab-body { padding: 18px; display: none; }
+    .tab-body.active { display: block; }
+
+    .alerts-list { display: flex; flex-direction: column; gap: 8px; }
+    .alert-row { display: flex; align-items: flex-start; gap: 10px; border-radius: var(--r-sm); border: 1px solid; background: rgba(0,0,0,0.2); padding: 12px; }
+    .alert-row.critical { border-color: rgba(252,165,165,0.25); color: var(--red); }
+    .alert-row.high     { border-color: rgba(252,211,77,0.22); color: var(--amber); }
+    .alert-row.medium   { border-color: rgba(0,212,255,0.18); color: var(--cyan); }
+    .alert-row svg { flex-shrink: 0; margin-top: 1px; }
+    .alert-title { font-size: 12px; font-weight: 700; color: var(--fg); line-height: 1.3; }
+    .alert-desc  { font-size: 10.5px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
+    .alert-time  { font-family: var(--font-mono); font-size: 8.5px; color: var(--muted2); margin-top: 4px; }
+
+    .service-list { display: flex; flex-direction: column; gap: 8px; }
+    .service-row { display: flex; align-items: center; justify-content: space-between; border-radius: var(--r-sm); border: 1px solid rgba(252,211,77,0.15); background: rgba(0,0,0,0.15); padding: 10px 14px; }
+    .service-name   { font-size: 12px; font-weight: 700; color: var(--fg-2); }
+    .service-client { font-family: var(--font-mono); font-size: 9px; color: var(--muted2); margin-top: 2px; }
+    .service-h      { font-family: var(--font-mono); font-size: 13px; font-weight: 900; color: var(--amber); }
+    .service-hlabel { font-family: var(--font-mono); font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted2); }
+    .service-bar      { height: 3px; border-radius: 2px; background: rgba(252,211,77,0.15); margin-top: 10px; overflow: hidden; }
+    .service-bar-fill { height: 100%; border-radius: 2px; }
+
+    .tx-list { display: flex; flex-direction: column; }
+    .tx-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .tx-row:last-child { border-bottom: none; }
+    .tx-icon { width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; border: 1px solid var(--border); background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: var(--cyan-glow); }
+    .tx-info { flex: 1; min-width: 0; }
+    .tx-top  { display: flex; align-items: center; gap: 7px; }
+    .tx-name { font-size: 11.5px; font-weight: 600; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-pill { flex-shrink: 0; border-radius: 999px; padding: 1.5px 6px; font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .tx-pill.paid    { background: var(--emerald-faint); color: var(--emerald); }
+    .tx-pill.pending { background: var(--amber-faint); color: var(--amber); }
+    .tx-meta   { font-family: var(--font-mono); font-size: 9px; color: var(--muted2); margin-top: 1px; }
+    .tx-amount { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; color: var(--fg-2); flex-shrink: 0; }
+    .tx-amount.neg { color: var(--red); }
+    .see-all { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(0,212,255,0.5); text-decoration: none; transition: color 0.15s; cursor: pointer; background: none; border: none; padding: 0; }
+    .see-all:hover { color: var(--cyan); }
+
+    .activity-panel { border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface2); padding: 18px; }
+    .activity-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .activity-row:last-child { border-bottom: none; }
+    .act-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+    .act-dot.ot    { background: var(--cyan); box-shadow: 0 0 5px var(--cyan); }
+    .act-dot.alert { background: var(--amber); box-shadow: 0 0 5px var(--amber); }
+    .act-dot.cob   { background: var(--emerald); box-shadow: 0 0 5px var(--emerald); }
+    .act-text { font-size: 11.5px; color: var(--fg-2); line-height: 1.45; }
+    .act-text b { color: var(--fg); }
+    .act-time { font-family: var(--font-mono); font-size: 9px; color: var(--muted2); margin-top: 1px; }
+
+    svg { display: inline-block; vertical-align: middle; }
+
+    @media (max-width: 1100px) { .main-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 900px)  { .kpi-row { grid-template-columns: 1fr 1fr; } .hero-inner { flex-direction: column; } .pulse { width: 100%; } }
+    @media (max-width: 600px)  { .kpi-row { grid-template-columns: 1fr; } .command-grid { grid-template-columns: 1fr; } .sidebar { display: none; } }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-name">HeavyMetric</div>
+      <div class="brand-sub">Knock S.A. · Operaciones</div>
+    </div>
+    <div class="nav-group">Principal</div>
+    <a href="#" class="nav-item active"><span class="nav-dot"></span> Inicio</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> CEO Dashboard</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Reportes</a>
+    <div class="nav-group">Operaciones</div>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Taller / OT <span class="nav-badge">7</span></a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Clientes</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Activos</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Cotizaciones</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Alquileres</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Leads / CRM</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Aprobaciones <span class="nav-badge red">2</span></a>
+    <div class="nav-group">Finanzas</div>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Facturación</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Tesorería</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Proveedores</a>
+    <div class="nav-group">Logística</div>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Repuestos</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Remitos</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> App Campo</a>
+    <a href="#" class="nav-item"><span class="nav-dot"></span> Integraciones</a>
+    <div class="sidebar-footer">
+      <div class="sf-avatar">EA</div>
+      <div><div class="sf-name">Ezequiel A.</div><div class="sf-role">Admin · Knock S.A.</div></div>
+    </div>
+  </nav>
+
+  <div class="main-wrap">
+    <header class="topbar">
+      <div class="tb-crumb">HeavyMetric <span class="tb-sep">/</span> <span>Inicio</span></div>
+      <div class="tb-right">
+        <div class="dolar-pill">USD oficial <span class="dval">$1.075</span></div>
+        <div class="dolar-pill">Blue <span class="dval blue">$1.280</span></div>
+        <button class="tb-notify"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="tb-notify-dot"></span></button>
+        <div class="tb-avatar">EA</div>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="ambient"></div>
+      <div class="content">
+
+        <section data-od-id="hero" class="hero">
+          <div class="hero-grid"></div>
+          <div class="hero-glow"></div>
+          <div class="hero-inner">
+            <div class="hero-text">
+              <div class="hero-badges">
+                <span class="badge badge-green"><span class="sdot green"></span> Sistema activo</span>
+                <span class="badge badge-muted"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Centro de operaciones</span>
+                <span class="badge badge-violet"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> IA activa</span>
+              </div>
+              <h1 class="hero-title">Buenos días, Ezequiel</h1>
+              <p class="hero-sub">Seguimiento ejecutivo de activos, taller, stock y tesorería. 3 alertas requieren acción hoy.</p>
+              <div class="quick-actions">
+                <a href="#" class="qa-btn primary"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nueva OT</a>
+                <a href="#" class="qa-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nueva cotización</a>
+                <a href="#" class="qa-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Aprobaciones</a>
+                <a href="#" class="qa-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> CEO Dashboard</a>
+              </div>
+            </div>
+            <div class="pulse">
+              <div class="pulse-head">
+                <span class="pulse-label">Pulso operativo</span>
+                <button class="refresh-btn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+              </div>
+              <div class="pulse-chart">
+                <svg width="100%" height="36" viewBox="0 0 180 36" preserveAspectRatio="none">
+                  <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(0,212,255,0.25)"/><stop offset="100%" stop-color="rgba(0,212,255,0)"/></linearGradient></defs>
+                  <path d="M0,28 L26,22 L51,18 L77,24 L103,14 L128,10 L154,16 L180,8" fill="none" stroke="rgba(0,212,255,0.55)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M0,28 L26,22 L51,18 L77,24 L103,14 L128,10 L154,16 L180,8 L180,36 L0,36Z" fill="url(#sg)"/>
+                  <circle cx="180" cy="8" r="3" fill="#22d3ee"/>
+                </svg>
+              </div>
+              <div class="pulse-rows">
+                <div class="pulse-row"><span class="pulse-key">Flota activa</span><span class="pulse-val cyan">24</span></div>
+                <div class="pulse-row"><span class="pulse-key">OTs abiertas</span><span class="pulse-val amber">7</span></div>
+                <div class="pulse-row"><span class="pulse-key">Leads activos</span><span class="pulse-val" style="color:var(--fg-2)">12</span></div>
+                <div class="pulse-row"><span class="pulse-key">Alertas activas</span><span class="pulse-val red">3</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div id="ai-strip" data-od-id="ai-insight" class="ai-strip">
+          <div class="ai-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+          <div>
+            <div class="ai-label">Asistente IA · Insight del día</div>
+            <div class="ai-text">La <strong>cobranza de Metalúrgica del Sur ($4.800 USD)</strong> vence en 3 días y tiene patrón de pago tardío. Recomendado: contactar hoy vía WhatsApp antes del cierre de mes.</div>
+          </div>
+          <button class="ai-dismiss" onclick="document.getElementById('ai-strip').style.display='none'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+
+        <section data-od-id="kpis" class="kpi-row">
+          <div class="kpi-card">
+            <div class="kpi-top"><div class="kpi-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div><span class="kpi-delta warn">+2 sem</span></div>
+            <div class="kpi-label">OT activas</div><div class="kpi-value amber">7</div><div class="kpi-detail">En curso o borrador</div>
+            <svg class="kpi-spark" viewBox="0 0 120 28" preserveAspectRatio="none"><path d="M0,20 L20,18 L40,22 L60,12 L80,16 L100,8 L120,10" fill="none" stroke="rgba(252,211,77,0.5)" stroke-width="1.5" stroke-linecap="round"/><path d="M0,20 L20,18 L40,22 L60,12 L80,16 L100,8 L120,10 L120,28 L0,28Z" fill="rgba(252,211,77,0.05)"/></svg>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-top"><div class="kpi-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><span class="kpi-delta down">urgente</span></div>
+            <div class="kpi-label">Service urgente</div><div class="kpi-value red">2</div><div class="kpi-detail">5 máquinas en alerta</div>
+            <svg class="kpi-spark" viewBox="0 0 120 28" preserveAspectRatio="none"><path d="M0,24 L20,22 L40,18 L60,20 L80,14 L100,16 L120,8" fill="none" stroke="rgba(252,165,165,0.5)" stroke-width="1.5" stroke-linecap="round"/><path d="M0,24 L20,22 L40,18 L60,20 L80,14 L100,16 L120,8 L120,28 L0,28Z" fill="rgba(252,165,165,0.05)"/></svg>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-top"><div class="kpi-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div><span class="kpi-delta up">+18%</span></div>
+            <div class="kpi-label">Facturado mes</div><div class="kpi-value cyan">$48.2K</div><div class="kpi-detail">Ingresos de mayo 2026</div>
+            <svg class="kpi-spark" viewBox="0 0 120 28" preserveAspectRatio="none"><path d="M0,22 L20,20 L40,16 L60,18 L80,12 L100,8 L120,6" fill="none" stroke="rgba(103,232,249,0.5)" stroke-width="1.5" stroke-linecap="round"/><path d="M0,22 L20,20 L40,16 L60,18 L80,12 L100,8 L120,6 L120,28 L0,28Z" fill="rgba(103,232,249,0.06)"/></svg>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-top"><div class="kpi-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div><span class="kpi-delta down">−$4.1K</span></div>
+            <div class="kpi-label">Cobranza pendiente</div><div class="kpi-value red">$31.7K</div><div class="kpi-detail">8 facturas sin cobrar</div>
+            <svg class="kpi-spark" viewBox="0 0 120 28" preserveAspectRatio="none"><path d="M0,8 L20,12 L40,16 L60,14 L80,18 L100,20 L120,22" fill="none" stroke="rgba(252,165,165,0.5)" stroke-width="1.5" stroke-linecap="round"/><path d="M0,8 L20,12 L40,16 L60,14 L80,18 L100,20 L120,22 L120,28 L0,28Z" fill="rgba(252,165,165,0.05)"/></svg>
+          </div>
+        </section>
+
+        <section data-od-id="main-grid" class="main-grid">
+          <div>
+            <div class="panel">
+              <div class="eyebrow">Módulos críticos</div>
+              <div class="panel-title">Mapa operativo</div>
+              <div class="panel-sub">Accesos principales para ejecutar y controlar la operación.</div>
+              <div class="command-grid">
+                <a href="#" class="cmd-card"><div class="cmd-top"><div class="cmd-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div><span class="cmd-chevron"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></div><div class="cmd-title">Cliente 360</div><div class="cmd-desc">Historial comercial, deuda, activos, OTs y oportunidades.</div><span class="cmd-status">Operativo</span></a>
+                <a href="#" class="cmd-card"><div class="cmd-top"><div class="cmd-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div><span class="cmd-chevron"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></div><div class="cmd-title">Activo 360</div><div class="cmd-desc">Máquinas, horómetros, disponibilidad y continuidad operativa.</div><span class="cmd-status">Operativo</span></a>
+                <a href="#" class="cmd-card"><div class="cmd-top"><div class="cmd-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div><span class="cmd-chevron"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></div><div class="cmd-title">OT 360</div><div class="cmd-desc">Taller, técnicos, repuestos, garantías y estados de servicio.</div><span class="cmd-status">Operativo</span></a>
+                <a href="#" class="cmd-card"><div class="cmd-top"><div class="cmd-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><span class="cmd-chevron"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></div><div class="cmd-title">Tesorería</div><div class="cmd-desc">Caja, bancos, pagos, cobranzas, mora y flujo proyectado.</div><span class="cmd-status">En control</span></a>
+                <a href="#" class="cmd-card"><div class="cmd-top"><div class="cmd-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><span class="cmd-chevron"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></div><div class="cmd-title">Stock</div><div class="cmd-desc">Mínimos, rotación, inmovilizado y alertas de reposición.</div><span class="cmd-status alert">Alertas activas</span></a>
+                <a href="#" class="cmd-card"><div class="cmd-top"><div class="cmd-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div><span class="cmd-chevron"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span></div><div class="cmd-title">App Campo</div><div class="cmd-desc">Operación offline-first, partes, fotos, GPS y firma digital.</div><span class="cmd-status">Base preparada</span></a>
+              </div>
+            </div>
+            <div class="activity-panel" style="margin-top:16px">
+              <div class="eyebrow" style="margin-bottom:12px">Actividad reciente</div>
+              <div class="activity-row"><span class="act-dot ot"></span><div><div class="act-text"><b>OT-1047 abierta</b> — Compresor Atlas Copco XA375 · Preventivo 500 h</div><div class="act-time">Hace 18 min · Técnico: Ramírez</div></div></div>
+              <div class="activity-row"><span class="act-dot cob"></span><div><div class="act-text"><b>Cobro registrado</b> — FC-0000231 · Metalúrgica del Sur · $12.400 USD</div><div class="act-time">Hace 1 h</div></div></div>
+              <div class="activity-row"><span class="act-dot alert"></span><div><div class="act-text"><b>Alerta de stock</b> — Filtro KAESER FK 11 · 2 unidades restantes</div><div class="act-time">Hace 3 h · Prioridad alta</div></div></div>
+              <div class="activity-row"><span class="act-dot ot"></span><div><div class="act-text"><b>OT-1045 finalizada</b> — Sullair 750 · Unidad 07 · Construcciones Patagónicas</div><div class="act-time">Ayer 17:42</div></div></div>
+            </div>
+          </div>
+
+          <div class="right-col">
+            <div class="tab-panel">
+              <div class="tab-nav">
+                <button class="tab-btn active" onclick="switchTab('alertas',this)">Alertas <span style="color:var(--red)"> · 3</span></button>
+                <button class="tab-btn" onclick="switchTab('service',this)">Service</button>
+                <button class="tab-btn" onclick="switchTab('tx',this)">Transacciones</button>
+              </div>
+              <div class="tab-body active" id="tab-alertas">
+                <div class="alerts-list">
+                  <div class="alert-row critical"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div><div class="alert-title">Compresor CAT 325 — Service vencido</div><div class="alert-desc">Superó límite de 500 h. Requiere revisión inmediata.</div><div class="alert-time">Crítica · Hace 2 h</div></div></div>
+                  <div class="alert-row high"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div><div class="alert-title">Filtro KAESER FK 11 — Stock crítico</div><div class="alert-desc">Quedan 2 unidades. Punto de reorden: 5.</div><div class="alert-time">Alta · Hace 3 h</div></div></div>
+                  <div class="alert-row medium"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div><div class="alert-title">FC-0000218 — Vence en 3 días</div><div class="alert-desc">Metalúrgica del Sur · $4.800 USD pendiente.</div><div class="alert-time">Media · Hoy</div></div></div>
+                </div>
+              </div>
+              <div class="tab-body" id="tab-service">
+                <div class="service-list">
+                  <div class="service-row"><div><div class="service-name">Sullair 750 · Unidad 07</div><div class="service-client">Construcciones Patagónicas</div><div class="service-bar" style="width:120px"><div class="service-bar-fill" style="width:7.6%;background:var(--red)"></div></div></div><div style="text-align:right"><div class="service-h">38 h</div><div class="service-hlabel">restantes</div></div></div>
+                  <div class="service-row"><div><div class="service-name">Atlas Copco XA375 · U-12</div><div class="service-client">Minera Río Turbio</div><div class="service-bar" style="width:120px"><div class="service-bar-fill" style="width:18.4%;background:var(--amber)"></div></div></div><div style="text-align:right"><div class="service-h">92 h</div><div class="service-hlabel">restantes</div></div></div>
+                  <div class="service-row"><div><div class="service-name">Ingersoll Rand P185 · U-04</div><div class="service-client">Vial San Cruz</div><div class="service-bar" style="width:120px"><div class="service-bar-fill" style="width:44%;background:var(--cyan)"></div></div></div><div style="text-align:right"><div class="service-h" style="color:var(--cyan)">220 h</div><div class="service-hlabel">restantes</div></div></div>
+                  <div class="service-row"><div><div class="service-name">Kaeser M200 · U-09</div><div class="service-client">Petróleos del Sur</div><div class="service-bar" style="width:120px"><div class="service-bar-fill" style="width:70%;background:var(--emerald)"></div></div></div><div style="text-align:right"><div class="service-h" style="color:var(--emerald)">350 h</div><div class="service-hlabel">restantes</div></div></div>
+                </div>
+              </div>
+              <div class="tab-body" id="tab-tx">
+                <div class="tx-list">
+                  <div class="tx-row"><div class="tx-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></div><div class="tx-info"><div class="tx-top"><span class="tx-name">Factura FC-0000231</span><span class="tx-pill paid">cobrado</span></div><div class="tx-meta">22 may · Metalúrgica del Sur</div></div><div class="tx-amount">$12.400</div></div>
+                  <div class="tx-row"><div class="tx-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></div><div class="tx-info"><div class="tx-top"><span class="tx-name">Factura FC-0000228</span><span class="tx-pill pending">pendiente</span></div><div class="tx-meta">20 may · Construcciones Patagónicas</div></div><div class="tx-amount">$8.750</div></div>
+                  <div class="tx-row"><div class="tx-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></div><div class="tx-info"><div class="tx-top"><span class="tx-name">Presupuesto PR-0000089</span><span class="tx-pill pending">pendiente</span></div><div class="tx-meta">18 may · Minera Río Turbio</div></div><div class="tx-amount">$21.000</div></div>
+                  <div class="tx-row"><div class="tx-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></div><div class="tx-info"><div class="tx-top"><span class="tx-name">Recibo RC-0000044</span><span class="tx-pill paid">cobrado</span></div><div class="tx-meta">15 may · Vial San Cruz</div></div><div class="tx-amount">$6.200</div></div>
+                  <div class="tx-row"><div class="tx-icon"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></div><div class="tx-info"><div class="tx-top"><span class="tx-name">Nota de crédito NC-0000007</span><span class="tx-pill paid">cobrado</span></div><div class="tx-meta">12 may · Petróleos del Sur</div></div><div class="tx-amount neg">−$1.100</div></div>
+                </div>
+                <button class="see-all">Ver todas <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+</div>
+<script>
+  function switchTab(id, btn) {
+    document.querySelectorAll('.tab-body').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    btn.classList.add('active');
+  }
+</script>
+</body>
+</html>

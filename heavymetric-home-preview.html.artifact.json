@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "HeavyMetric — Centro de Operaciones",
+  "entry": "heavymetric-home-preview.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "primary": true,
+  "createdAt": "2026-05-27T15:19:41.552Z",
+  "updatedAt": "2026-05-27T15:19:41.571Z",
+  "metadata": {
+    "identifier": "heavymetric-home-preview",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}
