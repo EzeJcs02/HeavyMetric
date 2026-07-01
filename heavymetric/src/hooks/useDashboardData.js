@@ -1,8 +1,23 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+export const DASHBOARD_ALERTS_QUERY_KEY = 'dashboard-alerts'
+
+export async function fetchDashboardAlerts(organizationId) {
+  const { data, error } = await supabase
+    .from('alertas')
+    .select('id, tipo, titulo, descripcion, prioridad, created_at')
+    .eq('organization_id', organizationId)
+    .eq('resuelta', false)
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  if (error) throw error
+  return data || []
+}
 
 const EMPTY = {
   kpis: {
@@ -19,7 +34,7 @@ const EMPTY = {
   flota: [],
 }
 
-async function fetchDashboard(organizationId) {
+async function fetchDashboard(organizationId, queryClient) {
   const hoy = new Date()
   const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0]
   const inicioAnio = new Date(hoy.getFullYear(), 0, 1).toISOString().split('T')[0]
@@ -27,7 +42,6 @@ async function fetchDashboard(organizationId) {
   const [
     { count: countOT, error: errOT },
     { data: alqData, error: errAlq },
-    { data: txData, error: errTx },
     { data: msData, error: errMs },
     { data: ultimasTx, error: errUltTx },
     { data: alertasData, error: errAl },
@@ -51,12 +65,6 @@ async function fetchDashboard(organizationId) {
       .eq('organization_id', organizationId),
 
     supabase
-      .from('transacciones')
-      .select('monto_total_usd')
-      .eq('organization_id', organizationId)
-      .gte('fecha_emision', inicioMes),
-
-    supabase
       .from('maquinas_service')
       .select('id, nombre_unidad, cliente_nombre, estado_service, horas_restantes_service')
       .eq('organization_id', organizationId)
@@ -69,13 +77,14 @@ async function fetchDashboard(organizationId) {
       .order('fecha_emision', { ascending: false })
       .limit(5),
 
-    supabase
-      .from('alertas')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .eq('resuelta', false)
-      .order('created_at', { ascending: false })
-      .limit(5),
+    queryClient.fetchQuery({
+      queryKey: [DASHBOARD_ALERTS_QUERY_KEY, organizationId],
+      queryFn: () => fetchDashboardAlerts(organizationId),
+      staleTime: 60 * 1000,
+    }).then(
+      (data) => ({ data, error: null }),
+      (error) => ({ data: null, error }),
+    ),
 
     supabase
       .from('solicitudes_edicion')
@@ -124,10 +133,12 @@ async function fetchDashboard(organizationId) {
       .gte('created_at', new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1).toISOString()),
   ])
 
-  const firstError = errOT || errAlq || errTx || errMs || errUltTx || errAl || errSol || errAnual || errFlota || errLeads || errCots || errPend || errNps
+  const firstError = errOT || errAlq || errMs || errUltTx || errAl || errSol || errAnual || errFlota || errLeads || errCots || errPend || errNps
   if (firstError) throw firstError
 
-  const facturado = (txData || []).reduce((acc, t) => acc + Number(t.monto_total_usd), 0)
+  const facturado = (txAnual || [])
+    .filter((tx) => tx.fecha_emision >= inicioMes)
+    .reduce((acc, t) => acc + Number(t.monto_total_usd), 0)
 
   const ingresosPorMes = Array.from({ length: 12 }, (_, i) => ({ mes: MESES[i], total: 0 }))
   ;(txAnual || []).forEach((tx) => {
@@ -153,7 +164,7 @@ async function fetchDashboard(organizationId) {
         : null,
     },
     transacciones: ultimasTx || [],
-    alertas: alertasData || [],
+    alertas: (alertasData || []).slice(0, 5),
     alertasService: msData || [],
     solicitudes: solData || [],
     ingresosMensuales: ingresosPorMes,
@@ -164,14 +175,22 @@ async function fetchDashboard(organizationId) {
 export function useDashboardData() {
   const { perfil } = useAuth()
   const organizationId = perfil?.organization_id
+  const queryClient = useQueryClient()
 
   const { data = EMPTY, isLoading: loading, error: queryError, refetch } = useQuery({
     queryKey: ['dashboard', organizationId],
-    queryFn: () => fetchDashboard(organizationId),
+    queryFn: () => fetchDashboard(organizationId, queryClient),
     enabled: !!organizationId,
     staleTime: 60 * 1000,
-    refetchInterval: 60 * 1000,
+    refetchInterval: () => document.visibilityState === 'visible' ? 5 * 60 * 1000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   })
 
-  return { data, loading, error: queryError?.message ?? null, refresh: refetch }
+  const refresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: [DASHBOARD_ALERTS_QUERY_KEY, organizationId] })
+    return refetch()
+  }
+
+  return { data, loading, error: queryError?.message ?? null, refresh }
 }

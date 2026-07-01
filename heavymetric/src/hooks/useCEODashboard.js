@@ -8,14 +8,11 @@ async function fetchCEOData(organizationId) {
   const hoy    = new Date()
   const inicioMes  = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().split('T')[0]
   const inicioAnio = new Date(hoy.getFullYear(), 0, 1).toISOString().split('T')[0]
-  const hace30  = new Date(hoy - 30 * 86400000).toISOString()
-  const hace90  = new Date(hoy - 90 * 86400000).toISOString()
+  const hace90  = new Date(hoy - 90 * 86400000).toISOString().split('T')[0]
 
   const [
-    { data: txMes,     error: e1  },
     { data: txPend,    error: e2  },
     { data: txAnual,   error: e3  },
-    { data: txTopCli,  error: e4  },
     { data: otData,    error: e5  },
     { data: flotaData, error: e6  },
     { data: leadsData, error: e7  },
@@ -25,17 +22,11 @@ async function fetchCEOData(organizationId) {
     { data: provData,  error: e11 },
     { data: compData,  error: e12 },
   ] = await Promise.all([
-    // Ingresos del mes actual
-    supabase.from('transacciones').select('monto_total_usd, origen_tipo').eq('organization_id', organizationId).gte('fecha_emision', inicioMes),
-
     // Cobranza pendiente
     supabase.from('transacciones').select('monto_total_usd, cliente_id, clientes(razon_social)').eq('organization_id', organizationId).eq('estado_pago', 'pendiente'),
 
     // Ingresos anuales por mes
-    supabase.from('transacciones').select('fecha_emision, monto_total_usd').eq('organization_id', organizationId).gte('fecha_emision', inicioAnio),
-
-    // Top clientes por facturación (últimos 90 días)
-    supabase.from('transacciones').select('cliente_id, monto_total_usd, clientes(razon_social)').eq('organization_id', organizationId).gte('fecha_emision', hace90),
+    supabase.from('transacciones').select('fecha_emision, monto_total_usd, origen_tipo, cliente_id, clientes(razon_social)').eq('organization_id', organizationId).gte('fecha_emision', inicioAnio),
 
     // OTs por estado
     supabase.from('ordenes_trabajo').select('estado, total_usd, total_repuestos_usd, total_mano_obra_usd, numero_ot, maquina:maquinas(nombre_unidad), created_at').eq('organization_id', organizationId).gte('created_at', inicioAnio),
@@ -53,7 +44,7 @@ async function fetchCEOData(organizationId) {
     supabase.from('alertas').select('tipo, prioridad').eq('organization_id', organizationId).eq('resuelta', false),
 
     // Repuestos en stock crítico
-    supabase.from('repuestos').select('nombre, stock_actual, stock_minimo').eq('organization_id', organizationId).filter('stock_actual', 'lte', 'stock_minimo').eq('activo', true),
+    supabase.from('repuestos').select('nombre, stock_actual, stock_minimo').eq('organization_id', organizationId).eq('activo', true),
 
     // Proveedores por estado
     supabase.from('proveedores').select('estado').eq('organization_id', organizationId).eq('activo', true),
@@ -63,8 +54,16 @@ async function fetchCEOData(organizationId) {
   ])
 
   // Ignorar errores no críticos (tablas que pueden no existir aún)
-  const criticalError = e1 || e2 || e3 || e7
+  const criticalError = e2 || e3 || e7
   if (criticalError) throw criticalError
+
+  const optionalErrors = [e5, e6, e8, e9, e10, e11, e12].filter(Boolean)
+  if (optionalErrors.length > 0) {
+    console.warn('CEO Dashboard: algunas consultas no pudieron completarse', optionalErrors)
+  }
+
+  const txMes = (txAnual || []).filter((tx) => tx.fecha_emision >= inicioMes)
+  const txTopCli = (txAnual || []).filter((tx) => tx.fecha_emision >= hace90)
 
   // ── Comercial / Ingresos Reales del Mes ──
   const ingresosMes   = (txMes || []).reduce((s, t) => s + Number(t.monto_total_usd || 0), 0)
@@ -125,7 +124,9 @@ async function fetchCEOData(organizationId) {
   // ── Alertas ──
   const alertasCriticas = (alertData || []).filter(a => a.prioridad === 'alta').length
   const alertasTotal    = (alertData || []).length
-  const stockCritico    = (repData || []).length
+  const stockCritico    = (repData || []).filter(
+    (repuesto) => Number(repuesto.stock_actual) <= Number(repuesto.stock_minimo),
+  ).length
 
   // ── Proveedores ──
   const provRiesgosos  = (provData || []).filter(p => p.estado === 'riesgoso').length
@@ -179,7 +180,9 @@ export function useCEODashboard() {
     queryFn:  () => fetchCEOData(organizationId),
     enabled:  !!organizationId,
     staleTime: 2 * 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
+    refetchInterval: () => document.visibilityState === 'visible' ? 5 * 60 * 1000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   })
 
   return {

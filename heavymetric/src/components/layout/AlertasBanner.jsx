@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
+import { DASHBOARD_ALERTS_QUERY_KEY, fetchDashboardAlerts } from '../../hooks/useDashboardData'
 
 const TIPO_COLOR = {
   service_urgente:            'red',
@@ -25,142 +27,148 @@ const COLOR_STYLES = {
   orange: { bg: 'bg-orange-500/10 border-orange-500/30', dot: 'bg-orange-500', text: 'text-orange-300', label: 'text-orange-400' },
 }
 
+async function fetchDynamicAlerts(organizationId) {
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+  const [repResult, maqResult, otResult, clientesResult, proveedoresResult] = await Promise.all([
+    supabase
+      .from('repuestos')
+      .select('id, nombre, stock_actual, stock_minimo')
+      .eq('organization_id', organizationId)
+      .eq('activo', true),
+
+    supabase
+      .from('maquinas')
+      .select('id, nombre_unidad, estado_operativo')
+      .eq('organization_id', organizationId)
+      .in('estado_operativo', ['Fuera de servicio', 'Esperando repuesto'])
+      .eq('activa', true),
+
+    supabase
+      .from('ordenes_trabajo')
+      .select('*', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
+      .in('estado', ['borrador', 'en_progreso'])
+      .lt('fecha_ingreso', sevenDaysAgo.toISOString().split('T')[0]),
+
+    supabase
+      .from('clientes')
+      .select('*', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
+      .eq('estado_financiero', 'moroso')
+      .eq('activo', true),
+
+    supabase
+      .from('proveedores')
+      .select('*', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
+      .eq('estado', 'riesgoso')
+      .eq('activo', true),
+  ])
+
+  const failedQueries = [repResult, maqResult, otResult, clientesResult, proveedoresResult]
+    .map((result) => result.error)
+    .filter(Boolean)
+  if (failedQueries.length > 0) {
+    console.warn('AlertasBanner: algunas consultas no pudieron completarse', failedQueries)
+  }
+
+  const repBajos = (repResult.data || []).filter(
+    (repuesto) => Number(repuesto.stock_actual) <= Number(repuesto.stock_minimo),
+  )
+  const dinamicas = []
+
+  repBajos.forEach(r => dinamicas.push({
+    id: `dyn_rep_${r.id}`,
+    tipo: 'stock_minimo',
+    titulo: `Reponer urgente: "${r.nombre}"`,
+    prioridad: 'media',
+  }))
+
+  ;(maqResult.data || []).forEach(m => dinamicas.push({
+    id: `dyn_maq_${m.id}`,
+    tipo: 'activo_detenido',
+    titulo: `"${m.nombre_unidad}" — ${m.estado_operativo.toLowerCase()}`,
+    prioridad: 'alta',
+  }))
+
+  if ((otResult.count || 0) > 0) {
+    dinamicas.push({
+      id: 'dyn_ots_demoradas',
+      tipo: 'ot_demorada',
+      titulo: `${otResult.count} OT(s) sin movimiento hace más de 7 días`,
+      prioridad: 'media',
+    })
+  }
+
+  if ((clientesResult.count || 0) > 0) {
+    dinamicas.push({
+      id: 'dyn_mora_clientes',
+      tipo: 'mora_cliente',
+      titulo: `${clientesResult.count} cliente(s) con mora — gestionar cobranza`,
+      prioridad: 'alta',
+    })
+  }
+
+  if ((proveedoresResult.count || 0) > 0) {
+    dinamicas.push({
+      id: 'dyn_prov_riesgosos',
+      tipo: 'proveedor_riesgoso',
+      titulo: `${proveedoresResult.count} proveedor(es) con riesgo alto`,
+      prioridad: 'media',
+    })
+  }
+
+  return dinamicas
+}
+
 export default function AlertasBanner() {
-  const [alertas, setAlertas]     = useState([])
   const [idx, setIdx]             = useState(0)
   const [dismissed, setDismissed] = useState(false)
   const { perfil }                = useAuth()
   const organizationId            = perfil?.organization_id ?? null
 
+  const { data: dbAlertas = [], error: alertsError } = useQuery({
+    queryKey: [DASHBOARD_ALERTS_QUERY_KEY, organizationId],
+    queryFn: () => fetchDashboardAlerts(organizationId),
+    enabled: !!organizationId,
+    staleTime: 60 * 1000,
+    refetchInterval: () => document.visibilityState === 'visible' ? 5 * 60 * 1000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  })
+
+  const { data: dinamicas = [] } = useQuery({
+    queryKey: ['dashboard-dynamic-alerts', organizationId],
+    queryFn: () => fetchDynamicAlerts(organizationId),
+    enabled: !!organizationId,
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: () => document.visibilityState === 'visible' ? 5 * 60 * 1000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+  })
+
+  const alertas = useMemo(() => {
+    const ORDER = { critica: 0, alta: 1, media: 2, baja: 3 }
+    return [...dbAlertas.slice(0, 10), ...dinamicas]
+      .sort((a, b) => (ORDER[a.prioridad] ?? 9) - (ORDER[b.prioridad] ?? 9))
+  }, [dbAlertas, dinamicas])
+
+  const alertIds = alertas.map((alerta) => alerta.id).join('|')
   useEffect(() => {
-    if (!organizationId) {
-      setAlertas([])
-      setIdx(0)
-      return
-    }
+    if (alertsError) console.warn('AlertasBanner: no se pudieron cargar las alertas persistidas', alertsError)
+  }, [alertsError])
 
-    const fetch = async () => {
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-
-      const [
-        { data: dbAlertas },
-        { data: repBajos },
-        { data: maqCriticas },
-        { data: otsDemoradas },
-        { data: clientesMorosos },
-        { data: provRiesgosos },
-      ] = await Promise.all([
-        // 1. Alertas persistidas en BD
-        supabase
-          .from('alertas')
-          .select('id, tipo, titulo, prioridad')
-          .eq('organization_id', organizationId)
-          .eq('resuelta', false)
-          .order('prioridad', { ascending: true })
-          .limit(10),
-
-        // 2. Stock bajo mínimo
-        supabase
-          .from('repuestos')
-          .select('id, nombre')
-          .eq('organization_id', organizationId)
-          .lte('stock_actual', 'stock_minimo')
-          .eq('activo', true),
-
-        // 3. Máquinas fuera de servicio
-        supabase
-          .from('maquinas')
-          .select('id, nombre_unidad, estado_operativo')
-          .eq('organization_id', organizationId)
-          .in('estado_operativo', ['Fuera de servicio', 'Esperando repuesto'])
-          .eq('activa', true),
-
-        // 4. OTs demoradas (>7 días abiertas)
-        supabase
-          .from('ordenes_trabajo')
-          .select('id')
-          .eq('organization_id', organizationId)
-          .in('estado', ['borrador', 'en_progreso'])
-          .lt('fecha_ingreso', sevenDaysAgo.toISOString().split('T')[0]),
-
-        // 5. Clientes morosos
-        supabase
-          .from('clientes')
-          .select('id')
-          .eq('organization_id', organizationId)
-          .eq('estado_financiero', 'moroso')
-          .eq('activo', true),
-
-        // 6. Proveedores riesgosos
-        supabase
-          .from('proveedores')
-          .select('id')
-          .eq('organization_id', organizationId)
-          .eq('estado', 'riesgoso')
-          .eq('activo', true),
-      ])
-
-      const dinamicas = []
-
-      repBajos?.forEach(r => dinamicas.push({
-        id: `dyn_rep_${r.id}`,
-        tipo: 'stock_minimo',
-        titulo: `Reponer urgente: "${r.nombre}"`,
-        prioridad: 'media',
-      }))
-
-      maqCriticas?.forEach(m => dinamicas.push({
-        id: `dyn_maq_${m.id}`,
-        tipo: 'activo_detenido',
-        titulo: `"${m.nombre_unidad}" — ${m.estado_operativo.toLowerCase()}`,
-        prioridad: 'alta',
-      }))
-
-      if (otsDemoradas?.length > 0) {
-        dinamicas.push({
-          id: 'dyn_ots_demoradas',
-          tipo: 'ot_demorada',
-          titulo: `${otsDemoradas.length} OT(s) sin movimiento hace más de 7 días`,
-          prioridad: 'media',
-        })
-      }
-
-      if (clientesMorosos?.length > 0) {
-        dinamicas.push({
-          id: 'dyn_mora_clientes',
-          tipo: 'mora_cliente',
-          titulo: `${clientesMorosos.length} cliente(s) con mora — gestionar cobranza`,
-          prioridad: 'alta',
-        })
-      }
-
-      if (provRiesgosos?.length > 0) {
-        dinamicas.push({
-          id: 'dyn_prov_riesgosos',
-          tipo: 'proveedor_riesgoso',
-          titulo: `${provRiesgosos.length} proveedor(es) con riesgo alto`,
-          prioridad: 'media',
-        })
-      }
-
-      const combo = [...(dbAlertas || []), ...dinamicas]
-      const ORDER = { critica: 0, alta: 1, media: 2, baja: 3 }
-      combo.sort((a, b) => (ORDER[a.prioridad] ?? 9) - (ORDER[b.prioridad] ?? 9))
-
-      setAlertas(combo)
-      setIdx(0)
-      setDismissed(false)
-    }
-
-    fetch()
-    const interval = setInterval(fetch, 5 * 60 * 1000)
-    return () => clearInterval(interval)
-  }, [organizationId])
+  useEffect(() => {
+    setIdx(0)
+    setDismissed(false)
+  }, [organizationId, alertIds])
 
   if (!alertas.length || dismissed) return null
 
-  const alerta = alertas[idx]
+  const safeIdx = Math.min(idx, alertas.length - 1)
+  const alerta = alertas[safeIdx]
   const color  = TIPO_COLOR[alerta.tipo] || 'yellow'
   const styles = COLOR_STYLES[color]
   const total  = alertas.length
@@ -170,7 +178,7 @@ export default function AlertasBanner() {
       <div className="flex items-center gap-2 min-w-0">
         <div className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${styles.dot}`} />
         <span className={`text-xs font-mono font-bold shrink-0 ${styles.label}`}>
-          {total > 1 ? `${idx + 1}/${total} ALERTAS —` : 'ALERTA —'}
+          {total > 1 ? `${safeIdx + 1}/${total} ALERTAS —` : 'ALERTA —'}
         </span>
         <span className={`text-xs truncate ${styles.text}`}>{alerta.titulo}</span>
       </div>

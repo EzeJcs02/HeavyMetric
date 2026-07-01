@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { useDolar } from '../../context/DolarContext'
 import { useDashboardData } from '../../hooks/useDashboardData'
@@ -70,16 +69,6 @@ export default function Dashboard() {
   const { perfil, hasModule } = useAuth()
   const { taxonomia } = useRubro()
   const { counts, loading: aiLoading } = useAIInsights()
-
-  useEffect(() => {
-    if (!perfil?.organization_id) return
-
-    supabase
-      .rpc('generar_alertas_automaticas', { p_org_id: perfil.organization_id })
-      .then(({ error: e }) => {
-        if (e) console.warn('alertas auto:', e.message)
-      })
-  }, [perfil?.organization_id])
 
   if (error) {
     return (
