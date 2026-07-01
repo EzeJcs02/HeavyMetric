@@ -16,6 +16,7 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Input from '../../components/ui/Input'
 import Pagination from '../../components/ui/Pagination'
+import { useProveedoresKpis } from '../../hooks/useProveedores'
 
 const PER_PAGE = 12
 
@@ -781,11 +782,20 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
 }
 
 export default function Proveedores() {
-  const { proveedores, loading, error, createProveedor, updateProveedor, deactivateProveedor } = useProveedores()
   const { isOwner } = useAuth()
   const [search, setSearch] = useState('')
   const [filterEstado, setFilterEstado] = useState('todos')
   const [page, setPage] = useState(1)
+
+  const { proveedores, totalCount, loading, error, createProveedor, updateProveedor, deactivateProveedor } = useProveedores({
+    page,
+    pageSize: PER_PAGE,
+    search,
+    estado: filterEstado
+  })
+  
+  const { kpis } = useProveedoresKpis()
+
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing]     = useState(null)
   const [detalle, setDetalle]     = useState(null)
@@ -793,17 +803,6 @@ export default function Proveedores() {
   const [loadingArchive, setLoadingArchive] = useState(false)
 
   useEffect(() => { setPage(1) }, [search, filterEstado])
-
-  const filtrados = useMemo(() => {
-    const q = search.toLowerCase()
-    return proveedores.filter(p => {
-      const matchQ = p.empresa.toLowerCase().includes(q) || (p.rubro || '').toLowerCase().includes(q) || (p.contacto_nombre || '').toLowerCase().includes(q)
-      const matchE = filterEstado === 'todos' || p.estado === filterEstado
-      return matchQ && matchE
-    })
-  }, [proveedores, search, filterEstado])
-
-  const paginados = useMemo(() => filtrados.slice((page-1)*PER_PAGE, page*PER_PAGE), [filtrados, page])
 
   const handleConfirm = async (payload) => {
     try {
@@ -818,13 +817,6 @@ export default function Proveedores() {
     try { await deactivateProveedor(archivando.id); toast.success(`${archivando.empresa} desactivado`); setArchivando(null) }
     catch (err) { toast.error(err.message) }
     finally { setLoadingArchive(false) }
-  }
-
-  // KPIs
-  const kpis = {
-    total:    proveedores.length,
-    preferidos: proveedores.filter(p => p.estado === 'preferido').length,
-    riesgosos:  proveedores.filter(p => p.estado === 'riesgoso').length,
   }
 
   if (error) return <div className="p-6 text-red-400 font-mono">Error: {error}</div>
@@ -894,9 +886,9 @@ export default function Proveedores() {
                   ))}
                 </tr>
               ))
-            ) : filtrados.length === 0 ? (
+            ) : proveedores.length === 0 ? (
               <tr><td colSpan={9} className="p-8 text-center text-hm-muted font-mono text-sm">No se encontraron proveedores.</td></tr>
-            ) : paginados.map(p => (
+            ) : proveedores.map(p => (
               <tr key={p.id} onClick={() => setDetalle(p)}
                 className="border-b border-hm-border hover:bg-hm-surface2/30 transition-colors group cursor-pointer">
                 <td className="p-4">
@@ -946,7 +938,7 @@ export default function Proveedores() {
             ))}
           </tbody>
         </table>
-        <Pagination total={filtrados.length} page={page} perPage={PER_PAGE} onPageChange={setPage} />
+        <Pagination total={totalCount} page={page} perPage={PER_PAGE} onPageChange={setPage} />
       </Card>
 
       <ModalProveedor isOpen={modalOpen} onClose={() => { setModalOpen(false); setEditing(null) }} proveedor={editing} onConfirm={handleConfirm} />
