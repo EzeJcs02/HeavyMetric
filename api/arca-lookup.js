@@ -1,73 +1,130 @@
-// ARCA / AFIP — CUIT lookup proxy (Vercel serverless)
-//
-// Modos de operación (en orden de prioridad):
-//   1. ARCA_API_URL configurado → proxy REST a esa URL (p.ej. proveedor tercero de AFIP)
-//   2. ARCA_CERT + ARCA_CUIT  → autenticación WSAA + SR Padrón Alcance 1 (requiere node-forge)
-//   3. Sin credenciales       → 503 con instrucciones de configuración
-//
-// Env vars:
-//   ARCA_API_URL    URL base del endpoint REST compatible con AFIP (opcional)
-//   ARCA_API_KEY    Bearer token para ARCA_API_URL (opcional)
-//   ARCA_CERT       Certificado p12 en base64 (para WSAA directo)
-//   ARCA_CUIT       CUIT de la organización (para WSAA directo)
-//   ARCA_ENV        "prod" | "homo" — default "homo"
+const RATE_LIMIT = 30
+const RATE_WINDOW_MS = 60_000
+const rateBuckets = new Map()
+
+function checkRateLimit(key) {
+  const now = Date.now()
+  const current = rateBuckets.get(key)
+  if (!current || current.resetAt <= now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS })
+    return true
+  }
+  if (current.count >= RATE_LIMIT) return false
+  current.count += 1
+  return true
+}
+
+async function authenticateRequest(req) {
+  const match = typeof req.headers.authorization === 'string'
+    ? req.headers.authorization.match(/^Bearer\s+([^\s]+)$/i)
+    : null
+
+  if (!match) return { status: 401, error: 'No autorizado' }
+
+  const supabaseUrl = process.env.SUPABASE_URL?.trim()
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  if (!supabaseUrl || !serviceRoleKey) return { status: 503, error: 'Servicio no disponible' }
+
+  const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${match[1]}`,
+    },
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!authResponse.ok) return { status: 401, error: 'No autorizado' }
+  const user = await authResponse.json()
+  if (!user?.id) return { status: 401, error: 'No autorizado' }
+
+  const profileResponse = await fetch(
+    `${supabaseUrl}/rest/v1/perfiles?id=eq.${encodeURIComponent(user.id)}&select=id,organization_id,rol&limit=1`,
+    {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      signal: AbortSignal.timeout(10_000),
+    }
+  )
+  if (!profileResponse.ok) return { status: 503, error: 'Servicio no disponible' }
+  const [perfil] = await profileResponse.json()
+  if (!perfil?.organization_id) return { status: 403, error: 'Perfil sin organizacion' }
+  if (!['owner', 'supervisor'].includes(String(perfil.rol || '').toLowerCase())) {
+    return { status: 403, error: 'Permisos insuficientes' }
+  }
+  return { user, perfil }
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end()
 
+  let auth
+  try {
+    auth = await authenticateRequest(req)
+  } catch (err) {
+    console.error('[ARCA] Error validando autenticacion:', err.message)
+    return res.status(503).json({ error: 'Servicio no disponible' })
+  }
+  if (auth.error) return res.status(auth.status).json({ error: auth.error })
+
+  const rateKey = `${auth.perfil.organization_id}:${auth.user.id}`
+  if (!checkRateLimit(rateKey)) return res.status(429).json({ error: 'Demasiadas solicitudes' })
+
   const { cuit } = req.query
-  if (!cuit) return res.status(400).json({ error: 'Parámetro "cuit" requerido' })
+  if (typeof cuit !== 'string') return res.status(400).json({ error: 'Parametro "cuit" requerido' })
 
   const cuitLimpio = cuit.replace(/[- ]/g, '')
   if (!/^\d{11}$/.test(cuitLimpio)) {
-    return res.status(400).json({ error: 'CUIT inválido — debe tener 11 dígitos sin guiones' })
+    return res.status(400).json({ error: 'CUIT invalido: debe tener 11 digitos' })
   }
 
-  const apiUrl     = process.env.ARCA_API_URL
-  const apiKey     = process.env.ARCA_API_KEY
-  const hasCert    = !!(process.env.ARCA_CERT && process.env.ARCA_CUIT)
+  const apiUrl = process.env.ARCA_API_URL?.trim()
+  const apiKey = process.env.ARCA_API_KEY?.trim()
+  const hasCert = Boolean(process.env.ARCA_CERT?.trim() && process.env.ARCA_CUIT?.trim())
 
   if (!apiUrl && !hasCert) {
-    return res.status(503).json({
-      error: 'Integración ARCA no configurada',
-      instrucciones: [
-        'Opción A (REST proxy): Configurar ARCA_API_URL con la URL base de tu proveedor AFIP REST.',
-        '  Ejemplo: ARCA_API_URL=https://api.miproveedor.com/afip',
-        '  Opcional: ARCA_API_KEY=<bearer_token>',
-        'Opción B (WSAA directo): Configurar ARCA_CERT (p12 en base64), ARCA_CUIT y ARCA_ENV.',
-        '  Requiere habilitar el WS "sr-padron-a1" en clave fiscal de AFIP.',
-      ],
-    })
+    return res.status(503).json({ error: 'Integracion ARCA no configurada' })
   }
 
   const t0 = Date.now()
 
   try {
     if (apiUrl) {
-      const url = `${apiUrl.replace(/\/$/, '')}/persona/${cuitLimpio}`
-      const headers = { 'Content-Type': 'application/json' }
-      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
+      let url
+      try {
+        url = new URL(`${apiUrl.replace(/\/$/, '')}/persona/${cuitLimpio}`)
+      } catch {
+        return res.status(503).json({ error: 'Integracion ARCA no configurada' })
+      }
 
-      const response = await fetch(url, { headers })
+      if (url.protocol !== 'https:') {
+        console.error('[ARCA] ARCA_API_URL debe usar HTTPS')
+        return res.status(503).json({ error: 'Integracion ARCA no configurada' })
+      }
+
+      const headers = { Accept: 'application/json' }
+      if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+
+      const response = await fetch(url, {
+        headers,
+        redirect: 'error',
+        signal: AbortSignal.timeout(15_000),
+      })
       const latencia = Date.now() - t0
 
       if (!response.ok) {
-        const texto = await response.text().catch(() => '')
-        console.error(`[ARCA] HTTP ${response.status} (${latencia}ms):`, texto.slice(0, 200))
-        return res.status(response.status).json({ error: 'Error consultando ARCA' })
+        console.error(`[ARCA] Proveedor HTTP ${response.status} (${latencia}ms)`)
+        return res.status(502).json({ error: 'Error consultando ARCA' })
       }
 
       const raw = await response.json()
       const data = normalizarRespuesta(raw)
-      console.log(`[ARCA] OK ${cuitLimpio} (${latencia}ms)`)
+      console.log(`[ARCA] OK org=${auth.perfil.organization_id} cuit=*******${cuitLimpio.slice(-4)} (${latencia}ms)`)
       return res.status(200).json({ success: true, data })
     }
 
-    // WSAA directo — requiere node-forge o similar para firmar el TRA con p12
-    // Implementar cuando ARCA_CERT esté disponible en el entorno de producción
     return res.status(501).json({
-      error: 'Autenticación WSAA con certificado aún no implementada en esta instancia.',
-      alternativa: 'Usar ARCA_API_URL con un proveedor REST (ver instrucciones en /503).',
+      error: 'Autenticacion WSAA con certificado aun no implementada en esta instancia.',
     })
   } catch (err) {
     console.error('[ARCA] Error inesperado:', err.message)
@@ -75,25 +132,29 @@ export default async function handler(req, res) {
   }
 }
 
-// Normaliza distintos formatos de respuesta al modelo canónico de HeavyMetric
 function normalizarRespuesta(raw) {
-  // Formato SR Padrón v2 oficial de AFIP
   if (raw?.persona) {
-    const p = raw.persona
-    const esMonotributo = Array.isArray(p.categoriasMonotributo) && p.categoriasMonotributo.length > 0
-    const esRI = Array.isArray(p.impuesto) && p.impuesto.some(i => i.idImpuesto === 30)
+    const persona = raw.persona
+    const esMonotributo = Array.isArray(persona.categoriasMonotributo) && persona.categoriasMonotributo.length > 0
+    const esResponsableInscripto = Array.isArray(persona.impuesto)
+      && persona.impuesto.some((impuesto) => impuesto.idImpuesto === 30)
 
     return {
-      razonSocial:        p.razonSocial || p.apellidoNombre || '',
-      tipoPersona:        p.tipoClave === 'CUIL' ? 'FISICA' : 'JURIDICA',
-      estado:             p.estadoClave || 'ACTIVO',
-      condicionIVA:       esMonotributo ? 'Monotributista' : esRI ? 'Responsable Inscripto' : 'Exento',
-      actividadPrincipal: p.actividades?.[0]
-        ? `${p.actividades[0].idActividad} — ${p.actividades[0].descripcionActividad}`
+      razonSocial: persona.razonSocial || persona.apellidoNombre || '',
+      tipoPersona: persona.tipoClave === 'CUIL' ? 'FISICA' : 'JURIDICA',
+      estado: persona.estadoClave || 'ACTIVO',
+      condicionIVA: esMonotributo ? 'Monotributista' : esResponsableInscripto ? 'Responsable Inscripto' : 'Exento',
+      actividadPrincipal: persona.actividades?.[0]
+        ? `${persona.actividades[0].idActividad} - ${persona.actividades[0].descripcionActividad}`
         : '',
     }
   }
 
-  // Si ya viene en formato canónico (proveedor tercero) o desconocido → pasar directo
-  return raw
+  return {
+    razonSocial: String(raw?.razonSocial || raw?.razon_social || '').slice(0, 300),
+    tipoPersona: String(raw?.tipoPersona || raw?.tipo_persona || '').slice(0, 50),
+    estado: String(raw?.estado || '').slice(0, 50),
+    condicionIVA: String(raw?.condicionIVA || raw?.condicion_iva || '').slice(0, 100),
+    actividadPrincipal: String(raw?.actividadPrincipal || raw?.actividad_principal || '').slice(0, 500),
+  }
 }

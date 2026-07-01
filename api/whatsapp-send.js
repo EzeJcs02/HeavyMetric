@@ -1,51 +1,130 @@
-// WhatsApp sender via Meta Cloud API — Vercel serverless function
-//
-// Env vars (server-side, sin prefijo VITE_):
-//   WHATSAPP_ACCESS_TOKEN      — User Access Token o System User Token de Meta Business
-//   WHATSAPP_PHONE_NUMBER_ID   — ID del número de teléfono en Meta Business
-//
-// Tipos de mensaje:
-//   - Con campo "message" (string): envía texto libre (solo válido en ventana de 24hs de respuesta)
-//   - Con campo "type" + "data": envía template pre-aprobado en Meta Business Manager
-//
-// Templates requeridos en Meta (nombre → parámetros del body):
-//   hm_alerta      → {{maquina}}, {{descripcion}}
-//   hm_service     → {{maquina}}, {{horasRestantes}}
-//   hm_cobranza    → {{cliente}}, {{monto}}, {{vencimiento}}
-//   hm_vencimiento → {{contrato}}, {{fechaVencimiento}}
-
 const TEMPLATES = {
-  alerta:     'hm_alerta',
-  service:    'hm_service',
-  cobranza:   'hm_cobranza',
-  vencimiento:'hm_vencimiento',
+  alerta: 'hm_alerta',
+  service: 'hm_service',
+  cobranza: 'hm_cobranza',
+  vencimiento: 'hm_vencimiento',
+}
+
+const TEMPLATE_FIELDS = {
+  alerta: ['maquina', 'descripcion'],
+  service: ['maquina', 'horasRestantes'],
+  cobranza: ['cliente', 'monto', 'vencimiento'],
+  vencimiento: ['contrato', 'fechaVencimiento'],
+}
+
+const RATE_LIMIT = 20
+const RATE_WINDOW_MS = 60_000
+const MAX_BODY_BYTES = 32 * 1024
+const rateBuckets = new Map()
+
+function checkRateLimit(key) {
+  const now = Date.now()
+  const current = rateBuckets.get(key)
+  if (!current || current.resetAt <= now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS })
+    return true
+  }
+  if (current.count >= RATE_LIMIT) return false
+  current.count += 1
+  return true
+}
+
+function bodySize(req) {
+  const declared = Number(req.headers['content-length'] || 0)
+  if (Number.isFinite(declared) && declared > 0) return declared
+  return Buffer.byteLength(JSON.stringify(req.body || {}), 'utf8')
+}
+
+async function authenticateRequest(req) {
+  const match = typeof req.headers.authorization === 'string'
+    ? req.headers.authorization.match(/^Bearer\s+([^\s]+)$/i)
+    : null
+
+  if (!match) return { status: 401, error: 'No autorizado' }
+
+  const supabaseUrl = process.env.SUPABASE_URL?.trim()
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  if (!supabaseUrl || !serviceRoleKey) return { status: 503, error: 'Servicio no disponible' }
+
+  const authResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${match[1]}`,
+    },
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!authResponse.ok) return { status: 401, error: 'No autorizado' }
+  const user = await authResponse.json()
+  if (!user?.id) return { status: 401, error: 'No autorizado' }
+
+  const profileResponse = await fetch(
+    `${supabaseUrl}/rest/v1/perfiles?id=eq.${encodeURIComponent(user.id)}&select=id,organization_id,rol&limit=1`,
+    {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      signal: AbortSignal.timeout(10_000),
+    }
+  )
+  if (!profileResponse.ok) return { status: 503, error: 'Servicio no disponible' }
+  const [perfil] = await profileResponse.json()
+  if (!perfil?.organization_id) return { status: 403, error: 'Perfil sin organizacion' }
+  if (!['owner', 'supervisor'].includes(String(perfil.rol || '').toLowerCase())) {
+    return { status: 403, error: 'Permisos insuficientes' }
+  }
+  return { user, perfil }
+}
+
+function validateTemplateData(type, data) {
+  if (!Object.prototype.hasOwnProperty.call(TEMPLATES, type) || !data || typeof data !== 'object' || Array.isArray(data)) {
+    return false
+  }
+
+  return TEMPLATE_FIELDS[type].every((field) => {
+    const value = data[field]
+    return (typeof value === 'string' || typeof value === 'number')
+      && String(value).trim().length > 0
+      && String(value).length <= 500
+  })
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
+  if (bodySize(req) > MAX_BODY_BYTES) return res.status(413).json({ error: 'Payload demasiado grande' })
+
+  let auth
+  try {
+    auth = await authenticateRequest(req)
+  } catch (err) {
+    console.error('[WhatsApp] Error validando autenticacion:', err.message)
+    return res.status(503).json({ error: 'Servicio no disponible' })
+  }
+  if (auth.error) return res.status(auth.status).json({ error: auth.error })
+
+  const rateKey = `${auth.perfil.organization_id}:${auth.user.id}`
+  if (!checkRateLimit(rateKey)) return res.status(429).json({ error: 'Demasiadas solicitudes' })
 
   const { phone, type, data, message } = req.body || {}
+  if (typeof phone !== 'string') return res.status(400).json({ error: 'Campo "phone" invalido' })
 
-  if (!phone) return res.status(400).json({ error: 'Campo "phone" requerido' })
-
-  const token   = process.env.WHATSAPP_ACCESS_TOKEN
-  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID
-
-  if (!token || !phoneId) {
-    return res.status(503).json({
-      error: 'Integración WhatsApp no configurada',
-      instrucciones: [
-        'Agregar WHATSAPP_ACCESS_TOKEN y WHATSAPP_PHONE_NUMBER_ID en variables de entorno.',
-        'Obtener en: Meta Business Manager → WhatsApp → Getting Started.',
-        'Los templates deben ser aprobados en Meta antes de poder usarlos.',
-      ],
-    })
+  const phoneNorm = phone.replace(/[\s\-()+]/g, '')
+  if (!/^\d{10,15}$/.test(phoneNorm)) {
+    return res.status(400).json({ error: 'Numero de telefono invalido. Incluir codigo de pais.' })
   }
 
-  // Normalizar teléfono: quitar +, espacios y guiones; debe incluir código de país
-  const phoneNorm = phone.replace(/[\s\-\(\)\+]/g, '')
-  if (!/^\d{10,15}$/.test(phoneNorm)) {
-    return res.status(400).json({ error: 'Número de teléfono inválido. Incluir código de país (ej: 5491112345678).' })
+  const hasMessage = typeof message === 'string' && message.trim().length > 0
+  if (hasMessage && message.length > 4096) {
+    return res.status(400).json({ error: 'Mensaje demasiado largo' })
+  }
+  if (!hasMessage && !validateTemplateData(type, data)) {
+    return res.status(400).json({ error: 'Template o datos invalidos' })
+  }
+
+  const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim()
+  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim()
+  if (!token || !phoneId || !/^\d+$/.test(phoneId)) {
+    return res.status(503).json({ error: 'Integracion WhatsApp no configurada' })
   }
 
   const t0 = Date.now()
@@ -53,50 +132,45 @@ export default async function handler(req, res) {
   try {
     let payload
 
-    if (message) {
-      // Texto libre — solo funciona dentro de la ventana de 24hs de conversación activa
+    if (hasMessage) {
       payload = {
         messaging_product: 'whatsapp',
-        to:   phoneNorm,
+        to: phoneNorm,
         type: 'text',
-        text: { body: message },
+        text: { body: message.trim() },
       }
     } else {
-      // Template message — funciona en cualquier momento (requiere template aprobado)
-      const templateName = TEMPLATES[type] || 'hm_alerta'
-      const components   = buildComponents(type, data || {})
-
       payload = {
         messaging_product: 'whatsapp',
-        to:   phoneNorm,
+        to: phoneNorm,
         type: 'template',
         template: {
-          name:       templateName,
-          language:   { code: 'es_AR' },
-          components,
+          name: TEMPLATES[type],
+          language: { code: 'es_AR' },
+          components: buildComponents(type, data),
         },
       }
     }
 
-    const url = `https://graph.facebook.com/v20.0/${phoneId}/messages`
-    const response = await fetch(url, {
-      method:  'POST',
+    const response = await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type':  'application/json',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15_000),
     })
 
-    const result  = await response.json()
+    const result = await response.json().catch(() => ({}))
     const latencia = Date.now() - t0
 
     if (!response.ok) {
-      console.error(`[WhatsApp] Meta error ${response.status} (${latencia}ms):`, result.error)
-      return res.status(response.status).json({ error: result.error?.message || 'Error enviando WhatsApp' })
+      console.error(`[WhatsApp] Meta HTTP ${response.status} (${latencia}ms)`)
+      return res.status(502).json({ error: 'Error enviando WhatsApp' })
     }
 
-    console.log(`[WhatsApp] OK → ${phoneNorm} tipo=${type || 'text'} (${latencia}ms)`)
+    console.log(`[WhatsApp] OK org=${auth.perfil.organization_id} tipo=${type || 'text'} (${latencia}ms)`)
     return res.status(200).json({ success: true, messageId: result.messages?.[0]?.id })
   } catch (err) {
     console.error('[WhatsApp] Error inesperado:', err.message)
@@ -105,7 +179,7 @@ export default async function handler(req, res) {
 }
 
 function buildComponents(type, data) {
-  const param = (v) => ({ type: 'text', text: String(v ?? '') })
+  const param = (value) => ({ type: 'text', text: String(value) })
 
   switch (type) {
     case 'alerta':

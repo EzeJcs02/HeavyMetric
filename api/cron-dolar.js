@@ -1,61 +1,76 @@
-import { createClient } from '@supabase/supabase-js'
+import { timingSafeEqual } from 'node:crypto'
 
-// Inicializar cliente Supabase con Service Role para saltar RLS
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-)
+function isAuthorizedCronRequest(req) {
+  const secret = process.env.CRON_SECRET?.trim()
+  const authHeader = req.headers.authorization
+
+  if (!secret || secret.length < 32 || typeof authHeader !== 'string') return false
+
+  const expected = Buffer.from(`Bearer ${secret}`)
+  const received = Buffer.from(authHeader)
+  return expected.length === received.length && timingSafeEqual(expected, received)
+}
 
 export default async function handler(req, res) {
-  // 1. Verificación de Seguridad (CRON_SECRET)
-  const authHeader = req.headers.authorization
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (req.method !== 'GET') return res.status(405).end()
+
+  const secret = process.env.CRON_SECRET?.trim()
+  const supabaseUrl = process.env.SUPABASE_URL?.trim()
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+
+  if (!secret || secret.length < 32 || !supabaseUrl || !serviceRoleKey) {
+    console.error('[Cron Dolar] Configuracion de seguridad incompleta')
+    return res.status(503).json({ error: 'Servicio no disponible' })
+  }
+
+  if (!isAuthorizedCronRequest(req)) {
     return res.status(401).json({ error: 'No autorizado' })
   }
 
   try {
-    // 2. Fetch a la API de DolarAPI (BNA Oficial)
-    const response = await fetch('https://dolarapi.com/v1/dolares/oficial')
-    
-    if (!response.ok) {
-      throw new Error(`Error de API externa: ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    const valorDolar = data.venta // Usamos el valor de venta para facturación
-
-    if (!valorDolar) {
-      throw new Error('No se recibió un valor válido de la API')
-    }
-
-    // 3. Actualizar en Supabase (tabla config_sistema)
-    const { error: dbError } = await supabase
-      .from('config_sistema')
-      .upsert({ 
-        clave: 'cotizacion_dolar', 
-        valor: { 
-          oficial: valorDolar, 
-          ultima_actualizacion: new Date().toISOString() 
-        } 
-      })
-
-    if (dbError) throw dbError
-
-    return res.status(200).json({ 
-      success: true, 
-      valor: valorDolar,
-      timestamp: new Date().toISOString()
+    const response = await fetch('https://dolarapi.com/v1/dolares/oficial', {
+      signal: AbortSignal.timeout(10_000),
     })
 
+    if (!response.ok) throw new Error(`DolarAPI HTTP ${response.status}`)
+
+    const data = await response.json()
+    const valorDolar = Number(data?.venta)
+
+    if (!Number.isFinite(valorDolar) || valorDolar <= 0) {
+      throw new Error('DolarAPI devolvio una cotizacion invalida')
+    }
+
+    const dbResponse = await fetch(`${supabaseUrl}/rest/v1/config_sistema?on_conflict=clave`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify({
+        clave: 'cotizacion_dolar',
+        valor: {
+          oficial: valorDolar,
+          ultima_actualizacion: new Date().toISOString(),
+        },
+      }),
+      signal: AbortSignal.timeout(10_000),
+    })
+
+    if (!dbResponse.ok) throw new Error(`Supabase HTTP ${dbResponse.status}`)
+
+    return res.status(200).json({
+      success: true,
+      valor: valorDolar,
+      timestamp: new Date().toISOString(),
+    })
   } catch (error) {
-    console.error('Error en Cron Dólar:', error.message)
-    
-    // Si falla la API externa o la DB, respondemos con 500
-    // pero el valor anterior se mantiene en la DB por diseño.
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Error al actualizar cotización. Se mantiene el valor anterior.',
-      error: error.message 
+    console.error('[Cron Dolar] Error:', error.message)
+    return res.status(500).json({
+      success: false,
+      message: 'Error al actualizar cotizacion. Se mantiene el valor anterior.',
     })
   }
 }
