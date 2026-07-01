@@ -91,12 +91,12 @@ export function calcularScore(rubro, origen, mensaje, empresa) {
   return { score, grade }
 }
 
-// ── Hook principal ───────────────────────────────────────────────
-export function useLeads() {
+export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos' } = {}) {
   const auth = useAuth()
   const organizationId = getOrganizationId(auth)
 
   const [leads, setLeads] = useState([])
+  const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -107,28 +107,45 @@ export function useLeads() {
 
       if (!organizationId) {
         setLeads([])
+        setTotalCount(0)
         return
       }
 
-      const { data, error: err } = await supabase
+      let query = supabase
         .from('leads')
         .select(`
           *,
           asignado:responsable_id(nombre_completo),
           cliente:clientes(razon_social),
           cotizaciones(count)
-        `)
+        `, { count: 'exact' })
         .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false })
+
+      if (search && search.trim() !== '') {
+        const q = search.trim()
+        query = query.or(`nombre.ilike.%${q}%,empresa.ilike.%${q}%,telefono.ilike.%${q}%,email.ilike.%${q}%,origen.ilike.%${q}%,rubro.ilike.%${q}%,producto_interes.ilike.%${q}%`)
+      }
+
+      if (estado !== 'todos') {
+        query = query.eq('estado', estado)
+      }
+
+      // Pagination
+      const from = (page - 1) * pageSize
+      const to = from + pageSize - 1
+      query = query.range(from, to).order('created_at', { ascending: false })
+
+      const { data, count, error: err } = await query
 
       if (err) throw err
       setLeads(data || [])
+      setTotalCount(count || 0)
     } catch (err) {
       setError(err.message || 'Error al cargar leads')
     } finally {
       setLoading(false)
     }
-  }, [organizationId])
+  }, [organizationId, page, pageSize, search, estado])
 
   const crearLead = async (payload) => {
     if (!organizationId) throw new Error('No se pudo determinar la organización')
@@ -140,13 +157,16 @@ export function useLeads() {
       payload.empresa
     )
 
-    const { id: _ignoredId, organization_id: _ignoredOrg, ...safePayload } = payload
+    const { id: _ignoredId, organization_id: _ignoredOrg, created_by: _ignoredCreatedBy, ...safePayload } = payload
+
+    const userId = auth?.user?.id || auth?.perfil?.id
 
     const { data, error: err } = await supabase
       .from('leads')
       .insert([{
         ...safePayload,
         organization_id: organizationId,
+        created_by: userId,
         lead_score: score,
         lead_grade: grade,
       }])
@@ -168,7 +188,7 @@ export function useLeads() {
       payload.empresa
     )
 
-    const { id: _ignoredId, organization_id: _ignoredOrg, ...safePayload } = payload
+    const { id: _ignoredId, organization_id: _ignoredOrg, created_by: _ignoredCreatedBy, ...safePayload } = payload
 
     const { error: err } = await supabase
       .from('leads')
@@ -370,11 +390,15 @@ export function useLeads() {
   }
 
   useEffect(() => {
-    fetchLeads()
+    const timer = setTimeout(() => {
+      fetchLeads()
+    }, 400)
+    return () => clearTimeout(timer)
   }, [fetchLeads])
 
   return {
     leads,
+    totalCount,
     loading,
     error,
     fetchLeads,
@@ -386,6 +410,98 @@ export function useLeads() {
     convertirAVenta,
     generarPostventa,
   }
+}
+
+export function useLeadsKpis() {
+  const auth = useAuth()
+  const organizationId = getOrganizationId(auth)
+  
+  const [kpis, setKpis] = useState({ total: 0, abiertos: 0, cotizados: 0, ganados: 0, sinSeguimiento: 0 })
+  const [loading, setLoading] = useState(true)
+
+  const fetchKpis = useCallback(async () => {
+    if (!organizationId) {
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+
+      const baseQuery = () => supabase.from('leads').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId)
+
+      const [
+        { count: total },
+        { count: abiertos },
+        { count: ganados },
+        { count: cotizados },
+        { count: sinSeguimiento }
+      ] = await Promise.all([
+        baseQuery(),
+        baseQuery().not('estado', 'in', '("Ganado","Perdido")'),
+        baseQuery().eq('estado', 'Ganado'),
+        baseQuery().eq('estado', 'Cotizado'),
+        baseQuery().is('proximo_seguimiento', null).not('estado', 'in', '("Ganado","Perdido")')
+      ])
+
+      setKpis({
+        total: total || 0,
+        abiertos: abiertos || 0,
+        ganados: ganados || 0,
+        cotizados: cotizados || 0,
+        sinSeguimiento: sinSeguimiento || 0,
+      })
+    } catch (error) {
+      console.error('Error fetching Leads KPIs:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [organizationId])
+
+  useEffect(() => {
+    fetchKpis()
+  }, [fetchKpis])
+
+  return { kpis, loading, fetchKpis }
+}
+
+export function useLeadsOptions() {
+  const auth = useAuth()
+  const organizationId = getOrganizationId(auth)
+
+  const [opciones, setOpciones] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchOptions = useCallback(async () => {
+    if (!organizationId) {
+      setOpciones([])
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('leads')
+        .select('id, nombre, empresa, telefono, email')
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setOpciones(data || [])
+    } catch (error) {
+      console.error('Error fetching leads options:', error)
+      setOpciones([])
+    } finally {
+      setLoading(false)
+    }
+  }, [organizationId])
+
+  useEffect(() => {
+    fetchOptions()
+  }, [fetchOptions])
+
+  return { opciones, loading, fetchOptions }
 }
 
 // ── Actividades usadas en LeadDetalle ────────────────────────────

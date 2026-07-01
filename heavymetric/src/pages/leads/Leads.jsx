@@ -22,6 +22,10 @@ import Badge from '../../components/ui/Badge'
 import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
 import ModalConfirm from '../../components/ui/ModalConfirm'
+import Pagination from '../../components/ui/Pagination'
+import { useLeadsKpis } from '../../hooks/useLeads'
+
+const PER_PAGE = 50
 
 const ESTADOS = ['Nuevo', 'Contactado', 'Interesado', 'Cotizado', 'Negociación', 'Ganado', 'Perdido']
 
@@ -238,161 +242,56 @@ export default function Leads() {
   const { perfil, canEdit } = useAuth()
   const { userId, organizationId } = getAuthScope(perfil)
 
-  const [leads, setLeads] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
   const [busqueda, setBusqueda] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState('todos')
+  const [page, setPage] = useState(1)
+
+  const { leads, totalCount, loading, error, fetchLeads, crearLead, actualizarLead, avanzarEstado, convertirACliente } = useLeads({
+    page,
+    pageSize: PER_PAGE,
+    search: busqueda,
+    estado: estadoFiltro,
+  })
+
+  const { kpis } = useLeadsKpis()
+
   const [modalOpen, setModalOpen] = useState(false)
   const [editando, setEditando] = useState(null)
   const [convirtiendo, setConvirtiendo] = useState(null)
   const [savingConvert, setSavingConvert] = useState(false)
 
-  const fetchLeads = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      if (!organizationId) {
-        setLeads([])
-        return
-      }
-
-      const { data, error: fetchError } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false })
-
-      if (fetchError) throw fetchError
-
-      setLeads(data || [])
-    } catch (err) {
-      setError(err.message || 'Error al cargar leads')
-    } finally {
-      setLoading(false)
-    }
-  }, [organizationId])
-
   useEffect(() => {
-    fetchLeads()
-  }, [fetchLeads])
-
-  const filtrados = useMemo(() => {
-    const q = normalize(busqueda)
-
-    return leads.filter((lead) => {
-      const matchQ =
-        !q ||
-        normalize(lead.nombre).includes(q) ||
-        normalize(lead.empresa).includes(q) ||
-        normalize(lead.telefono).includes(q) ||
-        normalize(lead.email).includes(q) ||
-        normalize(lead.origen).includes(q) ||
-        normalize(lead.rubro).includes(q) ||
-        normalize(lead.producto_interes).includes(q) ||
-        normalize(lead.mensaje).includes(q) ||
-        normalize(lead.estado).includes(q) ||
-        normalize(lead.asignado?.nombre_completo).includes(q)
-
-      const matchEstado = estadoFiltro === 'todos' || lead.estado === estadoFiltro
-
-      return matchQ && matchEstado
-    })
-  }, [leads, busqueda, estadoFiltro])
-
-  const kpis = useMemo(() => {
-    const abiertos = leads.filter((lead) => !['Ganado', 'Perdido'].includes(lead.estado)).length
-    const ganados = leads.filter((lead) => lead.estado === 'Ganado').length
-    const cotizados = leads.filter((lead) => lead.estado === 'Cotizado').length
-    const sinSeguimiento = leads.filter((lead) => !lead.proximo_seguimiento && !['Ganado', 'Perdido'].includes(lead.estado)).length
-
-    return {
-      total: leads.length,
-      abiertos,
-      cotizados,
-      ganados,
-      sinSeguimiento,
-    }
-  }, [leads])
+    setPage(1)
+  }, [busqueda, estadoFiltro])
 
   const porEstado = useMemo(() => {
     return ESTADOS.map((estado) => ({
       estado,
-      leads: filtrados.filter((lead) => lead.estado === estado),
+      leads: leads.filter((lead) => lead.estado === estado),
     }))
-  }, [filtrados])
+  }, [leads])
 
   const handleSaveLead = async (form) => {
-    if (!organizationId) {
-      throw new Error('No se pudo determinar la organización. Volvé a iniciar sesión.')
+    try {
+      if (editando) {
+        await actualizarLead(editando.id, form)
+        toast.success('Lead actualizado')
+      } else {
+        await crearLead(form)
+        toast.success('Lead creado')
+      }
+
+      setEditando(null)
+      setModalOpen(false)
+    } catch (err) {
+      toast.error(err.message)
     }
-
-    const { id: _ignoredId, organization_id: _ignoredOrg, created_by: _ignoredCreatedBy, ...safeForm } = form
-
-    if (editando) {
-      const { error: updateError } = await supabase
-        .from('leads')
-        .update(safeForm)
-        .eq('id', editando.id)
-        .eq('organization_id', organizationId)
-
-      if (updateError) throw updateError
-
-      console.info('[HeavyMetric][Leads] Lead actualizado con trazabilidad operativa:', {
-        lead_id: editando.id,
-        organization_id: organizationId,
-      })
-
-      toast.success('Lead actualizado')
-    } else {
-      const { error: insertError } = await supabase
-        .from('leads')
-        .insert({
-          ...safeForm,
-          organization_id: organizationId,
-          created_by: userId,
-        })
-
-      if (insertError) throw insertError
-
-      console.info('[HeavyMetric][Leads] Lead creado con trazabilidad operativa:', {
-        organization_id: organizationId,
-        created_by: userId,
-      })
-
-      toast.success('Lead creado')
-    }
-
-    setEditando(null)
-    setModalOpen(false)
-    fetchLeads()
   }
 
   const handleUpdateEstado = async (lead, estado) => {
     try {
-      if (!organizationId) {
-        throw new Error('No se pudo determinar la organización. Volvé a iniciar sesión.')
-      }
-
-      const { error: updateError } = await supabase
-        .from('leads')
-        .update({ estado })
-        .eq('id', lead.id)
-        .eq('organization_id', organizationId)
-
-      if (updateError) throw updateError
-
-      console.info('[HeavyMetric][Leads] Estado de lead actualizado con trazabilidad operativa:', {
-        lead_id: lead.id,
-        estado_anterior: lead.estado,
-        estado_nuevo: estado,
-        organization_id: organizationId,
-      })
-
+      await avanzarEstado(lead.id, estado, lead.estado)
       toast.success(`Lead movido a ${estado}`)
-      fetchLeads()
     } catch (err) {
       toast.error(err.message)
     }
@@ -404,52 +303,9 @@ export default function Leads() {
     setSavingConvert(true)
 
     try {
-      if (!organizationId) {
-        throw new Error('No se pudo determinar la organización. Volvé a iniciar sesión.')
-      }
-
-      const { data: leadCheck, error: leadCheckError } = await supabase
-        .from('leads')
-        .select('id, organization_id')
-        .eq('id', convirtiendo.id)
-        .eq('organization_id', organizationId)
-        .single()
-
-      if (leadCheckError || !leadCheck) {
-        throw new Error('Acceso denegado: el lead no pertenece a tu organización.')
-      }
-
-      const { error: insertError } = await supabase
-        .from('clientes')
-        .insert({
-          organization_id: organizationId,
-          razon_social: convirtiendo.empresa || convirtiendo.nombre,
-          nombre_comercial: convirtiendo.empresa || '',
-          contacto_nombre: convirtiendo.nombre || '',
-          email: convirtiendo.email || '',
-          telefono: convirtiendo.telefono || '',
-          rubro: convirtiendo.rubro || '',
-          propension_compra: 'B',
-        })
-
-      if (insertError) throw insertError
-
-      const { error: updateError } = await supabase
-        .from('leads')
-        .update({ estado: 'Ganado' })
-        .eq('id', convirtiendo.id)
-        .eq('organization_id', organizationId)
-
-      if (updateError) throw updateError
-
-      console.info('[HeavyMetric][Leads] Lead convertido a cliente con trazabilidad operativa:', {
-        lead_id: convirtiendo.id,
-        organization_id: organizationId,
-      })
-
+      await convertirACliente(convirtiendo)
       toast.success('Lead convertido a cliente')
       setConvirtiendo(null)
-      fetchLeads()
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -677,6 +533,9 @@ export default function Leads() {
               </div>
             </div>
           ))}
+        </div>
+        <div className="mt-4">
+          <Pagination total={totalCount} page={page} perPage={PER_PAGE} onPageChange={setPage} />
         </div>
       </section>
 
