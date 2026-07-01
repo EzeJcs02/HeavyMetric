@@ -1,4 +1,5 @@
 import { isIntegrationEnabled } from '../../config/integrations'
+import { supabase } from '../supabase'
 
 // ── Templates HTML ──────────────────────────────────────────────
 
@@ -87,10 +88,19 @@ export const sendEmail = async (to, subject, body, attachments = []) => {
   }
 
   try {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) throw sessionError
+
+    const accessToken = session?.access_token
+    if (!accessToken) throw new Error('No hay una sesion autenticada activa')
+
     const isHtml = typeof body === 'string' && body.trimStart().startsWith('<')
     const res = await fetch('/api/email-send', {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
       body:    JSON.stringify({
         to, subject, attachments,
         ...(isHtml ? { html: body } : { text: body }),

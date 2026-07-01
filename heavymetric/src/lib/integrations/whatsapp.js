@@ -1,4 +1,5 @@
 import { isIntegrationEnabled } from '../../config/integrations'
+import { supabase } from '../supabase'
 
 // Textos de preview para modo mock — espejo de los templates de Meta
 const MOCK_TEXTOS = {
@@ -28,9 +29,18 @@ export const sendWhatsAppMessage = async (phone, type, data) => {
   }
 
   try {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) throw sessionError
+
+    const accessToken = session?.access_token
+    if (!accessToken) throw new Error('No hay una sesion autenticada activa')
+
     const res = await fetch('/api/whatsapp-send', {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
       body:    JSON.stringify({ phone, type, data }),
     })
     const result = await res.json()

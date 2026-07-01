@@ -1,4 +1,5 @@
 import { isIntegrationEnabled } from '../../config/integrations'
+import { supabase } from '../supabase'
 
 const MOCK_PADRON = {
   '30712345678': {
@@ -31,7 +32,15 @@ export const lookupCuit = async (cuit) => {
   }
 
   try {
-    const res  = await fetch(`/api/arca-lookup?cuit=${limpio}`)
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) throw sessionError
+
+    const accessToken = session?.access_token
+    if (!accessToken) throw new Error('No hay una sesion autenticada activa')
+
+    const res = await fetch(`/api/arca-lookup?cuit=${limpio}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
     const data = await res.json()
     if (!res.ok) return { success: false, error: data.error || 'Error consultando ARCA' }
     return data

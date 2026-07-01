@@ -1,4 +1,5 @@
 import { isIntegrationEnabled } from '../../config/integrations'
+import { supabase } from '../supabase'
 
 const MOCK_RESULT = {
   tipoDocumento:   'REMITO',
@@ -35,13 +36,22 @@ export const readDocumentWithOCR = async (imageFile) => {
   }
 
   try {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) throw sessionError
+
+    const accessToken = session?.access_token
+    if (!accessToken) throw new Error('No hay una sesion autenticada activa')
+
     const imageBase64 = typeof imageFile === 'string'
       ? imageFile
       : await toBase64(imageFile)
 
     const res = await fetch('/api/ocr-process', {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
       body:    JSON.stringify({
         imageBase64,
         mimeType: imageFile?.type || 'image/jpeg',
