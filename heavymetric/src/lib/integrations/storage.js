@@ -1,4 +1,4 @@
-import { isIntegrationEnabled } from '../../config/integrations'
+import { integrationDisabledResult, isIntegrationEnabled, isIntegrationMockAllowed } from '../../config/integrations'
 import { supabase } from '../supabase'
 
 const BUCKET = 'documentos'
@@ -53,6 +53,10 @@ function scopedPath(path, organizationId) {
  */
 export const uploadDocument = async (file, path) => {
   try {
+    if (!isIntegrationEnabled('storage') && !isIntegrationMockAllowed()) {
+      return integrationDisabledResult('Storage')
+    }
+
     const organizationId = await getOrganizationId()
     const finalPath = scopedPath(path, organizationId)
 
@@ -93,6 +97,10 @@ export const uploadDocument = async (file, path) => {
  */
 export const getFileUrl = (path) => {
   try {
+    if (!isIntegrationEnabled('storage') && !isIntegrationMockAllowed()) {
+      return integrationDisabledResult('Storage')
+    }
+
     const cleanPath = sanitizePath(path)
 
     if (!isIntegrationEnabled('storage')) {
@@ -111,6 +119,10 @@ export const getFileUrl = (path) => {
  */
 export const deleteDocument = async (path) => {
   try {
+    if (!isIntegrationEnabled('storage') && !isIntegrationMockAllowed()) {
+      return integrationDisabledResult('Storage')
+    }
+
     const organizationId = await getOrganizationId()
     const finalPath = scopedPath(path, organizationId)
 
@@ -133,6 +145,10 @@ export const deleteDocument = async (path) => {
  */
 export const listDocuments = async (prefix = '') => {
   try {
+    if (!isIntegrationEnabled('storage') && !isIntegrationMockAllowed()) {
+      return { ...integrationDisabledResult('Storage'), files: [] }
+    }
+
     const organizationId = await getOrganizationId()
     const finalPrefix = scopedPath(prefix || 'root', organizationId).replace(/\/root$/, '')
 

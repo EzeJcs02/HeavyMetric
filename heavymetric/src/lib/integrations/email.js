@@ -1,4 +1,4 @@
-import { isIntegrationEnabled } from '../../config/integrations'
+import { integrationDisabledResult, isIntegrationEnabled, isIntegrationMockAllowed } from '../../config/integrations'
 import { supabase } from '../supabase'
 
 // ── Templates HTML ──────────────────────────────────────────────
@@ -79,6 +79,8 @@ const TEMPLATES = {
  */
 export const sendEmail = async (to, subject, body, attachments = []) => {
   if (!isIntegrationEnabled('email')) {
+    if (!isIntegrationMockAllowed()) return integrationDisabledResult('Email')
+
     const dest = Array.isArray(to) ? to.join(', ') : to
     console.log(`[MOCK EMAIL → ${dest}] ${subject}`)
     if (attachments.length) console.log(`[MOCK EMAIL] Adjuntos: ${attachments.length}`)

@@ -1,4 +1,4 @@
-import { isIntegrationEnabled } from '../../config/integrations'
+import { integrationDisabledResult, isIntegrationEnabled, isIntegrationMockAllowed } from '../../config/integrations'
 import { supabase } from '../supabase'
 
 const MOCK_PADRON = {
@@ -15,6 +15,10 @@ const MOCK_PADRON = {
 }
 
 export const lookupCuit = async (cuit) => {
+  if (!isIntegrationEnabled('arca') && !isIntegrationMockAllowed()) {
+    return integrationDisabledResult('ARCA')
+  }
+
   const limpio = cuit.replace(/[- ]/g, '')
 
   if (!isIntegrationEnabled('arca')) {
@@ -52,6 +56,8 @@ export const lookupCuit = async (cuit) => {
 // Validar comprobante y obtener CAE — requiere WSFE habilitado en producción
 export const validarComprobante = async (datosFactura) => {
   if (!isIntegrationEnabled('arca')) {
+    if (!isIntegrationMockAllowed()) return integrationDisabledResult('ARCA')
+
     console.log('[MOCK ARCA] Validando comprobante...', datosFactura)
     return new Promise(resolve => setTimeout(() => resolve({
       success: true,
@@ -67,6 +73,8 @@ export const validarComprobante = async (datosFactura) => {
 // Factura futura / recurrente
 export const generarFacturaFutura = async (datosFactura) => {
   if (!isIntegrationEnabled('arca')) {
+    if (!isIntegrationMockAllowed()) return integrationDisabledResult('ARCA')
+
     console.log('[MOCK ARCA] Generando factura futura...', datosFactura)
     return new Promise(resolve => setTimeout(() => resolve({ success: true, id: `FC-FUT-${Date.now()}` }), 500))
   }

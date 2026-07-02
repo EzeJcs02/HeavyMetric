@@ -1,4 +1,4 @@
-import { isIntegrationEnabled } from '../../config/integrations'
+import { integrationDisabledResult, isIntegrationEnabled, isIntegrationMockAllowed } from '../../config/integrations'
 import { supabase } from '../supabase'
 
 const MOCK_RESULT = {
@@ -29,6 +29,8 @@ const toBase64 = (file) => new Promise((resolve, reject) => {
  */
 export const readDocumentWithOCR = async (imageFile) => {
   if (!isIntegrationEnabled('ocr')) {
+    if (!isIntegrationMockAllowed()) return integrationDisabledResult('OCR')
+
     console.log('[MOCK OCR] Procesando imagen...')
     return new Promise(resolve =>
       setTimeout(() => resolve({ success: true, data: MOCK_RESULT }), 2_000)

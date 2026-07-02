@@ -1,4 +1,4 @@
-import { isIntegrationEnabled } from '../../config/integrations'
+import { integrationDisabledResult, isIntegrationEnabled, isIntegrationMockAllowed } from '../../config/integrations'
 import { supabase } from '../supabase'
 
 const MOCK_ECHEQS = [
@@ -85,6 +85,8 @@ function sanitizeChequePayload(cheque, orgId) {
  */
 export const syncEcheqs = async () => {
   if (!isIntegrationEnabled('bancos')) {
+    if (!isIntegrationMockAllowed()) return integrationDisabledResult('Bancos')
+
     console.log('[MOCK BANCOS] Sincronizando E-Cheqs...')
     return new Promise((resolve) =>
       setTimeout(() => resolve({ success: true, nuevosCheques: MOCK_ECHEQS }), 1_500)
@@ -114,6 +116,8 @@ export const syncEcheqs = async () => {
  */
 export const getCheques = async ({ tipo, estado } = {}) => {
   if (!isIntegrationEnabled('bancos')) {
+    if (!isIntegrationMockAllowed()) return integrationDisabledResult('Bancos')
+
     const filtrados = MOCK_ECHEQS.filter((c) =>
       (!tipo || c.tipo === tipo) &&
       (!estado || c.estado === estado)
@@ -147,6 +151,8 @@ export const getCheques = async ({ tipo, estado } = {}) => {
  */
 export const registrarCheque = async (cheque) => {
   if (!isIntegrationEnabled('bancos')) {
+    if (!isIntegrationMockAllowed()) return integrationDisabledResult('Bancos')
+
     console.log('[MOCK BANCOS] Registrando cheque:', cheque)
     return new Promise((resolve) =>
       setTimeout(() => resolve({ success: true, id: `CHK-MOCK-${Date.now()}` }), 400)
@@ -175,6 +181,8 @@ export const registrarCheque = async (cheque) => {
  */
 export const actualizarEstadoCheque = async (id, estado) => {
   if (!isIntegrationEnabled('bancos')) {
+    if (!isIntegrationMockAllowed()) return integrationDisabledResult('Bancos')
+
     console.log(`[MOCK BANCOS] Cheque ${id} → ${estado}`)
     return { success: true }
   }
@@ -207,6 +215,8 @@ export const actualizarEstadoCheque = async (id, estado) => {
  */
 export const matchReconciliation = async (movimientos) => {
   if (!isIntegrationEnabled('bancos')) {
+    if (!isIntegrationMockAllowed()) return integrationDisabledResult('Bancos')
+
     console.log('[MOCK BANCOS] Conciliando movimientos...')
     return new Promise((resolve) =>
       setTimeout(() => resolve({ success: true, conciliados: movimientos.length, pendientes: 0 }), 1_000)

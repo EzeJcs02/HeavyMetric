@@ -13,6 +13,15 @@ export const integrationFlags = {
 
 export const isIntegrationEnabled = (name) => !!integrationFlags[name]
 
+const MOCK_MODES = new Set(['development', 'test', 'e2e'])
+
+export const isIntegrationMockAllowed = () => MOCK_MODES.has(import.meta.env.MODE)
+
+export const integrationDisabledResult = (name) => ({
+  success: false,
+  error: `La integracion ${name} esta deshabilitada en produccion`,
+})
+
 // Metadata de cada integración para mostrar en el panel /app/integraciones
 export const INTEGRATION_METADATA = {
   arca: {

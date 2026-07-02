@@ -1,4 +1,4 @@
-import { isIntegrationEnabled } from '../../config/integrations'
+import { integrationDisabledResult, isIntegrationEnabled, isIntegrationMockAllowed } from '../../config/integrations'
 import { supabase } from '../supabase'
 
 // Textos de preview para modo mock — espejo de los templates de Meta
@@ -21,6 +21,8 @@ const MOCK_TEXTOS = {
  */
 export const sendWhatsAppMessage = async (phone, type, data) => {
   if (!isIntegrationEnabled('whatsapp')) {
+    if (!isIntegrationMockAllowed()) return integrationDisabledResult('WhatsApp')
+
     const texto = MOCK_TEXTOS[type]?.(data) ?? `Notificación HeavyMetric: ${type}`
     console.log(`[MOCK WA → ${phone}]\n${texto}`)
     return new Promise(resolve =>
