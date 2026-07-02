@@ -1,6 +1,7 @@
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 import { useDolar } from '../../context/DolarContext'
-import { useDashboardData } from '../../hooks/useDashboardData'
+import { DASHBOARD_ALERTS_QUERY_KEY, useDashboardData } from '../../hooks/useDashboardData'
 import { useAuth } from '../../context/AuthContext'
 import { useRubro } from '../../context/RubroContext'
 import { useAIInsights } from '../../hooks/useAIInsights'
@@ -64,8 +65,9 @@ function SectionHeader({ title, badge = 'real' }) {
 }
 
 export default function Dashboard() {
+  const queryClient = useQueryClient()
   const { toARS, formatARS, formatUSD } = useDolar()
-  const { data, loading, error, refresh } = useDashboardData()
+  const { data, loading, error } = useDashboardData()
   const { perfil, hasModule } = useAuth()
   const { taxonomia } = useRubro()
   const { counts, loading: aiLoading } = useAIInsights()
@@ -140,7 +142,10 @@ export default function Dashboard() {
       return
     }
 
-    refresh()
+    queryClient.setQueryData(
+      [DASHBOARD_ALERTS_QUERY_KEY, perfil.organization_id],
+      (alertasActuales) => alertasActuales?.filter((alerta) => alerta.id !== alertaId)
+    )
   }
 
   return (

@@ -177,6 +177,13 @@ export function useDashboardData() {
   const organizationId = perfil?.organization_id
   const queryClient = useQueryClient()
 
+  const { data: alertas = [] } = useQuery({
+    queryKey: [DASHBOARD_ALERTS_QUERY_KEY, organizationId],
+    queryFn: () => fetchDashboardAlerts(organizationId),
+    enabled: !!organizationId,
+    staleTime: 2 * 60 * 1000,
+  })
+
   const { data = EMPTY, isLoading: loading, error: queryError, refetch } = useQuery({
     queryKey: ['dashboard', organizationId],
     queryFn: () => fetchDashboard(organizationId, queryClient),
@@ -192,5 +199,10 @@ export function useDashboardData() {
     return refetch()
   }
 
-  return { data, loading, error: queryError?.message ?? null, refresh }
+  return {
+    data: { ...data, alertas: alertas.slice(0, 5) },
+    loading,
+    error: queryError?.message ?? null,
+    refresh,
+  }
 }
