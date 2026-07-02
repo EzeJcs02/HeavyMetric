@@ -109,10 +109,11 @@ export function useTesoreriaData() {
   const queryClient = useQueryClient()
 
   // Traer TC
-  const { data: tipoCambio } = useQuery({
+  const { data: tipoCambio, error: tipoCambioError } = useQuery({
     queryKey: ['tipo_cambio'],
     queryFn: async () => {
-      const { data } = await supabase.from('tipo_cambio').select('*').order('fecha', { ascending: false }).limit(1).maybeSingle()
+      const { data, error } = await supabase.from('tipo_cambio').select('*').order('fecha', { ascending: false }).limit(1).maybeSingle()
+      if (error) throw error
       return data || null
     },
     staleTime: 1000 * 60 * 60,
@@ -136,6 +137,9 @@ export function useTesoreriaData() {
           .in('estado', ['recibido', 'pendiente'])
       ])
 
+      if (txRes.error) throw txRes.error
+      if (compRes.error) throw compRes.error
+
       return {
         transacciones: txRes.data || [],
         compras: compRes.data || [],
@@ -149,7 +153,7 @@ export function useTesoreriaData() {
     compras: data?.compras || [],
     tipoCambio,
     loading,
-    error: queryError?.message,
+    error: queryError?.message || tipoCambioError?.message,
     refetch: () => queryClient.invalidateQueries({ queryKey: ['tesoreria_data'] })
   }
 }
