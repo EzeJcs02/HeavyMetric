@@ -33,8 +33,8 @@ export class ErrorBoundary extends React.Component {
             <div className="text-5xl mb-6">⚠️</div>
             <h1 className="text-2xl font-bold text-hm-text mb-2">Algo salió mal</h1>
             <p className="text-hm-muted text-sm mb-8">
-              Ha ocurrido un error inesperado al procesar la pantalla actual. 
-              El equipo de soporte ha sido notificado automáticamente.
+              Se produjo un error inesperado. Intentá recargar la pantalla. Si el problema persiste,
+              contactá al administrador del sistema.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-3 w-full">
