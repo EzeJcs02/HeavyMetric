@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { isValidCuit, formatCuit } from '../../lib/cuitValidator'
 import * as XLSX from 'xlsx'

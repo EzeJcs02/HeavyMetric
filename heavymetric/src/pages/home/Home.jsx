@@ -4,7 +4,6 @@ import { useAuth }          from '../../context/AuthContext'
 import { useDolar }         from '../../context/DolarContext'
 import { useDashboardData } from '../../hooks/useDashboardData'
 import KpiCard              from '../../components/ui/KpiCard'
-import Sparkline            from '../../components/ui/Sparkline'
 
 // ─── Mock sparkline seeds (replace with real hook data when available) ────────
 const SPARK_OT  = [8, 6, 9, 7, 10, 8, 7, 9, 7]

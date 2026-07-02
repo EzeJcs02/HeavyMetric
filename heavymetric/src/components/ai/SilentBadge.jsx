@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertCircle, TrendingDown, AlertTriangle, Info, Zap, PackageOpen, Wrench, ShieldAlert } from 'lucide-react';
 
 /**

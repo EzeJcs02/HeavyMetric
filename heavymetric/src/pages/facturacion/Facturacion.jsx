@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useTransacciones, useFinanzasKpis, useFinanzasAcciones, useTesoreriaData } from '../../hooks/useFinanzas'
 import { useDolar } from '../../context/DolarContext'

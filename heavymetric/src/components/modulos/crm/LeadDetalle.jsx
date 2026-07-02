@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import Modal from '../../ui/Modal'
 import Badge from '../../ui/Badge'
-import Button from '../../ui/Button'
 import Input from '../../ui/Input'
 import {
   fetchActividades, agregarActividad,

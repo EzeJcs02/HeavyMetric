@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useRubro } from '../../context/RubroContext'

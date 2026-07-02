@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import Modal from '../../ui/Modal'
 import Card from '../../ui/Card'
 import Badge from '../../ui/Badge'

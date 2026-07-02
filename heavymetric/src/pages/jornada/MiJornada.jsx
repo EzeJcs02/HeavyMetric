@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom'
 import { evaluateRules, buildMetrics } from '../../lib/workflowRules'
 import { countAprobacionesPendientes } from '../../hooks/useAprobaciones'
 import PriorityBadge from '../../components/workflow/PriorityBadge'
-import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
 
 const IS_MOCK_MODE = ['development', 'test', 'e2e'].includes(import.meta.env.MODE)

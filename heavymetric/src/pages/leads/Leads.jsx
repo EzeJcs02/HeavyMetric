@@ -1,10 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CalendarClock,
-  CheckCircle2,
-  ChevronRight,
-  CircleDollarSign,
   ClipboardList,
   Mail,
   MessageCircle,
@@ -14,7 +11,6 @@ import {
   UserPlus,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'

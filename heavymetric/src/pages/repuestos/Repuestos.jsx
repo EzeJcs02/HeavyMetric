@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import { supabase } from '../../lib/supabase'
