@@ -141,6 +141,7 @@ export function useAlquileres() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contratos_alquiler', organizationId] })
+      queryClient.invalidateQueries({ queryKey: ['maquinas', organizationId] })
     },
   })
 
@@ -184,6 +185,7 @@ export function useAlquileres() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contratos_alquiler', organizationId] })
+      queryClient.invalidateQueries({ queryKey: ['maquinas', organizationId] })
     },
   })
 
@@ -209,6 +211,7 @@ export function useAlquileres() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contratos_alquiler', organizationId] })
+      queryClient.invalidateQueries({ queryKey: ['maquinas', organizationId] })
     },
   })
 
