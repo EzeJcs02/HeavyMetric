@@ -93,6 +93,9 @@ export function useTaller({ page = 1, pageSize = 10, search = '' } = {}) {
 
   const invalidateOts = () => {
     queryClient.invalidateQueries({ queryKey: ['ordenes_trabajo', organizationId] })
+    queryClient.invalidateQueries({ queryKey: ['taller_kpis', organizationId] })
+    queryClient.invalidateQueries({ queryKey: ['ordenes_trabajo_options', organizationId] })
+    queryClient.invalidateQueries({ queryKey: ['maquinas', organizationId] })
   }
 
   const createOT = async (otData) => {
