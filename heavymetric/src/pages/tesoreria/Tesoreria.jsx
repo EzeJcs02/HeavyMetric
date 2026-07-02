@@ -26,6 +26,8 @@ import {
   updateEstadoCuota,
 } from '../../services/tesoreriaService'
 
+const IS_MOCK_MODE = ['development', 'test', 'e2e'].includes(import.meta.env.MODE)
+
 const FORMAS = [
   'Contado',
   'Transferencia',
@@ -203,6 +205,7 @@ export default function Tesoreria() {
   const [cuotasDb, setCuotasDb] = useState([])
   const [loadingPlanes, setLoadingPlanes] = useState(true)
   const [supabaseReady, setSupabaseReady] = useState(false)
+  const [loadError, setLoadError] = useState(null)
 
   const [form, setForm] = useState({
     tipo: 'cobro',
@@ -215,7 +218,7 @@ export default function Tesoreria() {
     frecuencia: 'mensual',
     forma: 'ECHEQ',
     moneda: 'ARS',
-    banco: 'Banco Nación',
+    banco: IS_MOCK_MODE ? 'Banco Nación' : '',
     referencia: '',
     observaciones: '',
   })
@@ -223,6 +226,7 @@ export default function Tesoreria() {
   const loadTesoreria = async () => {
     try {
       setLoadingPlanes(true)
+      setLoadError(null)
 
       const planesData = await getPlanes()
       const cuotasData = await getCuotas()
@@ -232,10 +236,13 @@ export default function Tesoreria() {
       setSupabaseReady(true)
     } catch (error) {
       console.error(error)
-      setPlanes(MOCK_PLANES_INICIALES)
+      setPlanes(IS_MOCK_MODE ? MOCK_PLANES_INICIALES : [])
       setCuotasDb([])
       setSupabaseReady(false)
-      toast.error('No se pudo cargar Supabase. Se muestra base preparada.')
+      setLoadError('No se pudieron cargar los planes y cuotas desde Supabase.')
+      toast.error(IS_MOCK_MODE
+        ? 'No se pudo cargar Supabase. Se muestra base preparada.'
+        : 'No se pudieron cargar los planes y cuotas financieros.')
     } finally {
       setLoadingPlanes(false)
     }
@@ -245,7 +252,13 @@ export default function Tesoreria() {
     loadTesoreria()
   }, [])
 
-  const planesOperativos = planes.length > 0 ? planes.map(normalizePlan) : MOCK_PLANES_INICIALES
+  const planesOperativos = planes.length > 0
+    ? planes.map(normalizePlan)
+    : IS_MOCK_MODE
+      ? MOCK_PLANES_INICIALES
+      : []
+
+  const bancosOperativos = IS_MOCK_MODE ? BANCOS : []
 
   const cuotasGeneradas = useMemo(() => {
     if (cuotasDb.length > 0) {
@@ -322,8 +335,8 @@ export default function Tesoreria() {
     .filter((v) => String(v.forma || '').toLowerCase() === 'echeq')
     .sort((a, b) => String(a.vencimiento || '').localeCompare(String(b.vencimiento || '')))
 
-  const totalBancosArs = BANCOS.filter((b) => b.moneda === 'ARS').reduce((s, b) => s + b.saldo, 0)
-  const totalBancosUsd = BANCOS.filter((b) => b.moneda === 'USD').reduce((s, b) => s + b.saldo, 0)
+  const totalBancosArs = bancosOperativos.filter((b) => b.moneda === 'ARS').reduce((s, b) => s + b.saldo, 0)
+  const totalBancosUsd = bancosOperativos.filter((b) => b.moneda === 'USD').reduce((s, b) => s + b.saldo, 0)
 
   const totalACobrar = vencimientos
     .filter((v) => v.tipo === 'cobro' && v.moneda === 'ARS' && v.estado !== 'pagado')
@@ -397,8 +410,11 @@ export default function Tesoreria() {
       if (supabaseReady) {
         await createPlan(newPlan)
         await loadTesoreria()
-      } else {
+      } else if (IS_MOCK_MODE) {
         setPlanes((prev) => [newPlan, ...prev])
+      } else {
+        toast.error('No se puede crear el plan mientras Supabase no esté disponible.')
+        return
       }
 
       setShowPlanModal(false)
@@ -415,7 +431,7 @@ export default function Tesoreria() {
         frecuencia: 'mensual',
         forma: 'ECHEQ',
         moneda: 'ARS',
-        banco: 'Banco Nación',
+        banco: IS_MOCK_MODE ? 'Banco Nación' : '',
         referencia: '',
         observaciones: '',
       })
@@ -428,7 +444,9 @@ export default function Tesoreria() {
   const handleEstadoCuota = async (id, estado) => {
     try {
       if (!supabaseReady || String(id).startsWith('plan-demo')) {
-        toast.info('Base preparada: conectá Supabase para actualizar estados reales.')
+        toast.info(IS_MOCK_MODE
+          ? 'Base preparada: conectá Supabase para actualizar estados reales.'
+          : 'No se puede actualizar el estado mientras Supabase no esté disponible.')
         return
       }
 
@@ -490,11 +508,17 @@ export default function Tesoreria() {
       </div>
 
       <div className={`rounded-xl border px-4 py-3 font-mono text-[11px] uppercase tracking-[0.12em] ${
-        supabaseReady
+        loadError && !IS_MOCK_MODE
+          ? 'border-red-300/20 bg-red-300/5 text-red-300'
+          : supabaseReady
           ? 'border-emerald-300/20 bg-emerald-300/5 text-emerald-300'
           : 'border-cyan-300/20 bg-cyan-300/5 text-cyan-300'
       }`}>
-        {supabaseReady
+        {loadingPlanes
+          ? 'CARGANDO — Consultando planes y cuotas financieros.'
+          : loadError && !IS_MOCK_MODE
+            ? `ERROR — ${loadError}`
+            : supabaseReady
           ? 'REAL — Planes y cuotas conectados a Supabase. Preparado para trazabilidad, auditoría e integración contable.'
           : 'BASE PREPARADA — La lógica de planes, cuotas y vencimientos está operativa. Próxima etapa: persistencia SQL/Supabase.'}
       </div>
@@ -747,6 +771,11 @@ export default function Tesoreria() {
 
       {tab === 'planes' && (
         <div className="grid gap-4 lg:grid-cols-2">
+          {planesOperativos.length === 0 && (
+            <Panel className="p-8 text-center text-sm text-neutral-500 lg:col-span-2">
+              No hay planes financieros registrados.
+            </Panel>
+          )}
           {planesOperativos.map((plan) => {
             const cuotas = generateCuotas(plan)
             const vencidas = cuotas.filter((c) => daysTo(c.vencimiento) < 0).length
@@ -790,7 +819,12 @@ export default function Tesoreria() {
 
       {tab === 'bancos' && (
         <div className="grid gap-4 md:grid-cols-2">
-          {BANCOS.map((banco) => (
+          {bancosOperativos.length === 0 && (
+            <Panel className="p-8 text-center text-sm text-neutral-500 md:col-span-2">
+              No hay cuentas bancarias reales configuradas.
+            </Panel>
+          )}
+          {bancosOperativos.map((banco) => (
             <Panel key={banco.id} className="p-5">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -1174,7 +1208,10 @@ export default function Tesoreria() {
                   onChange={(e) => setForm({ ...form, banco: e.target.value })}
                   className="w-full rounded-xl border border-white/[0.08] bg-[#111520] px-3 py-3 text-sm text-white outline-none focus:border-cyan-300/40"
                 >
-                  {BANCOS.map((banco) => (
+                  {bancosOperativos.length === 0 && (
+                    <option value="">Sin cuentas bancarias configuradas</option>
+                  )}
+                  {bancosOperativos.map((banco) => (
                     <option key={banco.id} value={banco.nombre}>{banco.nombre} · {banco.cuenta}</option>
                   ))}
                 </select>
