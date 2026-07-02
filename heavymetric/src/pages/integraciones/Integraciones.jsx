@@ -59,7 +59,7 @@ function IntegCard({ integration, onTest, testing }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-sm text-hm-text">{label}</span>
             <Badge variant={enabled ? 'success' : 'default'}>
-              {enabled ? 'ACTIVO' : 'MOCK'}
+              {enabled ? 'ACTIVO' : 'DESHABILITADO'}
             </Badge>
             <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border uppercase tracking-widest ${catStyle}`}>
               {categoria}
@@ -149,7 +149,8 @@ export default function Integraciones() {
         <div>
           <h1 className="text-2xl font-bold">Integraciones</h1>
           <p className="text-sm text-hm-muted mt-1">
-            {activas} de {integrations.length} activas — resto en modo mock (sin llamadas reales)
+            {activas} de {integrations.length} activas — las deshabilitadas no están disponibles en producción.
+            El modo mock se limita a development, test y e2e.
           </p>
         </div>
         <Badge variant={activas > 0 ? 'success' : 'default'} className="mt-1">
@@ -177,7 +178,7 @@ export default function Integraciones() {
         <ol className="text-xs text-hm-muted/80 space-y-1 list-decimal list-inside">
           <li>Configurar las variables de entorno server-side en Vercel (sin prefijo VITE_).</li>
           <li>Cambiar <code className="bg-hm-surface px-1 rounded text-hm-muted font-mono">VITE_ENABLE_NOMBRE=true</code> en el entorno.</li>
-          <li>Hacer redeploy. La integración pasará de mock a producción.</li>
+          <li>Hacer redeploy. En producción, la integración pasará de deshabilitada a activa.</li>
         </ol>
       </Card>
 
@@ -189,8 +190,9 @@ export default function Integraciones() {
         <p className="text-xs text-hm-muted/60 leading-relaxed">
           Las credenciales de APIs externas (ARCA, WhatsApp, Email, OCR) se ejecutan
           exclusivamente en Vercel Functions — nunca se exponen al browser.
-          Los flags <code className="font-mono">VITE_ENABLE_*</code> solo indican si el
-          modo mock está activo, no contienen secretos.
+          Los flags <code className="font-mono">VITE_ENABLE_*</code> habilitan la integración
+          real y no contienen secretos. Con el flag deshabilitado, el modo mock sólo está
+          disponible en development, test y e2e; en producción la integración no está disponible.
         </p>
       </Card>
     </div>
