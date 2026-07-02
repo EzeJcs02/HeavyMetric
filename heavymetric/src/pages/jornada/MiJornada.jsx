@@ -8,6 +8,8 @@ import PriorityBadge from '../../components/workflow/PriorityBadge'
 import Badge from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
 
+const IS_MOCK_MODE = ['development', 'test', 'e2e'].includes(import.meta.env.MODE)
+
 const SECCION_HOY     = 'hoy'
 const SECCION_URGENTE = 'urgente'
 const SECCION_PENDING = 'pendiente'
@@ -57,7 +59,6 @@ function SectionBlock({ title, icon, items, onClick, emptyText = 'Todo al día' 
   )
 }
 
-// Items mock por rol — TODO: conectar con workflow real
 function buildItemsByRol(rol, metrics) {
   const reglas = evaluateRules(buildMetrics(metrics))
 
@@ -91,7 +92,9 @@ function buildItemsByRol(rol, metrics) {
     ],
   }
 
-  const extras = EXTRAS_BY_ROL[rol] || EXTRAS_BY_ROL.operativo
+  const extras = IS_MOCK_MODE
+    ? EXTRAS_BY_ROL[rol] || EXTRAS_BY_ROL.operativo
+    : []
   return [...base, ...extras]
 }
 
@@ -156,6 +159,7 @@ export default function MiJornada() {
   const aprobaciones = metrics.aprobacionesPendientes > 0
     ? [{ id: 'apr_real', titulo: `${metrics.aprobacionesPendientes} solicitud(es) pendiente(s) de aprobación`, descripcion: 'Accedé al Centro de Aprobaciones para gestionar cada solicitud.', prioridad: metrics.aprobacionesPendientes > 2 ? 'alta' : 'media', modulo: 'aprobaciones', link: '/app/aprobaciones', seccion: SECCION_PENDING }]
     : []
+  const hasTasks = items.length > 0 || aprobaciones.length > 0
 
   const SECCIONES = [
     { id: SECCION_HOY,     label: 'HOY',           count: hoy.length + urgentes.length },
@@ -212,43 +216,57 @@ export default function MiJornada() {
         ))}
       </div>
 
-      {/* Tabs de sección */}
-      <div className="flex gap-2 border-b border-hm-border overflow-x-auto no-scrollbar">
-        {SECCIONES.map(s => (
-          <button key={s.id} onClick={() => setSeccion(s.id)}
-            className={`px-4 py-2 text-xs font-mono font-bold border-b-2 transition-all whitespace-nowrap flex items-center gap-2 ${
-              seccion === s.id ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-hm-text'
-            }`}>
-            {s.label}
-            {s.count > 0 && (
-              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full ${seccion === s.id ? 'bg-hm-accent/20 text-hm-accent' : 'bg-hm-surface2 text-hm-muted'}`}>
-                {s.count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      {!hasTasks ? (
+        <Card className="px-6 py-12 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-green-500/30 bg-green-500/10 text-xl text-green-400">
+            ✓
+          </div>
+          <h2 className="mt-4 text-lg font-semibold text-hm-text">Tu jornada está al día</h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-hm-muted">
+            No hay tareas, alertas ni aprobaciones pendientes provenientes de la operación actual.
+          </p>
+        </Card>
+      ) : (
+        <>
+          {/* Tabs de sección */}
+          <div className="flex gap-2 border-b border-hm-border overflow-x-auto no-scrollbar">
+            {SECCIONES.map(s => (
+              <button key={s.id} onClick={() => setSeccion(s.id)}
+                className={`px-4 py-2 text-xs font-mono font-bold border-b-2 transition-all whitespace-nowrap flex items-center gap-2 ${
+                  seccion === s.id ? 'border-hm-accent text-hm-accent' : 'border-transparent text-hm-muted hover:text-hm-text'
+                }`}>
+                {s.label}
+                {s.count > 0 && (
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full ${seccion === s.id ? 'bg-hm-accent/20 text-hm-accent' : 'bg-hm-surface2 text-hm-muted'}`}>
+                    {s.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
 
-      {/* Contenido por sección */}
-      <div className="flex flex-col gap-4">
-        {seccion === SECCION_HOY && (
-          <>
-            {urgentes.length > 0 && (
-              <SectionBlock title="Urgente — Atención inmediata" icon="🚨" items={urgentes} onClick={handleItemClick} emptyText="Sin urgentes" />
+          {/* Contenido por sección */}
+          <div className="flex flex-col gap-4">
+            {seccion === SECCION_HOY && (
+              <>
+                {urgentes.length > 0 && (
+                  <SectionBlock title="Urgente — Atención inmediata" icon="🚨" items={urgentes} onClick={handleItemClick} emptyText="Sin urgentes" />
+                )}
+                <SectionBlock title="Tareas del día" icon="📋" items={hoy} onClick={handleItemClick} emptyText="Sin tareas para hoy — todo al día ✅" />
+              </>
             )}
-            <SectionBlock title="Tareas del día" icon="📋" items={hoy} onClick={handleItemClick} emptyText="Sin tareas para hoy — todo al día ✅" />
-          </>
-        )}
-        {seccion === SECCION_URGENTE && (
-          <SectionBlock title="Urgente — Requiere acción inmediata" icon="🚨" items={urgentes} onClick={handleItemClick} emptyText="Sin alertas urgentes — ¡bien hecho! ✅" />
-        )}
-        {seccion === SECCION_PENDING && (
-          <SectionBlock title="Aprobaciones esperando tu decisión" icon="✅" items={aprobaciones} onClick={handleItemClick} emptyText="Sin aprobaciones pendientes" />
-        )}
-        {seccion === SECCION_7DIAS && (
-          <SectionBlock title="Próximos 7 días" icon="📅" items={proximos} onClick={handleItemClick} emptyText="Sin vencimientos próximos" />
-        )}
-      </div>
+            {seccion === SECCION_URGENTE && (
+              <SectionBlock title="Urgente — Requiere acción inmediata" icon="🚨" items={urgentes} onClick={handleItemClick} emptyText="Sin alertas urgentes — ¡bien hecho! ✅" />
+            )}
+            {seccion === SECCION_PENDING && (
+              <SectionBlock title="Aprobaciones esperando tu decisión" icon="✅" items={aprobaciones} onClick={handleItemClick} emptyText="Sin aprobaciones pendientes" />
+            )}
+            {seccion === SECCION_7DIAS && (
+              <SectionBlock title="Próximos 7 días" icon="📅" items={proximos} onClick={handleItemClick} emptyText="Sin vencimientos próximos" />
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
