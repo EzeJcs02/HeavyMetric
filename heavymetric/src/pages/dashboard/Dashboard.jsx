@@ -67,7 +67,7 @@ function SectionHeader({ title, badge = 'real' }) {
 export default function Dashboard() {
   const queryClient = useQueryClient()
   const { toARS, formatARS, formatUSD } = useDolar()
-  const { data, loading, error } = useDashboardData()
+  const { data, loading, error, refresh } = useDashboardData()
   const { perfil, hasModule } = useAuth()
   const { taxonomia } = useRubro()
   const { counts, loading: aiLoading } = useAIInsights()

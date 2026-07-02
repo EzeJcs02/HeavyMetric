@@ -23,7 +23,7 @@ import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
 import ModalConfirm from '../../components/ui/ModalConfirm'
 import Pagination from '../../components/ui/Pagination'
-import { useLeadsKpis } from '../../hooks/useLeads'
+import { useLeads, useLeadsKpis } from '../../hooks/useLeads'
 
 const PER_PAGE = 50
 
