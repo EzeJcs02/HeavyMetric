@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -91,6 +91,7 @@ export function useTransacciones({ page = 1, pageSize = 10, search = '', cliente
       return { data: data || [], count: count || 0 }
     },
     staleTime: 1000 * 30,
+    placeholderData: keepPreviousData,
   })
 
   return {

@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { logAudit } from '../lib/auditLog'
@@ -139,6 +139,7 @@ export function useProveedores({ page = 1, pageSize = 12, search = '', estado = 
       }
     },
     enabled: !!organizationId,
+    placeholderData: keepPreviousData,
   })
 
   const invalidateProveedorQueries = async () => {

@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -136,6 +136,7 @@ export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos
       return { leads: leads || [], totalCount: count || 0 }
     },
     enabled: !!organizationId,
+    placeholderData: keepPreviousData,
   })
 
   const invalidateLeads = async () => {

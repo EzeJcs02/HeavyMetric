@@ -30,7 +30,7 @@ async function assertOTInOrganization(otId, organizationId) {
   return data
 }
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 export function useTaller({ page = 1, pageSize = 10, search = '' } = {}) {
   const auth = useAuth()
@@ -85,6 +85,7 @@ export function useTaller({ page = 1, pageSize = 10, search = '' } = {}) {
       return { data: data || [], count: count || 0 }
     },
     staleTime: 1000 * 30, // 30 seconds
+    placeholderData: keepPreviousData,
   })
 
   const ots = data?.data || []

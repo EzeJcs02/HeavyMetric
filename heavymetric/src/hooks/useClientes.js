@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -81,6 +81,7 @@ export function useClientes(params = { page: 1, pageSize: 10, search: '' }) {
     queryKey: ['clientes', perfil?.organization_id, page, pageSize, search],
     queryFn:  () => fetchClientesPaginated(perfil.organization_id, page, pageSize, search),
     enabled:  !!perfil?.organization_id,
+    placeholderData: keepPreviousData,
   })
 
   const clientes = data?.data || []
