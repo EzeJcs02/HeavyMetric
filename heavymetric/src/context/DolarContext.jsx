@@ -11,7 +11,7 @@ export function DolarProvider({ children }) {
     async function cargar() {
       try {
         // Quitamos .single() para evitar el error 406 si la tabla está vacía
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('tipo_cambio')
           .select('*')
           .order('fecha', { ascending: false })

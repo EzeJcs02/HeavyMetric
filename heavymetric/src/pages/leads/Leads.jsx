@@ -49,10 +49,6 @@ const EMPTY_LEAD = {
   proximo_seguimiento: '',
 }
 
-function normalize(value) {
-  return String(value || '').trim().toLowerCase()
-}
-
 function leadName(lead) {
   return lead.empresa || lead.nombre || 'Sin nombre'
 }
@@ -64,13 +60,6 @@ function nextDateLabel(date) {
 
 function estadoVariant(estado) {
   return ESTADO_VARIANT[estado] || 'default'
-}
-
-function getAuthScope(perfil) {
-  return {
-    userId: perfil?.id || null,
-    organizationId: perfil?.organization_id || null,
-  }
 }
 
 function ModalLead({ isOpen, onClose, lead, onConfirm }) {
@@ -235,14 +224,13 @@ function ModalLead({ isOpen, onClose, lead, onConfirm }) {
 }
 
 export default function Leads() {
-  const { perfil, canEdit } = useAuth()
-  const { userId, organizationId } = getAuthScope(perfil)
+  const { canEdit } = useAuth()
 
   const [busqueda, setBusqueda] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState('todos')
   const [page, setPage] = useState(1)
 
-  const { leads, totalCount, loading, error, fetchLeads, crearLead, actualizarLead, avanzarEstado, convertirACliente } = useLeads({
+  const { leads, totalCount, loading, error, crearLead, actualizarLead, avanzarEstado, convertirACliente } = useLeads({
     page,
     pageSize: PER_PAGE,
     search: busqueda,

@@ -12,7 +12,7 @@ export default function AsistenteIA() {
   const [loading, setLoading] = useState(false)
   const mensajesEndRef = useRef(null)
   const location = useLocation()
-  const { perfil, orgId } = useAuth()
+  const { orgId } = useAuth()
 
   const moduloActual = location.pathname === '/' ? 'Dashboard' : location.pathname.slice(1).toUpperCase()
 

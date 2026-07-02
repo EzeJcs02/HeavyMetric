@@ -46,7 +46,7 @@ export default function Repuestos() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
 
-  const { items: repuestos, totalCount, loading, error, crearItem, updateItem, archivarItem, fetchItems } = useInventario({
+  const { items: repuestos, totalCount, loading, crearItem, updateItem, archivarItem, fetchItems } = useInventario({
     page,
     pageSize: PER_PAGE,
     search

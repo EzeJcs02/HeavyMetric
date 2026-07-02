@@ -29,7 +29,6 @@ export const MODULO = {
 export function evaluateRules(metrics = {}) {
   const acciones = []
   const {
-    otsAbiertas = 0,
     otsDemoradas = 0,
     servicesVencidos = 0,
     stockCritico = 0,

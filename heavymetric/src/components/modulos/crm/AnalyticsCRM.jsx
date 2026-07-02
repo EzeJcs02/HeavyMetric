@@ -3,7 +3,6 @@ import KpiCard from '../../ui/KpiCard'
 import Card from '../../ui/Card'
 
 const ETAPAS_VENTAS = ['Lead', 'Contactado', 'Calificado', 'Cotización', 'Negociación', 'Ganado', 'Perdido']
-const ETAPAS_POST   = ['Reclamo', 'Diagnóstico', 'OT', 'Repuestos', 'Resolución', 'Cierre']
 
 const PROB_ESTADO = {
   Lead: 0.1, Contactado: 0.2, Calificado: 0.4,
@@ -166,7 +165,7 @@ export default function AnalyticsCRM({ leads }) {
             <div className="text-center text-sm text-hm-muted py-6">Sin datos de embudo.</div>
           ) : (
             <div className="flex flex-col gap-2">
-              {kpis.caidas.slice(0, 5).map(({ de, a, caida, actual, siguiente }) => (
+              {kpis.caidas.slice(0, 5).map(({ de, a, caida }) => (
                 <div key={de} className="flex items-center gap-3">
                   <div className="flex-1 text-xs font-mono text-hm-muted truncate">
                     {de} → {a}

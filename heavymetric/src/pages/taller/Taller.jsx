@@ -26,8 +26,6 @@ import ModalConfirm from '../../components/ui/ModalConfirm'
 
 const PER_PAGE = 10
 
-const ESTADOS_OT_CERRADOS = ['completada', 'facturada', 'cerrada', 'cancelada']
-
 function getOrganizationId(auth) {
   return (
     auth?.profile?.organization_id ||
@@ -119,7 +117,6 @@ export default function Taller() {
     finalizarOT,
     createOT,
     cancelarOT,
-    refetchOts,
   } = useTaller({
     page: pageOT,
     pageSize: PER_PAGE,

@@ -206,7 +206,7 @@ export const getPendingMutationsCount = async () => {
   try {
     const keys = await pendingMutationsStore.keys()
     return keys.length
-  } catch (error) {
+  } catch {
     return 0
   }
 }

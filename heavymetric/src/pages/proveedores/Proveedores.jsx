@@ -281,7 +281,7 @@ function ProveedorDetalle({ proveedor, isOpen, onClose, onEdit }) {
       } else {
         toast.error(res.error || 'Error en OCR')
       }
-    } catch (err) {
+    } catch {
       toast.error('Error procesando OCR')
     } finally {
       setSavingCompra(false)

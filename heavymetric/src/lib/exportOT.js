@@ -70,7 +70,6 @@ export function exportarOTPdf(ot, maquina) {
     ['Patente', maquina?.patente],
     ['Horómetro', `${maquina?.horometro_actual || 0} hrs`],
   ]
-  const colW = 45
   campos.forEach(([lbl, val], i) => {
     const x = 14 + (i % 2) * 90
     if (i % 2 === 0 && i > 0) y += 12

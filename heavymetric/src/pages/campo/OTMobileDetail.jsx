@@ -48,12 +48,9 @@ export default function OTMobileDetail() {
   const outletContext = useOutletContext() || {}
   const isOffline = outletContext.isOffline ?? !safeOnline()
 
-  const activoSingular = taxonomia?.activoSingular || 'Activo'
   const ordenTrabajo = taxonomia?.ordenTrabajo || 'Orden de trabajo'
   const repuestoPlural = taxonomia?.repuestoPlural || 'Repuestos / Insumos'
   const tecnicoLabel = taxonomia?.tecnico || 'Técnico'
-  const medidor = taxonomia?.medidor || 'Uso'
-  const medidorUnidad = taxonomia?.medidorUnidad || 'hs'
 
   const [ot, setOt] = useState(null)
   const [loading, setLoading] = useState(true)

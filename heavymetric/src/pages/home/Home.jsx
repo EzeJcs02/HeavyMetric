@@ -12,7 +12,7 @@ const SPARK_STK = [15, 13, 14, 11, 10, 8, 9, 7, 6]
 const SPARK_USD = [40, 42, 45, 43, 50, 52, 55, 58, 62]
 
 // ─── Priority Item ────────────────────────────────────────────────────────────
-function PriorityRow({ category, categoryColor, title, description, borderColor }) {
+function PriorityRow({ category, title, description, borderColor }) {
   return (
     <a
       href="#"
