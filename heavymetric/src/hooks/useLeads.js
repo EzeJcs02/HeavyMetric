@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -94,22 +94,17 @@ export function calcularScore(rubro, origen, mensaje, empresa) {
 export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos' } = {}) {
   const auth = useAuth()
   const organizationId = getOrganizationId(auth)
+  const queryClient = useQueryClient()
 
-  const [leads, setLeads] = useState([])
-  const [totalCount, setTotalCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  const fetchLeads = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      if (!organizationId) {
-        setLeads([])
-        setTotalCount(0)
-        return
-      }
+  const {
+    data = { leads: [], totalCount: 0 },
+    isLoading: loading,
+    error: queryError,
+    refetch: fetchLeads,
+  } = useQuery({
+    queryKey: ['leads', organizationId, page, pageSize, search, estado],
+    queryFn: async ({ signal }) => {
+      await waitForQuery(400, signal)
 
       let query = supabase
         .from('leads')
@@ -135,17 +130,29 @@ export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos
       const to = from + pageSize - 1
       query = query.range(from, to).order('created_at', { ascending: false })
 
-      const { data, count, error: err } = await query
+      const { data: leads, count, error } = await query
+      if (error) throw error
 
-      if (err) throw err
-      setLeads(data || [])
-      setTotalCount(count || 0)
-    } catch (err) {
-      setError(err.message || 'Error al cargar leads')
-    } finally {
-      setLoading(false)
-    }
-  }, [organizationId, page, pageSize, search, estado])
+      return { leads: leads || [], totalCount: count || 0 }
+    },
+    enabled: !!organizationId,
+  })
+
+  const invalidateLeads = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['leads', organizationId] }),
+      queryClient.invalidateQueries({ queryKey: ['leads_kpis', organizationId] }),
+      queryClient.invalidateQueries({ queryKey: ['leads_options', organizationId] }),
+    ])
+  }
+
+  const invalidateClientes = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['clientes', organizationId] }),
+      queryClient.invalidateQueries({ queryKey: ['clientes_kpis', organizationId] }),
+      queryClient.invalidateQueries({ queryKey: ['clientes_options', organizationId] }),
+    ])
+  }
 
   const crearLead = async (payload) => {
     if (!organizationId) throw new Error('No se pudo determinar la organización')
@@ -174,7 +181,7 @@ export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos
       .single()
 
     if (err) throw err
-    await fetchLeads()
+    await invalidateLeads()
     return data
   }
 
@@ -201,7 +208,7 @@ export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos
       .eq('organization_id', organizationId)
 
     if (err) throw err
-    await fetchLeads()
+    await invalidateLeads()
   }
 
   const avanzarEstado = async (id, nuevoEstado, estadoAnterior) => {
@@ -231,7 +238,7 @@ export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos
       if (actividadError) throw actividadError
     }
 
-    await fetchLeads()
+    await invalidateLeads()
   }
 
   const registrarContacto = async (id) => {
@@ -260,7 +267,7 @@ export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos
 
     if (actividadError) throw actividadError
 
-    await fetchLeads()
+    await invalidateLeads()
   }
 
   const convertirACliente = async (lead) => {
@@ -305,7 +312,7 @@ export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos
 
     if (actividadError) throw actividadError
 
-    await fetchLeads()
+    await Promise.all([invalidateLeads(), invalidateClientes()])
     return cliente
   }
 
@@ -346,6 +353,7 @@ export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos
 
     if (actividadError) throw actividadError
 
+    await invalidateLeads()
     return tx
   }
 
@@ -385,22 +393,15 @@ export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos
 
     if (actividadError) throw actividadError
 
-    await fetchLeads()
+    await invalidateLeads()
     return newLead
   }
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchLeads()
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [fetchLeads])
-
   return {
-    leads,
-    totalCount,
+    leads: data.leads,
+    totalCount: data.totalCount,
     loading,
-    error,
+    error: queryError ? (queryError.message || 'Error al cargar leads') : null,
     fetchLeads,
     crearLead,
     actualizarLead,
@@ -415,27 +416,22 @@ export function useLeads({ page = 1, pageSize = 50, search = '', estado = 'todos
 export function useLeadsKpis() {
   const auth = useAuth()
   const organizationId = getOrganizationId(auth)
-  
-  const [kpis, setKpis] = useState({ total: 0, abiertos: 0, cotizados: 0, ganados: 0, sinSeguimiento: 0 })
-  const [loading, setLoading] = useState(true)
 
-  const fetchKpis = useCallback(async () => {
-    if (!organizationId) {
-      setLoading(false)
-      return
-    }
-
-    try {
-      setLoading(true)
-
+  const {
+    data: kpis = { total: 0, abiertos: 0, cotizados: 0, ganados: 0, sinSeguimiento: 0 },
+    isLoading: loading,
+    refetch: fetchKpis,
+  } = useQuery({
+    queryKey: ['leads_kpis', organizationId],
+    queryFn: async () => {
       const baseQuery = () => supabase.from('leads').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId)
 
       const [
-        { count: total },
-        { count: abiertos },
-        { count: ganados },
-        { count: cotizados },
-        { count: sinSeguimiento }
+        { count: total, error: totalError },
+        { count: abiertos, error: abiertosError },
+        { count: ganados, error: ganadosError },
+        { count: cotizados, error: cotizadosError },
+        { count: sinSeguimiento, error: seguimientoError }
       ] = await Promise.all([
         baseQuery(),
         baseQuery().not('estado', 'in', '("Ganado","Perdido")'),
@@ -444,23 +440,19 @@ export function useLeadsKpis() {
         baseQuery().is('proximo_seguimiento', null).not('estado', 'in', '("Ganado","Perdido")')
       ])
 
-      setKpis({
+      const error = totalError || abiertosError || ganadosError || cotizadosError || seguimientoError
+      if (error) throw error
+
+      return {
         total: total || 0,
         abiertos: abiertos || 0,
         ganados: ganados || 0,
         cotizados: cotizados || 0,
         sinSeguimiento: sinSeguimiento || 0,
-      })
-    } catch (error) {
-      console.error('Error fetching Leads KPIs:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [organizationId])
-
-  useEffect(() => {
-    fetchKpis()
-  }, [fetchKpis])
+      }
+    },
+    enabled: !!organizationId,
+  })
 
   return { kpis, loading, fetchKpis }
 }
@@ -469,18 +461,13 @@ export function useLeadsOptions() {
   const auth = useAuth()
   const organizationId = getOrganizationId(auth)
 
-  const [opciones, setOpciones] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  const fetchOptions = useCallback(async () => {
-    if (!organizationId) {
-      setOpciones([])
-      setLoading(false)
-      return
-    }
-
-    try {
-      setLoading(true)
+  const {
+    data: opciones = [],
+    isLoading: loading,
+    refetch: fetchOptions,
+  } = useQuery({
+    queryKey: ['leads_options', organizationId],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('leads')
         .select('id, nombre, empresa, telefono, email')
@@ -488,18 +475,10 @@ export function useLeadsOptions() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setOpciones(data || [])
-    } catch (error) {
-      console.error('Error fetching leads options:', error)
-      setOpciones([])
-    } finally {
-      setLoading(false)
-    }
-  }, [organizationId])
-
-  useEffect(() => {
-    fetchOptions()
-  }, [fetchOptions])
+      return data || []
+    },
+    enabled: !!organizationId,
+  })
 
   return { opciones, loading, fetchOptions }
 }
@@ -620,4 +599,23 @@ export async function completarTarea(tareaId, leadId, organizationIdParam = null
     null,
     scope.organizationId
   )
+}
+
+function waitForQuery(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      const error = new Error('Query cancelada')
+      error.name = 'AbortError'
+      reject(error)
+    }
+
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+
+    if (signal?.aborted) onAbort()
+    else signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
